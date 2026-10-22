@@ -1,10 +1,11 @@
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+from app.config import Settings
 
 
 def test_health_and_published_schema():
-    with TestClient(create_app()) as client:
+    with TestClient(create_app(Settings(database_url="sqlite://"))) as client:
         response = client.get("/api/v1/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
