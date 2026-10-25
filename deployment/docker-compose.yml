@@ -1,0 +1,51 @@
+version: '3.8'
+
+# Rutgers AI4Good 2026 — Production Compose Stack (Phase 10)
+# Orchestrates Frontend, Backend, and Persistent SQLite Storage
+
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile.backend
+    container_name: ai4good-backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      - DATABASE_URL=sqlite:////data/ai4good.db
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost,http://localhost:80,http://127.0.0.1}
+      - SECRET_KEY=${SECRET_KEY:-change-this-in-production-super-secret-key-ai4good}
+      - ENVIRONMENT=production
+      - AI_PROVIDER_API_KEY=${AI_PROVIDER_API_KEY:-}
+    volumes:
+      # CRITICAL: Named volume ensures SQLite database survives container destroys, reloads, and updates
+      - sqlite_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile.frontend
+    container_name: ai4good-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  # Durable storage volume for SQLite single-writer database
+  sqlite_data:
+    name: ai4good_sqlite_data
