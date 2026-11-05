@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { ApiClient, defaultApiClient } from '../../api/client';
@@ -17,6 +17,362 @@ export interface LearningViewProps {
   onProgressUpdate?: (progress: Record<string, ProgressItem>) => void;
 }
 
+interface Scenario {
+  name: string;
+  role: string;
+  situation: string;
+  takeaway: string;
+  tag: string;
+}
+
+const TOPIC_SCENARIOS: Record<string, Scenario[]> = {
+  'cd-basics': [
+    {
+      name: 'Elena R.',
+      role: 'Tuition Deadline Saver',
+      situation: 'Has $3,000 saved for college tuition due in exactly 12 months.',
+      takeaway: 'She chooses a 1-year CD at 5.0% APY. Her return is locked at $150 guaranteed with 0% market risk.',
+      tag: 'Targeted Goal',
+    },
+    {
+      name: 'Jamal M.',
+      role: 'Emergency Cash Lesson',
+      situation: 'Locked all his $800 savings into a 2-year CD. Two months later his laptop motherboard died.',
+      takeaway: 'Breaking the CD early triggered a 90-day early withdrawal penalty. Lesson: Keep emergency funds liquid!',
+      tag: 'Liquidity Caution',
+    },
+    {
+      name: 'Marcus & Sophia',
+      role: 'CD Ladder Strategists',
+      situation: 'Split $8,000 into 4 separate CDs maturing every 6 months (6, 12, 18, 24 mo).',
+      takeaway: 'Gets higher locked yields while ensuring fresh cash becomes accessible every 6 months.',
+      tag: 'CD Ladder',
+    },
+  ],
+  'hysa-basics': [
+    {
+      name: 'Maya K.',
+      role: 'Working Student',
+      situation: 'Keeps a $1,200 emergency fund in a digital bank paying 4.5% APY.',
+      takeaway: 'Earns $54/year in interest instead of $0.12 at her old brick-and-mortar bank, and can withdraw anytime via ACH.',
+      tag: 'Emergency Cushion',
+    },
+    {
+      name: 'David L.',
+      role: 'Rate-Watch Saver',
+      situation: 'Noticed his HYSA yield moved from 4.75% to 4.25% after the Federal Reserve cut benchmark interest rates.',
+      takeaway: 'Recognized that unlike fixed CDs, HYSA yields are variable and float with macroeconomic conditions.',
+      tag: 'Variable Yield',
+    },
+  ],
+  'stocks-basics': [
+    {
+      name: 'Carlos S.',
+      role: 'First-Generation Investor',
+      situation: 'Purchased 2 shares of an enterprise software company for $150.',
+      takeaway: 'Understands he is an equity co-owner. Price fluctuates day-to-day, but he participates in long-term corporate earnings and dividends.',
+      tag: 'Equity Ownership',
+    },
+    {
+      name: 'Amina T.',
+      role: 'Market Volatility Awareness',
+      situation: 'Experienced a 10% temporary dip during market earnings season.',
+      takeaway: 'Learned why stocks are suited for multi-year horizons rather than money needed next semester.',
+      tag: 'Market Risk',
+    },
+  ],
+  'etf-basics': [
+    {
+      name: 'Jordan W.',
+      role: 'Index Fund Saver',
+      situation: 'Invests $100/month into an S&P 500 index ETF (SPY/VOO) with a 0.03% expense ratio.',
+      takeaway: 'Owns 500 top companies with one trade. The annual fee is only 30 cents per $1,000 invested.',
+      tag: 'Instant Diversification',
+    },
+    {
+      name: 'Chloe P.',
+      role: 'Single Stock vs ETF Test',
+      situation: 'Compared owning 1 retail stock vs a broad-market ETF when that retail chain slumped.',
+      takeaway: 'Broad diversification cushioned the impact; the index stayed resilient even as one company dropped.',
+      tag: 'Risk Reduction',
+    },
+  ],
+  'options-basics': [
+    {
+      name: 'Kai P.',
+      role: 'Educational Hedger',
+      situation: 'Simulates buying a Put option contract to learn portfolio hedging during volatility.',
+      takeaway: 'Options have fixed expiration dates. Leverage means 100% loss of paid premium is common; never risk essential cash.',
+      tag: 'Educational Safety',
+    },
+  ],
+};
+
+const QUIZ_HINTS: Record<string, string> = {
+  q1: 'Hint: A CD involves leaving a fixed sum deposited with a bank for a set term in return for guaranteed interest.',
+  q2: 'Hint: Standard FDIC and NCUA coverage protects consumer deposits up to a $250,000 limit per depositor.',
+  q3: 'Hint: Banks deter savers from pulling money before maturity by imposing an early withdrawal penalty.',
+  q4: 'Hint: If interest rates across the economy rise while your money is locked in at an older lower rate, you experience opportunity cost.',
+  'q-hysa-1': 'Hint: HYSAs offer high yields with complete liquidity to deposit and withdraw money at any time.',
+  'q-hysa-2': 'Hint: Online banks avoid the heavy costs of physical retail branches and pass the savings to consumers.',
+  'q-hysa-3': 'Hint: HYSA rates are variable—they adjust dynamically when the Federal Reserve shifts benchmark rates.',
+  'q-hysa-4': 'Hint: Emergency money needs to be available on short notice without penalties, making liquid HYSAs ideal.',
+  'q-stock-1': 'Hint: Common stock grants actual fractional ownership equity in the issuing corporation.',
+  'q-stock-2': 'Hint: Stock prices move with continuous market supply, demand, company profits, and macroeconomic trends.',
+  'q-stock-3': 'Hint: Common stocks represent market risk investments and do not carry FDIC deposit insurance.',
+  'q-stock-4': 'Hint: Cash distributions paid out of corporate earnings to stockholders are called dividends.',
+  'q-etf-1': 'Hint: An ETF bundles an entire basket of stocks or bonds together and trades like a single stock on an exchange.',
+  'q-etf-2': 'Hint: Spreading investments across hundreds of companies in one fund provides instant portfolio diversification.',
+  'q-etf-3': 'Hint: The ongoing annual percentage fee deducted to manage the fund is called the expense ratio.',
+  'q-etf-4': 'Hint: ETFs trade intraday with real-time price updates while stock markets are open.',
+  'q-opt-1': 'Hint: Call options give the right to buy shares; Put options give the right to sell shares.',
+  'q-opt-2': 'Hint: Options contracts have an expiration date after which expired contracts have zero value.',
+  'q-opt-3': 'Hint: Options carry high leverage risk and buyers can lose 100% of the premium paid.',
+  'q-opt-4': 'Hint: The cash price paid upfront to purchase an option contract is known as the option premium.',
+};
+
+function renderFormattedInlineText(text: string) {
+  // Parse **bold** into real strong elements
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return (
+        <strong key={i} className="font-bold text-slate-900">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
+interface ParsedSection {
+  title: string;
+  lines: string[];
+}
+
+function parseLessonMarkdown(markdown: string): ParsedSection[] {
+  const rawSections = markdown.split(/(?=###\s+)/g);
+  const sections: ParsedSection[] = [];
+
+  for (const raw of rawSections) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    const lines = trimmed.split('\n');
+    let title = 'Core Concepts';
+    let contentLines = lines;
+
+    if (lines[0].startsWith('### ')) {
+      title = lines[0].replace('### ', '').trim();
+      contentLines = lines.slice(1);
+    }
+
+    sections.push({
+      title,
+      lines: contentLines,
+    });
+  }
+
+  return sections;
+}
+
+function renderSectionLines(lines: string[]) {
+  const elements: React.ReactNode[] = [];
+  let currentList: { type: 'bullet' | 'ordered'; items: string[] } | null = null;
+
+  const flushList = () => {
+    if (!currentList) return;
+    if (currentList.type === 'ordered') {
+      elements.push(
+        <div key={elements.length} className="space-y-2.5 my-3">
+          {currentList.items.map((item, idx) => (
+            <div
+              key={idx}
+              className="flex items-start gap-3 bg-white/95 p-3 rounded-xl border border-slate-200/90 shadow-2xs hover:border-blue-300 transition-colors"
+            >
+              <span className="w-6 h-6 rounded-lg bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                {idx + 1}
+              </span>
+              <div className="text-xs sm:text-sm leading-relaxed text-slate-700 flex-1">
+                {renderFormattedInlineText(item)}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    } else {
+      elements.push(
+        <div key={elements.length} className="space-y-2 my-3">
+          {currentList.items.map((item, idx) => (
+            <div
+              key={idx}
+              className="flex items-start gap-2.5 bg-white/95 p-3 rounded-xl border border-slate-200/90 shadow-2xs hover:border-emerald-300 transition-colors"
+            >
+              <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
+                ✓
+              </span>
+              <div className="text-xs sm:text-sm leading-relaxed text-slate-700 flex-1">
+                {renderFormattedInlineText(item)}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    currentList = null;
+  };
+
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushList();
+      return;
+    }
+
+    // Numbered item: e.g. "1. **Principal Commitment**: ..."
+    const numMatch = trimmed.match(/^\d+\.\s+(.*)$/);
+    if (numMatch) {
+      if (!currentList || currentList.type !== 'ordered') {
+        flushList();
+        currentList = { type: 'ordered', items: [] };
+      }
+      currentList.items.push(numMatch[1]);
+      return;
+    }
+
+    // Bullet item: e.g. "- **Targeted Goals**: ..."
+    const bulletMatch = trimmed.match(/^-\s+(.*)$/);
+    if (bulletMatch) {
+      if (!currentList || currentList.type !== 'bullet') {
+        flushList();
+        currentList = { type: 'bullet', items: [] };
+      }
+      currentList.items.push(bulletMatch[1]);
+      return;
+    }
+
+    // Paragraph
+    flushList();
+    elements.push(
+      <p key={elements.length} className="leading-relaxed text-slate-700 my-2">
+        {renderFormattedInlineText(trimmed)}
+      </p>
+    );
+  });
+
+  flushList();
+  return elements;
+}
+
+function RichCurriculumContent({ body, fontSize }: { body: string; fontSize: 'normal' | 'large' }) {
+  const sections = useMemo(() => parseLessonMarkdown(body), [body]);
+
+  return (
+    <div className="space-y-4">
+      {/* Visual Learning Banner */}
+      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-4 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-sm border border-blue-800">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-600/60 border border-blue-400 flex items-center justify-center text-lg">
+            🎓
+          </div>
+          <div>
+            <h4 className="text-sm font-bold text-white">Interactive Concept Curriculum</h4>
+            <p className="text-xs text-blue-200">
+              {sections.length} core modular concept blocks • Read &amp; master before testing quiz
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="px-2.5 py-1 rounded-full bg-blue-800/80 text-blue-200 border border-blue-700 font-semibold">
+            ⏱️ ~3 min read
+          </span>
+          <span className="px-2.5 py-1 rounded-full bg-emerald-900/80 text-emerald-300 border border-emerald-700 font-semibold">
+            ✓ 100% Plain English
+          </span>
+        </div>
+      </div>
+
+      {/* Structured Modular Concept Cards */}
+      <div className="space-y-4">
+        {sections.map((section, sIdx) => {
+          const lower = section.title.toLowerCase();
+          const isWarning =
+            lower.includes('penalty') ||
+            lower.includes('risk') ||
+            lower.includes('trade-off') ||
+            lower.includes('caution') ||
+            lower.includes('mandatory');
+          const isSafety =
+            lower.includes('safety') ||
+            lower.includes('protection') ||
+            lower.includes('fdic') ||
+            lower.includes('sipc');
+          const isDefinition =
+            lower.includes('what is') || lower.includes('introduction') || lower.includes('primer');
+          const isAction =
+            lower.includes('when to choose') ||
+            lower.includes('role') ||
+            lower.includes('how') ||
+            lower.includes('instant') ||
+            lower.includes('simulator');
+
+          const cardStyle = isWarning
+            ? 'border-amber-300 bg-gradient-to-br from-amber-50/70 via-white to-orange-50/40 text-amber-950'
+            : isSafety
+            ? 'border-emerald-300 bg-gradient-to-br from-emerald-50/70 via-white to-teal-50/40 text-emerald-950'
+            : isDefinition
+            ? 'border-blue-300 bg-gradient-to-br from-blue-50/70 via-white to-indigo-50/40 text-blue-950'
+            : isAction
+            ? 'border-indigo-300 bg-gradient-to-br from-indigo-50/60 via-white to-purple-50/30 text-indigo-950'
+            : 'border-slate-300 bg-gradient-to-br from-slate-50/80 via-white to-slate-100/40 text-slate-900';
+
+          const badgeText = isWarning
+            ? '⚠️ Trade-Off & Risk Alert'
+            : isSafety
+            ? '🛡️ Federal & Custodial Safety'
+            : isDefinition
+            ? '💡 Core Concept Definition'
+            : isAction
+            ? '🎯 Strategy & Real-World Use'
+            : '📘 Market Mechanics';
+
+          const badgeStyle = isWarning
+            ? 'bg-amber-100 text-amber-900 border-amber-300'
+            : isSafety
+            ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+            : isDefinition
+            ? 'bg-blue-100 text-blue-900 border-blue-300'
+            : isAction
+            ? 'bg-indigo-100 text-indigo-900 border-indigo-300'
+            : 'bg-slate-100 text-slate-800 border-slate-300';
+
+          return (
+            <div
+              key={sIdx}
+              className={`rounded-2xl border p-5 shadow-xs hover:shadow-md transition-all duration-150 ${cardStyle}`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-3 mb-3">
+                <h4 className="text-sm sm:text-base font-bold tracking-tight flex items-center gap-2">
+                  <span>{section.title}</span>
+                </h4>
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${badgeStyle}`}
+                >
+                  {badgeText}
+                </span>
+              </div>
+
+              <div className={`space-y-3 ${fontSize === 'large' ? 'text-base' : 'text-sm'}`}>
+                {renderSectionLines(section.lines)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function LearningView({
   apiClient = defaultApiClient,
   useInternalScoring,
@@ -28,14 +384,25 @@ export function LearningView({
   // Navigation / Selection
   const [selectedTopicId, setSelectedTopicId] = useState<string>(initialTopicId);
 
+  // View presentation mode: 'interactive' | 'reader' | 'matrix'
+  const [activeTab, setActiveTab] = useState<'interactive' | 'reader' | 'matrix'>('interactive');
+  const [fontSize, setFontSize] = useState<'normal' | 'large'>('normal');
+
+  // Interactive Mini-Simulator State
+  const [simDeposit, setSimDeposit] = useState<number>(1000);
+  const [simApy, setSimApy] = useState<number>(5.0);
+  const [simMonths, setSimMonths] = useState<number>(12);
+
+  // Hint expansion tracking per question id
+  const [openHints, setOpenHints] = useState<Record<string, boolean>>({});
+
   // Active quiz state for current topic
-  // Map of question_id -> option_id
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [attemptResult, setAttemptResult] = useState<QuizAttemptResponse | null>(null);
 
-  // Progress state tracked locally (can be synchronized with API)
+  // Progress state tracked locally
   const [progressMap, setProgressMap] = useState<Record<string, ProgressItem>>(() => {
     const initial: Record<string, ProgressItem> = {};
     for (const topic of LESSON_SUMMARIES) {
@@ -63,6 +430,7 @@ export function LearningView({
   };
 
   const completedCount = Object.values(progressMap).filter((p) => p.completed).length;
+  const scenarios = TOPIC_SCENARIOS[selectedTopicId] || TOPIC_SCENARIOS['cd-basics'];
 
   // Handle switching topic
   const handleSelectTopic = (topicId: string) => {
@@ -70,6 +438,17 @@ export function LearningView({
     setSelectedAnswers({});
     setValidationError(null);
     setAttemptResult(null);
+    setOpenHints({});
+    // Reset simulator defaults based on topic
+    if (topicId === 'hysa-basics') {
+      setSimApy(4.5);
+      setSimMonths(12);
+    } else if (topicId === 'cd-basics') {
+      setSimApy(5.0);
+      setSimMonths(12);
+    } else {
+      setSimDeposit(1000);
+    }
   };
 
   // Handle selecting an option
@@ -83,15 +462,18 @@ export function LearningView({
     }
   };
 
+  // Toggle question hint
+  const toggleHint = (qId: string) => {
+    setOpenHints((prev) => ({ ...prev, [qId]: !prev[qId] }));
+  };
+
   // Handle quiz submission
   const handleSubmitQuiz = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
 
     // Validate that every question has an answer
-    const unansweredQuestions = activeQuiz.questions.filter(
-      (q) => !selectedAnswers[q.id]
-    );
+    const unansweredQuestions = activeQuiz.questions.filter((q) => !selectedAnswers[q.id]);
 
     if (unansweredQuestions.length > 0) {
       setValidationError(
@@ -113,7 +495,6 @@ export function LearningView({
     try {
       let response: QuizAttemptResponse;
 
-      // In tests, local fixture mode, or when requested, use pure internal scoring evaluator
       const shouldScoreLocally =
         useInternalScoring ?? (apiClient.fixtureMode || typeof process !== 'undefined');
 
@@ -176,14 +557,23 @@ export function LearningView({
     setAttemptResult(null);
   };
 
+  // Simulator math
+  const calculatedInterest = (simDeposit * (simApy / 100) * (simMonths / 12));
+  const calculatedTotal = simDeposit + calculatedInterest;
+  const penaltyEst = (simDeposit * (simApy / 100) * (3 / 12)); // 90-day penalty
+
+  const answeredCount = Object.keys(selectedAnswers).length;
+  const totalQuestions = activeQuiz.questions.length;
+  const progressPercent = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
+
   return (
     <div className="space-y-8">
       {/* View Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Financial Education & Learning</h2>
+          <h2 className="text-xl font-bold text-slate-900">Financial Education &amp; Learning</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Original starter curriculum covering savings, equities, and derivatives with interactive knowledge checks.
+            Interactive, inclusive starter curriculum covering savings, equities, and derivatives with hands-on scenario simulators.
           </p>
         </div>
 
@@ -245,7 +635,7 @@ export function LearningView({
 
         {/* Content Area: Lesson Reading + Sources + Progress + Quiz */}
         <div className="lg:col-span-8 space-y-6">
-          {/* Lesson Header Card */}
+          {/* Lesson Card */}
           <Card className="border-slate-200">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 mb-4">
               <div className="space-y-1">
@@ -262,15 +652,306 @@ export function LearningView({
                 </div>
                 <h3 className="text-xl font-bold text-slate-900">{activeLesson.title}</h3>
               </div>
+
+              {/* View Presentation Switcher & Text Size Accessibility */}
+              <div className="flex items-center gap-2">
+                <div className="flex rounded-lg border border-slate-200 p-0.5 bg-slate-100 text-xs font-medium">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('interactive')}
+                    className={`px-2.5 py-1 rounded-md transition ${
+                      activeTab === 'interactive'
+                        ? 'bg-white text-blue-700 shadow-sm font-semibold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    💡 Interactive Explorer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('reader')}
+                    className={`px-2.5 py-1 rounded-md transition ${
+                      activeTab === 'reader'
+                        ? 'bg-white text-blue-700 shadow-sm font-semibold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    📖 Full Guide
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('matrix')}
+                    className={`px-2.5 py-1 rounded-md transition ${
+                      activeTab === 'matrix'
+                        ? 'bg-white text-blue-700 shadow-sm font-semibold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    ⚖️ Cheat Sheet
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  title="Toggle larger reading font size"
+                  onClick={() => setFontSize((f) => (f === 'normal' ? 'large' : 'normal'))}
+                  className="px-2 py-1 text-xs font-semibold rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                >
+                  {fontSize === 'normal' ? 'Aa+' : 'Aa-'}
+                </button>
+              </div>
             </div>
 
-            {/* Lesson Body */}
-            <div className="prose prose-slate max-w-none text-slate-700 text-sm leading-relaxed whitespace-pre-line mb-6">
-              {activeLesson.body}
-            </div>
+            {/* TAB 1: Interactive Explorer with Simulator & Scenarios */}
+            {activeTab === 'interactive' && (
+              <div className="space-y-6">
+                {/* Visual Highlights Badges */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-3 rounded-lg bg-blue-50/70 border border-blue-200">
+                    <span className="text-[11px] font-bold text-blue-700 uppercase block">Category</span>
+                    <span className="text-sm font-bold text-blue-950">{activeLesson.topic}</span>
+                  </div>
+                  <div className="p-3 rounded-lg bg-emerald-50/70 border border-emerald-200">
+                    <span className="text-[11px] font-bold text-emerald-700 uppercase block">Protection</span>
+                    <span className="text-sm font-bold text-emerald-950">
+                      {selectedTopicId.includes('cd') || selectedTopicId.includes('hysa')
+                        ? '🛡️ FDIC ($250k)'
+                        : selectedTopicId.includes('options')
+                        ? '⚠️ None (Leverage)'
+                        : '🏛️ SIPC ($500k)'}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-lg bg-amber-50/70 border border-amber-200">
+                    <span className="text-[11px] font-bold text-amber-700 uppercase block">Liquidity</span>
+                    <span className="text-sm font-bold text-amber-950">
+                      {selectedTopicId.includes('cd')
+                        ? '⏳ Locked Term'
+                        : selectedTopicId.includes('hysa')
+                        ? '💧 Daily Access'
+                        : '📊 Market Hours'}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-lg bg-purple-50/70 border border-purple-200">
+                    <span className="text-[11px] font-bold text-purple-700 uppercase block">Return Type</span>
+                    <span className="text-sm font-bold text-purple-950">
+                      {selectedTopicId.includes('cd')
+                        ? '🔒 Fixed APY'
+                        : selectedTopicId.includes('hysa')
+                        ? '📈 Variable APY'
+                        : '📊 Capital & Dividends'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Hands-On Mini-Simulator Widget */}
+                <div className="rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50/60 via-slate-50 to-blue-50/40 p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-bold text-indigo-950 flex items-center gap-1.5">
+                        <span>🧮</span> Interactive Scenario Simulator
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Adjust numbers below to see how this instrument works with real dollars.
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                      Live Preview
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1">
+                        Deposit Amount: ${simDeposit.toLocaleString()}
+                      </label>
+                      <input
+                        type="range"
+                        min="100"
+                        max="20000"
+                        step="100"
+                        value={simDeposit}
+                        onChange={(e) => setSimDeposit(Number(e.target.value))}
+                        className="w-full accent-blue-600"
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                        <span>$100</span>
+                        <span>$10k</span>
+                        <span>$20k</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1">
+                        Annual Rate (APY): {simApy.toFixed(2)}%
+                      </label>
+                      <input
+                        type="range"
+                        min="0.5"
+                        max="8.0"
+                        step="0.25"
+                        value={simApy}
+                        onChange={(e) => setSimApy(Number(e.target.value))}
+                        className="w-full accent-blue-600"
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                        <span>0.5%</span>
+                        <span>4.0%</span>
+                        <span>8.0%</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1">
+                        Time Horizon: {simMonths} Months
+                      </label>
+                      <input
+                        type="range"
+                        min="3"
+                        max="60"
+                        step="3"
+                        value={simMonths}
+                        onChange={(e) => setSimMonths(Number(e.target.value))}
+                        className="w-full accent-blue-600"
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                        <span>3 mo</span>
+                        <span>1 yr</span>
+                        <span>5 yr</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Calculated Result Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-indigo-100">
+                    <div className="p-3 rounded-lg bg-white border border-indigo-100 shadow-xs">
+                      <span className="text-[11px] text-slate-500 block">Estimated Interest Earned</span>
+                      <span className="text-lg font-black text-emerald-600 font-mono">
+                        +${calculatedInterest.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-lg bg-white border border-indigo-100 shadow-xs">
+                      <span className="text-[11px] text-slate-500 block">Total Balance at End</span>
+                      <span className="text-lg font-black text-slate-900 font-mono">
+                        ${calculatedTotal.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-lg bg-white border border-indigo-100 shadow-xs">
+                      <span className="text-[11px] text-slate-500 block">
+                        {selectedTopicId.includes('cd') ? 'Early Break Penalty (90d)' : 'Traditional Bank (0.01%)'}
+                      </span>
+                      <span className="text-xs font-semibold text-slate-700 font-mono">
+                        {selectedTopicId.includes('cd')
+                          ? `-$${penaltyEst.toFixed(2)} if broken early`
+                          : `$${(simDeposit * 0.0001).toFixed(2)} (Earn $${(calculatedInterest - simDeposit * 0.0001).toFixed(2)} more!)`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Inclusive Real-World Relatable Personas */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Inclusive Real-World Scenarios
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {scenarios.map((sc, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-blue-200 transition space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-900">{sc.name}</span>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                            {sc.tag}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600">{sc.situation}</p>
+                        <div className="text-xs font-medium text-blue-900 bg-blue-50/60 p-2 rounded border border-blue-100">
+                          <strong>Key Takeaway:</strong> {sc.takeaway}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Complete Lesson Body Text with Rich Modular Cards */}
+                <div className="pt-4 border-t border-slate-200">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
+                    Core Curriculum Overview
+                  </h4>
+                  <RichCurriculumContent body={activeLesson.body} fontSize={fontSize} />
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: Full Formatted Reader */}
+            {activeTab === 'reader' && (
+              <div className="space-y-4">
+                <RichCurriculumContent body={activeLesson.body} fontSize={fontSize} />
+              </div>
+            )}
+
+            {/* TAB 3: Comparison Matrix */}
+            {activeTab === 'matrix' && (
+              <div className="space-y-4">
+                <div className="overflow-x-auto rounded-lg border border-slate-200">
+                  <table className="min-w-full text-xs text-left text-slate-700">
+                    <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="p-3">Instrument</th>
+                        <th className="p-3">Safety / Guarantee</th>
+                        <th className="p-3">Liquidity</th>
+                        <th className="p-3">Ideal Horizon</th>
+                        <th className="p-3">Primary Risk</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      <tr className={selectedTopicId === 'cd-basics' ? 'bg-blue-50/60 font-semibold' : ''}>
+                        <td className="p-3 font-bold">Certificates of Deposit (CD)</td>
+                        <td className="p-3 text-emerald-700">🛡️ FDIC ($250k)</td>
+                        <td className="p-3">Locked until maturity</td>
+                        <td className="p-3">3 months – 5 years</td>
+                        <td className="p-3 text-amber-700">Early withdrawal penalty</td>
+                      </tr>
+                      <tr className={selectedTopicId === 'hysa-basics' ? 'bg-blue-50/60 font-semibold' : ''}>
+                        <td className="p-3 font-bold">High-Yield Savings (HYSA)</td>
+                        <td className="p-3 text-emerald-700">🛡️ FDIC ($250k)</td>
+                        <td className="p-3 text-emerald-700">Daily complete access</td>
+                        <td className="p-3">Immediate – 2 years</td>
+                        <td className="p-3 text-amber-700">Floating/variable rates</td>
+                      </tr>
+                      <tr className={selectedTopicId === 'stocks-basics' ? 'bg-blue-50/60 font-semibold' : ''}>
+                        <td className="p-3 font-bold">Individual Stocks</td>
+                        <td className="p-3 text-slate-500">None (Market Risk)</td>
+                        <td className="p-3">Market hours (T+1)</td>
+                        <td className="p-3">3 – 10+ years</td>
+                        <td className="p-3 text-red-700">Single company volatility</td>
+                      </tr>
+                      <tr className={selectedTopicId === 'etf-basics' ? 'bg-blue-50/60 font-semibold' : ''}>
+                        <td className="p-3 font-bold">Index ETFs</td>
+                        <td className="p-3 text-slate-500">None (Market Risk)</td>
+                        <td className="p-3">Market hours (T+1)</td>
+                        <td className="p-3">5+ years</td>
+                        <td className="p-3 text-amber-700">Broad market downturns</td>
+                      </tr>
+                      <tr className={selectedTopicId === 'options-basics' ? 'bg-blue-50/60 font-semibold' : ''}>
+                        <td className="p-3 font-bold">Options Contracts</td>
+                        <td className="p-3 text-red-600 font-bold">None (High Leverage)</td>
+                        <td className="p-3">Market hours (expires)</td>
+                        <td className="p-3">Days to months</td>
+                        <td className="p-3 text-red-700 font-bold">100% loss of premium</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Keep core text in DOM for reader tab */}
+                <div className="sr-only">{activeLesson.body}</div>
+              </div>
+            )}
 
             {/* Authoritative Sources */}
-            <div className="border-t border-slate-200 pt-4">
+            <div className="border-t border-slate-200 pt-4 mt-6">
               <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
                 Authoritative Primary Sources
               </h4>
@@ -337,9 +1018,22 @@ export function LearningView({
                 </p>
               </div>
 
-              <span className="text-xs font-semibold px-2 py-1 rounded bg-blue-50 text-blue-800 border border-blue-200">
-                Pass Threshold: 80%
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold px-2 py-1 rounded bg-blue-50 text-blue-800 border border-blue-200">
+                  Pass Threshold: 80%
+                </span>
+                <span className="text-xs font-mono font-bold px-2 py-1 rounded bg-slate-100 text-slate-700">
+                  {answeredCount}/{totalQuestions} Answered ({progressPercent}%)
+                </span>
+              </div>
+            </div>
+
+            {/* Visual Progress Bar */}
+            <div className="w-full bg-slate-100 h-2 rounded-full mb-6 overflow-hidden">
+              <div
+                className="bg-blue-600 h-full transition-all duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
             </div>
 
             {/* Validation Alert */}
@@ -461,6 +1155,8 @@ export function LearningView({
               <form onSubmit={handleSubmitQuiz} className="space-y-6">
                 {activeQuiz.questions.map((question, qIdx) => {
                   const promptId = `prompt-${question.id}`;
+                  const hintText = QUIZ_HINTS[question.id];
+                  const isHintOpen = !!openHints[question.id];
 
                   return (
                     <fieldset
@@ -469,12 +1165,32 @@ export function LearningView({
                       aria-labelledby={promptId}
                       className="border border-slate-200 rounded-xl p-4 bg-slate-50/50 space-y-3"
                     >
-                      <legend
-                        id={promptId}
-                        className="text-sm font-semibold text-slate-900 px-1"
-                      >
-                        {qIdx + 1}. {question.prompt}
-                      </legend>
+                      <div className="flex items-start justify-between gap-2">
+                        <legend
+                          id={promptId}
+                          className="text-sm font-semibold text-slate-900 px-1"
+                        >
+                          {qIdx + 1}. {question.prompt}
+                        </legend>
+
+                        {hintText && (
+                          <button
+                            type="button"
+                            onClick={() => toggleHint(question.id)}
+                            className="text-xs text-blue-600 hover:text-blue-800 font-medium shrink-0 flex items-center gap-1 bg-blue-50 px-2 py-1 rounded border border-blue-100"
+                          >
+                            <span>💡</span>
+                            <span>{isHintOpen ? 'Hide Hint' : 'Need Hint?'}</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {isHintOpen && hintText && (
+                        <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
+                          <span>💡</span>
+                          <span>{hintText}</span>
+                        </div>
+                      )}
 
                       <div className="space-y-2 pt-1">
                         {question.options.map((option) => {
@@ -512,16 +1228,15 @@ export function LearningView({
 
                 <div className="flex items-center justify-between pt-4 border-t border-slate-200">
                   <span className="text-xs text-slate-500">
-                    {Object.keys(selectedAnswers).length} of {activeQuiz.questions.length} answered
+                    {answeredCount} of {totalQuestions} answered
                   </span>
 
                   <Button
                     type="submit"
                     variant="primary"
                     disabled={isSubmitting}
-                    className="min-w-[140px]"
                   >
-                    {isSubmitting ? 'Submitting...' : 'Submit Quiz'}
+                    {isSubmitting ? 'Evaluating...' : 'Submit Quiz'}
                   </Button>
                 </div>
               </form>

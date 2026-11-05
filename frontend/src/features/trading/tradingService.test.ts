@@ -691,12 +691,12 @@ describe('TradingService Paper Trading Engine & Accounting', () => {
 
       try {
         await service.createOrder(sim.id, {
-          symbol: 'TSLA', // TSLA is not in AAPL, MSFT, SPY
+          symbol: 'XYZ', // XYZ is not in the simulation universe
           side: 'buy',
           quantity: 1,
           expected_version: 1,
         });
-        expect.fail('Should have rejected TSLA');
+        expect.fail('Should have rejected XYZ');
       } catch (err) {
         expect(err).toBeInstanceOf(ApiError);
         const apiErr = err as ApiError;

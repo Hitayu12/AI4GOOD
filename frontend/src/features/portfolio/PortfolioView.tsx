@@ -395,17 +395,23 @@ export function PortfolioView({
         <h3 id="hero-metrics-title" className="sr-only">Portfolio Hero Metrics</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {/* 1. Total Equity */}
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <span className="text-xs font-medium text-slate-500 block">Total Equity</span>
-            <span data-testid="metric-total-equity" className="text-lg font-bold text-slate-900 block mt-1">
+          <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100/80 border border-blue-300/80 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between text-xs font-bold text-blue-900">
+              <span>Total Equity</span>
+              <span className="text-blue-600 text-sm">💼</span>
+            </div>
+            <span data-testid="metric-total-equity" className="text-xl font-black text-slate-900 block mt-1 tracking-tight">
               {formatUSD(effectiveTotalEquity)}
             </span>
-            <span className="text-[11px] text-slate-400 mt-0.5 block">Net portfolio liquidation</span>
+            <span className="text-[11px] text-blue-700/80 mt-0.5 block font-medium">Net liquidation value</span>
           </div>
 
           {/* 2. Total Return % */}
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <span className="text-xs font-medium text-slate-500 block">Total Return %</span>
+          <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100/80 border border-emerald-300/80 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between text-xs font-bold text-emerald-900">
+              <span>Total Return %</span>
+              <span className="text-emerald-600 text-sm">📊</span>
+            </div>
             <div className="mt-1" data-testid="metric-total-return">
               <LossGainBadge
                 percentValue={totalReturnPercent}
@@ -415,32 +421,41 @@ export function PortfolioView({
                 testId="hero-return-badge"
               />
             </div>
-            <span className="text-[11px] text-slate-400 mt-0.5 block">Since session start</span>
+            <span className="text-[11px] text-emerald-700/80 mt-0.5 block font-medium">Since session start</span>
           </div>
 
           {/* 3. Cash Balance */}
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <span className="text-xs font-medium text-slate-500 block">Cash Balance</span>
-            <span data-testid="metric-cash-balance" className="text-lg font-bold text-slate-900 block mt-1">
+          <div className="bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200/90 border border-slate-300 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+              <span>Cash Balance</span>
+              <span className="text-slate-600 text-sm">💵</span>
+            </div>
+            <span data-testid="metric-cash-balance" className="text-xl font-black text-slate-900 block mt-1 tracking-tight">
               {formatUSD(effectiveCash)}
             </span>
-            <span className="text-[11px] text-slate-400 mt-0.5 block">Liquid purchasing power</span>
+            <span className="text-[11px] text-slate-600 mt-0.5 block font-medium">Liquid purchasing power</span>
           </div>
 
           {/* 4. Total Positions Market Value */}
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <span className="text-xs font-medium text-slate-500 block">Positions Market Value</span>
-            <span data-testid="metric-positions-value" className="text-lg font-bold text-slate-900 block mt-1">
+          <div className="bg-gradient-to-br from-purple-50 via-fuchsia-50 to-purple-100/80 border border-purple-300/80 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between text-xs font-bold text-purple-900">
+              <span>Positions Value</span>
+              <span className="text-purple-600 text-sm">📈</span>
+            </div>
+            <span data-testid="metric-positions-value" className="text-xl font-black text-slate-900 block mt-1 tracking-tight">
               {formatUSD(totalPositionsMarketValue)}
             </span>
-            <span className="text-[11px] text-slate-400 mt-0.5 block">
+            <span className="text-[11px] text-purple-700/80 mt-0.5 block font-medium">
               {effectivePositions.length} active position{effectivePositions.length === 1 ? '' : 's'}
             </span>
           </div>
 
           {/* 5. Realized P&L */}
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <span className="text-xs font-medium text-slate-500 block">Realized P&L</span>
+          <div className="bg-gradient-to-br from-amber-50 via-orange-50 to-amber-100/80 border border-amber-300/80 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between text-xs font-bold text-amber-900">
+              <span>Realized P&L</span>
+              <span className="text-amber-600 text-sm">🎯</span>
+            </div>
             <div className="mt-1" data-testid="metric-realized-pnl">
               <LossGainBadge
                 dollarValue={effectiveRealizedPnl}
@@ -449,12 +464,15 @@ export function PortfolioView({
                 testId="hero-realized-pnl-badge"
               />
             </div>
-            <span className="text-[11px] text-slate-400 mt-0.5 block">From closed orders</span>
+            <span className="text-[11px] text-amber-700/80 mt-0.5 block font-medium">From closed orders</span>
           </div>
 
           {/* 6. Unrealized P&L */}
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <span className="text-xs font-medium text-slate-500 block">Unrealized P&L</span>
+          <div className="bg-gradient-to-br from-cyan-50 via-sky-50 to-cyan-100/80 border border-cyan-300/80 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between text-xs font-bold text-cyan-900">
+              <span>Unrealized P&L</span>
+              <span className="text-cyan-600 text-sm">✨</span>
+            </div>
             <div className="mt-1" data-testid="metric-unrealized-pnl">
               <LossGainBadge
                 dollarValue={effectiveUnrealizedPnl}
@@ -469,7 +487,7 @@ export function PortfolioView({
                 testId="hero-unrealized-pnl-badge"
               />
             </div>
-            <span className="text-[11px] text-slate-400 mt-0.5 block">Open positions float</span>
+            <span className="text-[11px] text-cyan-700/80 mt-0.5 block font-medium">Open positions float</span>
           </div>
         </div>
       </section>

@@ -53,10 +53,11 @@ export class ApiClient {
 
   constructor(config: ApiClientConfig = {}) {
     const envBaseUrl = typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL;
-    const envFixtures = typeof import.meta !== 'undefined' && import.meta.env?.VITE_USE_FIXTURES === 'true';
+    const envFixtures = typeof import.meta !== 'undefined' && import.meta.env?.VITE_USE_FIXTURES;
 
     this.baseUrl = config.baseUrl ?? (envBaseUrl || '/api/v1');
-    this.fixtureMode = config.fixtureMode ?? envFixtures;
+    // Default to true for standalone local frontend unless explicitly set to false
+    this.fixtureMode = config.fixtureMode ?? (envFixtures !== 'false');
   }
 
   public setToken(token: string | null): void {
@@ -127,9 +128,11 @@ export class ApiClient {
 
   public async register(credentials: RegisterRequest): Promise<RegisterResponse> {
     if (this.fixtureMode) {
-      return {
-        user: { id: 'usr_fixture_001', email: credentials.email },
+      const user: User = {
+        id: 'usr_fixture_001',
+        email: credentials.email || 'kiran@rutgers.edu',
       };
+      return { user };
     }
     return this.request<RegisterResponse>('/auth/register', {
       method: 'POST',
@@ -137,9 +140,9 @@ export class ApiClient {
     });
   }
 
-  public async login(credentials: LoginRequest): Promise<LoginResponse> {
+  public async login(_credentials: LoginRequest): Promise<LoginResponse> {
     if (this.fixtureMode) {
-      const token = 'tok_fixture_kiran_001';
+      const token = `tok_fixture_${Math.random().toString(36).substring(2, 10)}`;
       this.setToken(token);
       return {
         access_token: token,
@@ -149,7 +152,7 @@ export class ApiClient {
     }
     const res = await this.request<LoginResponse>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify(credentials),
+      body: JSON.stringify(_credentials),
     });
     if (res.access_token) {
       this.setToken(res.access_token);
@@ -194,7 +197,13 @@ export class ApiClient {
         items: [
           { symbol: 'AAPL', name: 'Apple Inc.' },
           { symbol: 'MSFT', name: 'Microsoft Corporation' },
+          { symbol: 'NVDA', name: 'NVIDIA Corporation' },
+          { symbol: 'AMZN', name: 'Amazon.com Inc.' },
+          { symbol: 'GOOGL', name: 'Alphabet Inc.' },
+          { symbol: 'TSLA', name: 'Tesla, Inc.' },
+          { symbol: 'META', name: 'Meta Platforms Inc.' },
           { symbol: 'SPY', name: 'SPDR S&P 500 ETF Trust' },
+          { symbol: 'QQQ', name: 'Invesco QQQ Trust' },
         ],
       };
     }

@@ -23,7 +23,7 @@ export const FIXTURE_DATASETS: PaginatedList<DatasetMetadata> = {
       source: 'Authoritative Daily OHLCV Archive',
       synthetic: false,
       session_dates: ['2024-01-02', '2024-01-03', '2024-01-04'],
-      symbols: ['AAPL', 'MSFT', 'SPY'],
+      symbols: ['AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'TSLA', 'META', 'SPY', 'QQQ'],
     },
   ],
 };
@@ -31,7 +31,7 @@ export const FIXTURE_DATASETS: PaginatedList<DatasetMetadata> = {
 export const FIXTURE_SIMULATION: Simulation = {
   id: 'sim_test_001',
   dataset_id: 'us-sp500-sample-2024',
-  symbols: ['AAPL', 'MSFT', 'SPY'],
+  symbols: ['AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'TSLA', 'META', 'SPY', 'QQQ'],
   start_session: '2024-01-02',
   end_session: '2024-01-04',
   current_session: '2024-01-02',

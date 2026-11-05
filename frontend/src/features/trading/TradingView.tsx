@@ -40,7 +40,29 @@ export interface TradingViewProps {
   service?: TradingService;
 }
 
-export const SUPPORTED_SYMBOLS = ['AAPL', 'MSFT', 'SPY'];
+export const SUPPORTED_SYMBOLS = [
+  'AAPL',
+  'MSFT',
+  'NVDA',
+  'AMZN',
+  'GOOGL',
+  'TSLA',
+  'META',
+  'SPY',
+  'QQQ',
+];
+
+export const SYMBOL_NAMES: Record<string, string> = {
+  AAPL: 'Apple Inc.',
+  MSFT: 'Microsoft Corporation',
+  NVDA: 'NVIDIA Corporation',
+  AMZN: 'Amazon.com Inc.',
+  GOOGL: 'Alphabet Inc.',
+  TSLA: 'Tesla, Inc.',
+  META: 'Meta Platforms Inc.',
+  SPY: 'SPDR S&P 500 ETF Trust',
+  QQQ: 'Invesco QQQ Trust',
+};
 
 export function TradingView({
   initialSimulation = INITIAL_SIMULATION_FIXTURE,
@@ -93,6 +115,7 @@ export function TradingView({
   const [quantityInput, setQuantityInput] = useState<string>('1');
   const [validationError, setValidationError] = useState<string | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState<string>(() => generateIdempotencyKey());
+  const [instantFill, setInstantFill] = useState<boolean>(false);
 
   // Execution Feedback Notices
   const [rejectionNotice, setRejectionNotice] = useState<string | null>(null);
@@ -231,6 +254,65 @@ export function TradingView({
     setValidationError(null);
   };
 
+  // Advance Session & Execute Order Core Handler
+  const executeAdvanceWithOrder = (orderToExecute: Order | null) => {
+    setRejectionNotice(null);
+    setSuccessNotice(null);
+
+    try {
+      const result = tradingService.advanceAndExecute(
+        simulation,
+        cashCents,
+        positions,
+        orderToExecute
+      );
+
+      setSimulation(result.nextSimulation);
+      setCashCents(result.updatedCashCents);
+      setPositions(result.updatedPositions);
+
+      if (result.executionResult) {
+        const { order: updatedOrder, transaction, rejectionNotice: rejMsg } =
+          result.executionResult;
+
+        // Replace pending order in orders array with executed/rejected order
+        setOrders((prev) =>
+          prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o))
+        );
+
+        if (transaction) {
+          setTransactions((prev) => [transaction, ...prev]);
+          setSuccessNotice(
+            `Filled ${updatedOrder.side.toUpperCase()} ${updatedOrder.quantity} ${
+              updatedOrder.symbol
+            } at session open price of ${formatUSD(
+              parseFloat(updatedOrder.execution_price || '0')
+            )}!`
+          );
+        }
+
+        if (rejMsg) {
+          setRejectionNotice(rejMsg);
+        }
+      } else {
+        setSuccessNotice(`Advanced to session ${result.nextSimulation.current_session}.`);
+      }
+
+      onAdvance?.({
+        simulation: result.nextSimulation,
+        order: result.executionResult?.order,
+        transaction: result.executionResult?.transaction,
+      });
+    } catch (err: unknown) {
+      setRejectionNotice(err instanceof Error ? err.message : 'Error advancing simulation.');
+    }
+  };
+
+  // Advance Session & Execute Order Handler
+  const handleAdvanceAndExecute = () => {
+    executeAdvanceWithOrder(pendingOrder);
+  };
+
   // Order Submission Handler
   const handleSubmitOrder = (e: React.FormEvent) => {
     e.preventDefault();
@@ -265,63 +347,14 @@ export function TradingView({
 
     setOrders((prev) => [newOrder, ...prev]);
     setIdempotencyKey(generateIdempotencyKey());
-    setSuccessNotice(
-      `Order queued in pending status: ${newOrder.side.toUpperCase()} ${newOrder.quantity} ${newOrder.symbol}. Will execute at next session OPEN.`
-    );
     onOrderPlaced?.(newOrder);
-  };
 
-  // Advance Session & Execute Order Handler
-  const handleAdvanceAndExecute = () => {
-    setRejectionNotice(null);
-    setSuccessNotice(null);
-
-    try {
-      const result = tradingService.advanceAndExecute(
-        simulation,
-        cashCents,
-        positions,
-        pendingOrder
+    if (instantFill) {
+      executeAdvanceWithOrder(newOrder);
+    } else {
+      setSuccessNotice(
+        `Order placed in pending status: ${newOrder.side.toUpperCase()} ${newOrder.quantity} ${newOrder.symbol}. Click "Open Market & Fill Order Now" below to execute at upcoming session OPEN.`
       );
-
-      setSimulation(result.nextSimulation);
-      setCashCents(result.updatedCashCents);
-      setPositions(result.updatedPositions);
-
-      if (result.executionResult) {
-        const { order: updatedOrder, transaction, rejectionNotice: rejMsg } =
-          result.executionResult;
-
-        // Replace pending order in orders array with executed/rejected order
-        setOrders((prev) =>
-          prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o))
-        );
-
-        if (transaction) {
-          setTransactions((prev) => [transaction, ...prev]);
-          setSuccessNotice(
-            `Executed ${updatedOrder.side.toUpperCase()} ${updatedOrder.quantity} ${
-              updatedOrder.symbol
-            } at next session open price of ${formatUSD(
-              parseFloat(updatedOrder.execution_price || '0')
-            )}!`
-          );
-        }
-
-        if (rejMsg) {
-          setRejectionNotice(rejMsg);
-        }
-      } else {
-        setSuccessNotice(`Advanced to session ${result.nextSimulation.current_session}.`);
-      }
-
-      onAdvance?.({
-        simulation: result.nextSimulation,
-        order: result.executionResult?.order,
-        transaction: result.executionResult?.transaction,
-      });
-    } catch (err: unknown) {
-      setRejectionNotice(err instanceof Error ? err.message : 'Error advancing simulation.');
     }
   };
 
@@ -486,39 +519,42 @@ export function TradingView({
 
       {/* Portfolio Financial Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="bg-white">
-          <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-            Available Cash
+        <Card className="bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100/80 border border-emerald-300 shadow-xs hover:shadow-sm transition-all duration-200">
+          <div className="flex items-center justify-between text-xs font-bold text-emerald-900 uppercase tracking-wider">
+            <span>Available Cash</span>
+            <span className="text-emerald-600 text-sm">💵</span>
           </div>
           <div
             data-testid="cash-balance"
-            className="text-2xl font-bold text-slate-900 mt-1 font-mono"
+            className="text-2xl font-black text-slate-900 mt-1 font-mono tracking-tight"
           >
             {formatUSD(cashCents / 100)}
           </div>
-          <div className="text-xs text-slate-500 mt-1">Settled virtual cash balance</div>
+          <div className="text-xs text-emerald-700/80 mt-1 font-medium">Settled virtual purchasing power</div>
         </Card>
 
-        <Card className="bg-white">
-          <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-            Total Equity
+        <Card className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100/80 border border-blue-300 shadow-xs hover:shadow-sm transition-all duration-200">
+          <div className="flex items-center justify-between text-xs font-bold text-blue-900 uppercase tracking-wider">
+            <span>Total Equity</span>
+            <span className="text-blue-600 text-sm">💼</span>
           </div>
           <div
             data-testid="total-equity"
-            className="text-2xl font-bold text-slate-900 mt-1 font-mono"
+            className="text-2xl font-black text-slate-900 mt-1 font-mono tracking-tight"
           >
             {formatUSD(totalEquity)}
           </div>
-          <div className="text-xs text-slate-500 mt-1">Cash + holdings marked to close</div>
+          <div className="text-xs text-blue-700/80 mt-1 font-medium">Cash + holdings marked to close</div>
         </Card>
 
-        <Card className="bg-white">
-          <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-            Unrealized P&amp;L
+        <Card className="bg-gradient-to-br from-indigo-50 via-purple-50 to-indigo-100/80 border border-indigo-300 shadow-xs hover:shadow-sm transition-all duration-200">
+          <div className="flex items-center justify-between text-xs font-bold text-indigo-900 uppercase tracking-wider">
+            <span>Unrealized P&amp;L</span>
+            <span className="text-indigo-600 text-sm">📊</span>
           </div>
           <div
             data-testid="portfolio-unrealized-pnl"
-            className={`text-2xl font-bold mt-1 font-mono ${
+            className={`text-2xl font-black mt-1 font-mono tracking-tight ${
               totalUnrealizedPnl > 0
                 ? 'text-emerald-600'
                 : totalUnrealizedPnl < 0
@@ -529,7 +565,7 @@ export function TradingView({
             {totalUnrealizedPnl >= 0 ? '+' : ''}
             {formatUSD(totalUnrealizedPnl)}
           </div>
-          <div className="text-xs text-slate-500 mt-1">Open positions vs cost basis</div>
+          <div className="text-xs text-indigo-700/80 mt-1 font-medium">Open positions vs cost basis</div>
         </Card>
       </div>
 
@@ -580,11 +616,22 @@ export function TradingView({
               </div>
             </div>
 
-            <div
-              data-testid="pending-order-notice"
-              className="text-xs font-semibold text-amber-900 bg-amber-100/90 border border-amber-300 px-3 py-2 rounded-lg"
-            >
-              Pending Order Active (Only 1 pending order allowed for MVP)
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <Button
+                type="button"
+                variant="primary"
+                onClick={handleAdvanceAndExecute}
+                disabled={simulation.status === 'completed'}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs py-2 px-3 flex items-center justify-center gap-1.5 shadow"
+              >
+                ⚡ Open Market &amp; Fill Order Now
+              </Button>
+              <div
+                data-testid="pending-order-notice"
+                className="text-xs font-semibold text-amber-900 bg-amber-100/90 border border-amber-300 px-3 py-2 rounded-lg text-center"
+              >
+                Pending Order Active (Only 1 pending order allowed for MVP)
+              </div>
             </div>
           </div>
         </Card>
@@ -621,7 +668,7 @@ export function TradingView({
               >
                 {SUPPORTED_SYMBOLS.map((sym) => (
                   <option key={sym} value={sym}>
-                    {sym} — {sym === 'AAPL' ? 'Apple Inc.' : sym === 'MSFT' ? 'Microsoft Corp.' : 'SPDR S&P 500 ETF'}
+                    {sym} — {SYMBOL_NAMES[sym] || sym}
                   </option>
                 ))}
               </select>
@@ -717,6 +764,23 @@ export function TradingView({
                 {validationError}
               </p>
             )}
+
+            {/* Instant Execution Toggle */}
+            <div className="rounded-lg bg-emerald-50/60 p-3 border border-emerald-200 flex items-center justify-between">
+              <label htmlFor="instant-execution-toggle" className="flex items-center gap-2.5 text-xs text-slate-800 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  id="instant-execution-toggle"
+                  checked={instantFill}
+                  onChange={(e) => setInstantFill(e.target.checked)}
+                  disabled={pendingOrder !== null || simulation.status === 'completed'}
+                  className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <span>
+                  <strong className="text-emerald-950 font-semibold">Instant Execution Mode:</strong> Automatically advance simulation and fill order immediately on submit.
+                </span>
+              </label>
+            </div>
 
             {/* Submit Order Button */}
             <Button

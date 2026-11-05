@@ -198,32 +198,32 @@ export function CalculatorView() {
             {result ? (
               <div className="space-y-6" aria-live="polite" id={liveAnnounceId}>
                 {/* Total Balance Hero */}
-                <div className="rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 p-6 text-center">
-                  <p className="text-xs uppercase tracking-wider font-semibold text-blue-700">Projected Final Balance</p>
-                  <p className="text-3xl sm:text-4xl font-extrabold text-slate-900 mt-2 font-mono">
+                <div className="rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-blue-950 text-white border border-indigo-900/60 p-6 text-center shadow-md">
+                  <p className="text-xs uppercase tracking-wider font-bold text-indigo-300">Projected Final Balance</p>
+                  <p className="text-3xl sm:text-4xl font-black text-white mt-2 font-mono tracking-tight">
                     {result.formattedFinalBalance}
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-indigo-200/80 mt-1">
                     Over {result.horizonMonths} months with effective annual rate of {result.annualRatePercent}%
                   </p>
                 </div>
 
                 {/* Metrics Breakdown Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                  <div className="rounded-lg bg-slate-50 border border-slate-200 p-4">
-                    <p className="text-xs font-medium text-slate-500">Starting Principal</p>
-                    <p className="text-lg font-bold text-slate-800 mt-1 font-mono">{formatCurrency(result.startingAmount)}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
+                  <div className="rounded-xl bg-gradient-to-br from-white to-blue-50/60 border border-blue-200/70 p-4 shadow-2xs">
+                    <p className="text-xs font-semibold text-slate-500">Starting Principal</p>
+                    <p className="text-lg font-black text-slate-900 mt-1 font-mono">{formatCurrency(result.startingAmount)}</p>
                   </div>
-                  <div className="rounded-lg bg-slate-50 border border-slate-200 p-4">
-                    <p className="text-xs font-medium text-slate-500">New Contributions</p>
-                    <p className="text-lg font-bold text-slate-800 mt-1 font-mono">{result.formattedTotalContributions}</p>
+                  <div className="rounded-xl bg-gradient-to-br from-white to-indigo-50/60 border border-indigo-200/70 p-4 shadow-2xs">
+                    <p className="text-xs font-semibold text-slate-500">New Contributions</p>
+                    <p className="text-lg font-black text-slate-900 mt-1 font-mono">{result.formattedTotalContributions}</p>
                   </div>
-                  <div className="rounded-lg bg-slate-50 border border-slate-200 p-4">
-                    <p className="text-xs font-medium text-slate-500">
+                  <div className="rounded-xl bg-gradient-to-br from-white to-emerald-50/60 border border-emerald-200/70 p-4 shadow-2xs">
+                    <p className="text-xs font-semibold text-slate-500">
                       {result.totalGrowth >= 0 ? 'Total Growth / Interest' : 'Net Loss'}
                     </p>
                     <p
-                      className={`text-lg font-bold mt-1 font-mono ${
+                      className={`text-lg font-black mt-1 font-mono ${
                         result.totalGrowth >= 0 ? 'text-emerald-600' : 'text-red-600'
                       }`}
                     >

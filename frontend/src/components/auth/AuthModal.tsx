@@ -123,16 +123,49 @@ export function AuthModal({
         <h2 id="auth-modal-title" className="text-lg font-bold text-slate-900 mb-1">
           {tab === 'login' ? 'Sign in to your account' : 'Create an AI4Good student account'}
         </h2>
-        <p className="text-xs text-slate-500 mb-4">
+        <p className="text-xs text-slate-500 mb-3">
           Session tokens are stored in memory and sent via Bearer authorization.
         </p>
+
+        {/* Demo Account Quick-Fill */}
+        <div className="mb-4 p-2.5 rounded-lg bg-blue-50/80 border border-blue-200 text-xs text-blue-900 flex items-center justify-between gap-2">
+          <span>Demo Account:</span>
+          <button
+            type="button"
+            onClick={() => {
+              setEmail('student@rutgers.edu');
+              setPassword('Password123!');
+              setError(null);
+            }}
+            className="px-2.5 py-1 rounded bg-blue-600 text-white font-semibold hover:bg-blue-700 transition text-[11px]"
+          >
+            Quick-Fill Student Demo
+          </button>
+        </div>
 
         {error && (
           <div
             role="alert"
-            className="mb-4 text-xs text-red-700 bg-red-50 border border-red-200 p-2.5 rounded"
+            className="mb-4 text-xs text-red-700 bg-red-50 border border-red-200 p-2.5 rounded space-y-2"
           >
-            {error}
+            <div>{error}</div>
+            {!apiClient.fixtureMode && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  apiClient.setFixtureMode(true);
+                  const demoUser: User = { id: 'usr_demo_001', email: email || 'student@rutgers.edu' };
+                  await apiClient.login({ email: demoUser.email, password: password || 'Password123!' });
+                  onAuthSuccess(demoUser);
+                  onClose();
+                }}
+                className="w-full text-xs text-blue-700 border-blue-300 bg-white mt-1"
+              >
+                Continue in Offline Demo Mode
+              </Button>
+            )}
           </div>
         )}
 
