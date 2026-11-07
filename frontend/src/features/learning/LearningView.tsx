@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { ApiClient, defaultApiClient } from '../../api/client';
@@ -7,6 +7,7 @@ import { LESSONS, LESSON_SUMMARIES } from './content/lessonDefinitions';
 import { QUIZZES } from './content/quizDefinitions';
 import { SERVER_ANSWER_KEYS, QuizScoringData } from './content/serverAnswerKeys';
 import { evaluateQuizAttempt } from './quizScoring';
+import { MarketStrategiesLab } from './strategies/MarketStrategiesLab';
 
 export interface LearningViewProps {
   apiClient?: ApiClient;
@@ -264,8 +265,44 @@ function renderSectionLines(lines: string[]) {
   return elements;
 }
 
-function RichCurriculumContent({ body, fontSize }: { body: string; fontSize: 'normal' | 'large' }) {
+function RichCurriculumContent({
+  body,
+  fontSize,
+  onOpenStrategies,
+}: {
+  body: string;
+  fontSize: 'normal' | 'large';
+  onOpenStrategies?: () => void;
+}) {
   const sections = useMemo(() => parseLessonMarkdown(body), [body]);
+  const [collapsedSections, setCollapsedSections] = useState<Record<number, boolean>>({});
+  const [checkList, setCheckList] = useState<boolean[]>([false, false, false]);
+
+  useEffect(() => {
+    setCheckList([false, false, false]);
+    setCollapsedSections({});
+  }, [body]);
+
+  const toggleSection = (idx: number) => {
+    setCollapsedSections((prev) => ({
+      ...prev,
+      [idx]: !prev[idx],
+    }));
+  };
+
+  const areAllCollapsed = sections.length > 0 && sections.every((_, i) => !!collapsedSections[i]);
+
+  const toggleAll = () => {
+    if (areAllCollapsed) {
+      setCollapsedSections({});
+    } else {
+      const all: Record<number, boolean> = {};
+      sections.forEach((_, i) => {
+        all[i] = true;
+      });
+      setCollapsedSections(all);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -278,19 +315,48 @@ function RichCurriculumContent({ body, fontSize }: { body: string; fontSize: 'no
           <div>
             <h4 className="text-sm font-bold text-white">Interactive Concept Curriculum</h4>
             <p className="text-xs text-blue-200">
-              {sections.length} core modular concept blocks • Read &amp; master before testing quiz
+              {sections.length} core modular concept blocks • Bite-sized &amp; click to expand
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2 text-xs">
-          <span className="px-2.5 py-1 rounded-full bg-blue-800/80 text-blue-200 border border-blue-700 font-semibold">
-            ⏱️ ~3 min read
-          </span>
+          <button
+            type="button"
+            onClick={toggleAll}
+            className="px-2.5 py-1 rounded-full bg-blue-800/80 hover:bg-blue-700 text-blue-200 border border-blue-600 font-semibold transition-colors"
+          >
+            {areAllCollapsed ? '▼ Expand All' : '▲ Collapse All'}
+          </button>
           <span className="px-2.5 py-1 rounded-full bg-emerald-900/80 text-emerald-300 border border-emerald-700 font-semibold">
             ✓ 100% Plain English
           </span>
         </div>
       </div>
+
+      {/* Quick Launch Callout to US vs Europe Strategies */}
+      {onOpenStrategies && (
+        <div className="rounded-2xl border border-indigo-200 bg-gradient-to-r from-blue-50/80 via-indigo-50/70 to-purple-50/80 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🌐</span>
+            <div>
+              <span className="text-xs font-bold text-slate-900 block">
+                Compare Trading Strategies: 🇺🇸 US vs. 🇪🇺 Europe
+              </span>
+              <span className="text-[11px] text-slate-600 leading-snug">
+                CD ladders, Treasury barbells, UCITS Accumulating ETFs, and cross-border bank yields.
+              </span>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onOpenStrategies}
+            className="text-xs font-semibold bg-white hover:bg-slate-50 border-indigo-300 text-indigo-900 whitespace-nowrap self-start sm:self-center"
+          >
+            Explore Global Strategies →
+          </Button>
+        </div>
+      )}
 
       {/* Structured Modular Concept Cards */}
       <div className="space-y-4">
@@ -346,28 +412,102 @@ function RichCurriculumContent({ body, fontSize }: { body: string; fontSize: 'no
             ? 'bg-indigo-100 text-indigo-900 border-indigo-300'
             : 'bg-slate-100 text-slate-800 border-slate-300';
 
+          const isCollapsed = !!collapsedSections[sIdx];
+
           return (
             <div
               key={sIdx}
               className={`rounded-2xl border p-5 shadow-xs hover:shadow-md transition-all duration-150 ${cardStyle}`}
             >
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-3 mb-3">
+              <div
+                onClick={() => toggleSection(sIdx)}
+                className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-3 mb-2 cursor-pointer select-none"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleSection(sIdx);
+                  }
+                }}
+                aria-expanded={!isCollapsed}
+              >
                 <h4 className="text-sm sm:text-base font-bold tracking-tight flex items-center gap-2">
+                  <span className="text-slate-400 text-xs">{isCollapsed ? '▶' : '▼'}</span>
                   <span>{section.title}</span>
                 </h4>
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${badgeStyle}`}
-                >
-                  {badgeText}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${badgeStyle}`}
+                  >
+                    {badgeText}
+                  </span>
+                </div>
               </div>
 
-              <div className={`space-y-3 ${fontSize === 'large' ? 'text-base' : 'text-sm'}`}>
-                {renderSectionLines(section.lines)}
-              </div>
+              {!isCollapsed && (
+                <div className={`space-y-3 pt-1 ${fontSize === 'large' ? 'text-base' : 'text-sm'}`}>
+                  {renderSectionLines(section.lines)}
+                </div>
+              )}
             </div>
           );
         })}
+      </div>
+
+      {/* Interactive Concept Checkoff Card */}
+      <div className="rounded-2xl border border-slate-300/80 bg-white p-5 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-base">✅</span>
+            <h5 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+              Interactive Concept Checkoff
+            </h5>
+          </div>
+          <span className="text-[11px] text-slate-500 font-medium">
+            {checkList.filter(Boolean).length} of 3 Mastered
+          </span>
+        </div>
+
+        <div className="space-y-2">
+          {[
+            'I understand the primary mechanism of how this instrument generates returns or locks interest.',
+            'I know the regulatory safety guarantee (FDIC $250k / EU DGS €100k / SIPC $500k).',
+            'I recognize the key liquidity trade-offs and time horizon suitability.',
+          ].map((item, idx) => (
+            <label
+              key={idx}
+              className={`flex items-start gap-3 p-2.5 rounded-xl border text-xs cursor-pointer transition-colors ${
+                checkList[idx]
+                  ? 'border-emerald-300 bg-emerald-50/60 text-emerald-950 font-medium'
+                  : 'border-slate-200 bg-slate-50/50 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={checkList[idx]}
+                onChange={() => {
+                  setCheckList((prev) => {
+                    const next = [...prev];
+                    next[idx] = !next[idx];
+                    return next;
+                  });
+                }}
+                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 mt-0.5"
+              />
+              <span className="leading-relaxed">{item}</span>
+            </label>
+          ))}
+        </div>
+
+        {checkList.every(Boolean) && (
+          <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-xs font-bold flex items-center justify-between shadow-xs">
+            <span>🎉 Outstanding! You have verified all 3 core concepts.</span>
+            <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">
+              Ready for Quiz!
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -384,8 +524,8 @@ export function LearningView({
   // Navigation / Selection
   const [selectedTopicId, setSelectedTopicId] = useState<string>(initialTopicId);
 
-  // View presentation mode: 'interactive' | 'reader' | 'matrix'
-  const [activeTab, setActiveTab] = useState<'interactive' | 'reader' | 'matrix'>('interactive');
+  // View presentation mode: 'interactive' | 'strategies' | 'reader' | 'matrix'
+  const [activeTab, setActiveTab] = useState<'interactive' | 'strategies' | 'reader' | 'matrix'>('interactive');
   const [fontSize, setFontSize] = useState<'normal' | 'large'>('normal');
 
   // Interactive Mini-Simulator State
@@ -669,6 +809,17 @@ export function LearningView({
                   </button>
                   <button
                     type="button"
+                    onClick={() => setActiveTab('strategies')}
+                    className={`px-2.5 py-1 rounded-md transition ${
+                      activeTab === 'strategies'
+                        ? 'bg-white text-blue-700 shadow-sm font-semibold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    🌐 US vs EU Strategies
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setActiveTab('reader')}
                     className={`px-2.5 py-1 rounded-md transition ${
                       activeTab === 'reader'
@@ -879,15 +1030,31 @@ export function LearningView({
                   <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
                     Core Curriculum Overview
                   </h4>
-                  <RichCurriculumContent body={activeLesson.body} fontSize={fontSize} />
+                  <RichCurriculumContent
+                    body={activeLesson.body}
+                    fontSize={fontSize}
+                    onOpenStrategies={() => setActiveTab('strategies')}
+                  />
                 </div>
               </div>
+            )}
+
+            {/* TAB: US vs EU Market Strategies Lab */}
+            {activeTab === 'strategies' && (
+              <MarketStrategiesLab
+                currentTopicId={selectedTopicId}
+                onNavigateTopic={(tId) => setSelectedTopicId(tId)}
+              />
             )}
 
             {/* TAB 2: Full Formatted Reader */}
             {activeTab === 'reader' && (
               <div className="space-y-4">
-                <RichCurriculumContent body={activeLesson.body} fontSize={fontSize} />
+                <RichCurriculumContent
+                  body={activeLesson.body}
+                  fontSize={fontSize}
+                  onOpenStrategies={() => setActiveTab('strategies')}
+                />
               </div>
             )}
 

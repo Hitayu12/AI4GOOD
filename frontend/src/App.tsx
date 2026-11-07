@@ -271,7 +271,7 @@ function AppContent() {
             </span>
             <span className="hidden md:inline text-slate-300">|</span>
             <span className="flex items-center gap-1.5 text-emerald-900 font-semibold">
-              <span className="text-emerald-600 font-bold">📈</span> 9 S&amp;P 500 &amp; Tech Symbols
+              <span className="text-emerald-600 font-bold">📈</span> 15 Multi-Sector S&amp;P 500 Symbols
             </span>
             <span className="hidden md:inline text-slate-300">|</span>
             <span className="flex items-center gap-1.5 text-indigo-900 font-semibold">
@@ -345,7 +345,7 @@ function AppContent() {
                         <span>💡</span> How This Platform Works
                       </div>
                       <p className="text-xs text-slate-300 leading-relaxed">
-                        A fully integrated, gamified educational sandbox with 5 hands-on stages: bite-sized lessons, compound growth calculators, zero-lookahead historical session replay, paper trading across 9 top stocks &amp; ETFs, and real-time portfolio analytics.
+                        A fully integrated, gamified educational sandbox with 5 hands-on stages: bite-sized lessons, compound growth calculators, zero-lookahead historical session replay, paper trading across 15 stocks &amp; ETFs (Tech, Healthcare, Financials, Consumer Staples, Energy), and real-time portfolio analytics.
                       </p>
                     </div>
                   </div>
@@ -409,7 +409,7 @@ function AppContent() {
                       >
                         <div className="text-lg mb-1">⚡</div>
                         <div className="text-xs font-bold">4. Paper Trade</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">9 Stock &amp; ETF Symbols</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">15 Multi-Sector Stocks</div>
                       </button>
 
                       <button

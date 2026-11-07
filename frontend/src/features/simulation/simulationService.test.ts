@@ -30,7 +30,23 @@ describe('SimulationService and Data Fixtures', () => {
       expect(result.current_session).toBe('2024-01-02');
       expect(result.current_time).toBe('2024-01-02T21:00:00Z');
       expect(result.end_session).toBe('2024-01-08');
-      expect(result.symbols).toEqual(['AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'TSLA', 'META', 'SPY', 'QQQ']);
+      expect(result.symbols).toEqual([
+        'AAPL',
+        'MSFT',
+        'NVDA',
+        'AMZN',
+        'GOOGL',
+        'TSLA',
+        'META',
+        'SPY',
+        'QQQ',
+        'JNJ',
+        'JPM',
+        'WMT',
+        'KO',
+        'XOM',
+        'MCD',
+      ]);
       expect(result.initial_cash).toBe(100000000);
       expect(result.id).toMatch(/^sim_/);
 
@@ -351,7 +367,7 @@ describe('SimulationService and Data Fixtures', () => {
       expect(datasets[0].synthetic).toBe(false);
 
       const instruments = await service.getInstruments(FIXTURE_DATASET_ID);
-      expect(instruments).toHaveLength(9);
+      expect(instruments).toHaveLength(15);
       expect(instruments.map((i) => i.symbol)).toEqual([
         'AAPL',
         'MSFT',
@@ -362,6 +378,12 @@ describe('SimulationService and Data Fixtures', () => {
         'META',
         'SPY',
         'QQQ',
+        'JNJ',
+        'JPM',
+        'WMT',
+        'KO',
+        'XOM',
+        'MCD',
       ]);
     });
   });

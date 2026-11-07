@@ -19,6 +19,12 @@ export const SUPPORTED_SYMBOLS: Record<string, SymbolInfo> = {
   META: { symbol: 'META', name: 'Meta Platforms Inc.', exchange: 'NASDAQ' },
   SPY: { symbol: 'SPY', name: 'SPDR S&P 500 ETF Trust', exchange: 'NYSE Arca' },
   QQQ: { symbol: 'QQQ', name: 'Invesco QQQ Trust', exchange: 'NASDAQ' },
+  JNJ: { symbol: 'JNJ', name: 'Johnson & Johnson', exchange: 'NYSE' },
+  JPM: { symbol: 'JPM', name: 'JPMorgan Chase & Co.', exchange: 'NYSE' },
+  WMT: { symbol: 'WMT', name: 'Walmart Inc.', exchange: 'NYSE' },
+  KO: { symbol: 'KO', name: 'The Coca-Cola Company', exchange: 'NYSE' },
+  XOM: { symbol: 'XOM', name: 'Exxon Mobil Corporation', exchange: 'NYSE' },
+  MCD: { symbol: 'MCD', name: "McDonald's Corporation", exchange: 'NYSE' },
 };
 
 export interface CreateSimulationParams {

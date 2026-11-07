@@ -50,6 +50,12 @@ export const SUPPORTED_SYMBOLS = [
   'META',
   'SPY',
   'QQQ',
+  'JNJ',
+  'JPM',
+  'WMT',
+  'KO',
+  'XOM',
+  'MCD',
 ];
 
 export const SYMBOL_NAMES: Record<string, string> = {
@@ -62,6 +68,30 @@ export const SYMBOL_NAMES: Record<string, string> = {
   META: 'Meta Platforms Inc.',
   SPY: 'SPDR S&P 500 ETF Trust',
   QQQ: 'Invesco QQQ Trust',
+  JNJ: 'Johnson & Johnson',
+  JPM: 'JPMorgan Chase & Co.',
+  WMT: 'Walmart Inc.',
+  KO: 'The Coca-Cola Company',
+  XOM: 'Exxon Mobil Corporation',
+  MCD: "McDonald's Corporation",
+};
+
+export const SYMBOL_SECTORS: Record<string, { sector: string; badgeColor: string }> = {
+  AAPL: { sector: 'Technology', badgeColor: 'bg-blue-100 text-blue-800 border-blue-200' },
+  MSFT: { sector: 'Enterprise Software', badgeColor: 'bg-blue-100 text-blue-800 border-blue-200' },
+  NVDA: { sector: 'Semiconductors / AI', badgeColor: 'bg-purple-100 text-purple-800 border-purple-200' },
+  AMZN: { sector: 'E-Commerce / Cloud', badgeColor: 'bg-amber-100 text-amber-800 border-amber-200' },
+  GOOGL: { sector: 'Internet / Search', badgeColor: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
+  TSLA: { sector: 'Automotive / Energy', badgeColor: 'bg-rose-100 text-rose-800 border-rose-200' },
+  META: { sector: 'Social Platforms', badgeColor: 'bg-sky-100 text-sky-800 border-sky-200' },
+  SPY: { sector: 'Broad S&P 500 ETF', badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+  QQQ: { sector: 'Tech Nasdaq 100 ETF', badgeColor: 'bg-teal-100 text-teal-800 border-teal-200' },
+  JNJ: { sector: 'Healthcare & Pharma', badgeColor: 'bg-red-100 text-red-800 border-red-200' },
+  JPM: { sector: 'Banking & Financials', badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+  WMT: { sector: 'Retail & Consumer', badgeColor: 'bg-cyan-100 text-cyan-800 border-cyan-200' },
+  KO: { sector: 'Beverages & Staples', badgeColor: 'bg-rose-100 text-rose-800 border-rose-200' },
+  XOM: { sector: 'Energy & Oil/Gas', badgeColor: 'bg-orange-100 text-orange-800 border-orange-200' },
+  MCD: { sector: 'Restaurants & Real Estate', badgeColor: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
 };
 
 export function TradingView({
@@ -637,6 +667,52 @@ export function TradingView({
         </Card>
       )}
 
+      {/* Tradable Stock Universe Quick-Picker */}
+      <div className="rounded-2xl border border-slate-300/80 bg-white p-4 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-base">📊</span>
+            <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+              Tradable Markets Universe ({SUPPORTED_SYMBOLS.length} Stocks &amp; Index ETFs)
+            </span>
+          </div>
+          <span className="text-[11px] text-slate-500 font-medium">
+            Tech, Healthcare, Financials, Consumer Staples &amp; Energy
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {SUPPORTED_SYMBOLS.map((sym) => {
+            const isSelected = selectedSymbol === sym;
+            const sectorInfo = SYMBOL_SECTORS[sym];
+            return (
+              <button
+                key={sym}
+                type="button"
+                onClick={() => handleSymbolChange(sym)}
+                disabled={pendingOrder !== null || simulation.status === 'completed'}
+                className={`px-3 py-1.5 rounded-xl border text-xs transition-all flex items-center gap-2 ${
+                  isSelected
+                    ? 'border-blue-600 bg-blue-50/90 text-blue-950 font-bold shadow-xs ring-1 ring-blue-500'
+                    : 'border-slate-200 bg-slate-50/80 hover:bg-white text-slate-700 hover:border-slate-300'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                <span className="font-mono font-bold text-slate-900">{sym}</span>
+                <span className="hidden sm:inline text-[11px] text-slate-500">
+                  {SYMBOL_NAMES[sym]?.split(' ')[0]}
+                </span>
+                {sectorInfo && (
+                  <span
+                    className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider border ${sectorInfo.badgeColor}`}
+                  >
+                    {sectorInfo.sector.split(' ')[0]}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Order Entry Form & Market Context */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Order Form Card */}
@@ -668,7 +744,7 @@ export function TradingView({
               >
                 {SUPPORTED_SYMBOLS.map((sym) => (
                   <option key={sym} value={sym}>
-                    {sym} — {SYMBOL_NAMES[sym] || sym}
+                    {sym} — {SYMBOL_NAMES[sym] || sym} ({SYMBOL_SECTORS[sym]?.sector || 'Stock'})
                   </option>
                 ))}
               </select>
@@ -806,8 +882,8 @@ export function TradingView({
 
         {/* Selected Symbol Context Card */}
         <Card
-          title={`${selectedSymbol} Market Context`}
-          subtitle={`Session ${simulation.current_session}`}
+          title={`${selectedSymbol} — ${SYMBOL_NAMES[selectedSymbol] || selectedSymbol}`}
+          subtitle={`Session ${simulation.current_session} • ${SYMBOL_SECTORS[selectedSymbol]?.sector || 'Asset'}`}
         >
           <div className="space-y-3 text-sm">
             <div className="flex justify-between pb-2 border-b border-slate-100">
