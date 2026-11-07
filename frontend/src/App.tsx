@@ -20,7 +20,7 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<'portfolio' | 'trading' | 'simulation' | 'learning' | 'calculator' | 'tutor' | 'status'>('portfolio');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [showAudienceGuide, setShowAudienceGuide] = useState(true);
+  const [showAudienceGuide, setShowAudienceGuide] = useState(false);
   const { notify } = useNotifications();
 
   useEffect(() => {

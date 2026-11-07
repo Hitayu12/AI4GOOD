@@ -8,6 +8,11 @@ import { QUIZZES } from './content/quizDefinitions';
 import { SERVER_ANSWER_KEYS, QuizScoringData } from './content/serverAnswerKeys';
 import { evaluateQuizAttempt } from './quizScoring';
 import { MarketStrategiesLab } from './strategies/MarketStrategiesLab';
+import {
+  InstrumentLifecycleDiagram,
+  InteractiveWhatIfTool,
+  InteractiveGoalMatcher,
+} from './components/InteractiveConceptWidgets';
 
 export interface LearningViewProps {
   apiClient?: ApiClient;
@@ -265,6 +270,32 @@ function renderSectionLines(lines: string[]) {
   return elements;
 }
 
+function getExecutiveTakeaway(title: string): string {
+  const lower = title.toLowerCase();
+  if (lower.includes('penalty') || lower.includes('early') || lower.includes('trade-off')) {
+    return 'Liquid cash surrender trade-off: Withdrawing before maturity triggers a 90 to 180-day interest penalty, which can even reduce principal if broken prematurely.';
+  }
+  if (lower.includes('safety') || lower.includes('protection') || lower.includes('fdic')) {
+    return 'Backed by the US government: Standard deposits are protected up to $250,000 per depositor per bank, eliminating nominal default risk.';
+  }
+  if (lower.includes('how') || lower.includes('work') || lower.includes('mechanics')) {
+    return 'Lump-sum contract: Your rate of return is fixed on day one; interest compounds continuously with zero market fluctuations.';
+  }
+  if (lower.includes('when to choose') || lower.includes('ladder') || lower.includes('strategy')) {
+    return 'Goal alignment: Ideal for strict non-negotiable milestones (tuition, down payment) or rate hedging via staggered maturity ladders.';
+  }
+  if (lower.includes('stock') || lower.includes('equity')) {
+    return 'True fractional equity ownership: Participates directly in corporate revenue, cash dividends, and multi-year economic value creation.';
+  }
+  if (lower.includes('etf') || lower.includes('index')) {
+    return 'Instant broad diversification: Replaces single-stock bankruptcy risk with an entire basket of 500+ top companies for a 0.03% expense ratio.';
+  }
+  if (lower.includes('option') || lower.includes('primer')) {
+    return 'High-leverage time decay: Options expire rapidly; buyers frequently lose 100% of their upfront premium. Strict education only.';
+  }
+  return 'Core financial mechanism designed to build disciplined, wealth-generating habits with zero guesswork.';
+}
+
 function RichCurriculumContent({
   body,
   fontSize,
@@ -275,10 +306,15 @@ function RichCurriculumContent({
   onOpenStrategies?: () => void;
 }) {
   const sections = useMemo(() => parseLessonMarkdown(body), [body]);
+  const [activeConceptIdx, setActiveConceptIdx] = useState<number>(0);
+  const [viewMode, setViewMode] = useState<'deck' | 'list'>('deck');
+  const [understoodMap, setUnderstoodMap] = useState<Record<number, boolean>>({});
   const [collapsedSections, setCollapsedSections] = useState<Record<number, boolean>>({});
   const [checkList, setCheckList] = useState<boolean[]>([false, false, false]);
 
   useEffect(() => {
+    setActiveConceptIdx(0);
+    setUnderstoodMap({});
     setCheckList([false, false, false]);
     setCollapsedSections({});
   }, [body]);
@@ -304,6 +340,56 @@ function RichCurriculumContent({
     }
   };
 
+  const activeSec = sections[activeConceptIdx] || sections[0];
+  const activeLower = activeSec ? activeSec.title.toLowerCase() : '';
+  const isActiveWarning =
+    activeLower.includes('penalty') ||
+    activeLower.includes('risk') ||
+    activeLower.includes('trade-off') ||
+    activeLower.includes('caution');
+  const isActiveSafety =
+    activeLower.includes('safety') ||
+    activeLower.includes('protection') ||
+    activeLower.includes('fdic') ||
+    activeLower.includes('sipc');
+  const isActiveDefinition =
+    activeLower.includes('what is') || activeLower.includes('introduction') || activeLower.includes('primer');
+  const isActiveAction =
+    activeLower.includes('when to choose') ||
+    activeLower.includes('role') ||
+    activeLower.includes('how') ||
+    activeLower.includes('instant');
+
+  const activeCardStyle = isActiveWarning
+    ? 'border-amber-300 bg-gradient-to-br from-amber-50/70 via-white to-orange-50/40 text-amber-950'
+    : isActiveSafety
+    ? 'border-emerald-300 bg-gradient-to-br from-emerald-50/70 via-white to-teal-50/40 text-emerald-950'
+    : isActiveDefinition
+    ? 'border-blue-300 bg-gradient-to-br from-blue-50/70 via-white to-indigo-50/40 text-blue-950'
+    : isActiveAction
+    ? 'border-indigo-300 bg-gradient-to-br from-indigo-50/60 via-white to-purple-50/30 text-indigo-950'
+    : 'border-slate-300 bg-gradient-to-br from-slate-50/80 via-white to-slate-100/40 text-slate-900';
+
+  const activeBadgeText = isActiveWarning
+    ? '⚠️ Trade-Off & Risk Alert'
+    : isActiveSafety
+    ? '🛡️ Federal & Custodial Safety'
+    : isActiveDefinition
+    ? '💡 Core Concept Definition'
+    : isActiveAction
+    ? '🎯 Strategy & Real-World Use'
+    : '📘 Market Mechanics';
+
+  const activeBadgeStyle = isActiveWarning
+    ? 'bg-amber-100 text-amber-900 border-amber-300'
+    : isActiveSafety
+    ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+    : isActiveDefinition
+    ? 'bg-blue-100 text-blue-900 border-blue-300'
+    : isActiveAction
+    ? 'bg-indigo-100 text-indigo-900 border-indigo-300'
+    : 'bg-slate-100 text-slate-800 border-slate-300';
+
   return (
     <div className="space-y-4">
       {/* Visual Learning Banner */}
@@ -315,11 +401,31 @@ function RichCurriculumContent({
           <div>
             <h4 className="text-sm font-bold text-white">Interactive Concept Curriculum</h4>
             <p className="text-xs text-blue-200">
-              {sections.length} core modular concept blocks • Bite-sized &amp; click to expand
+              {sections.length} core modular concept blocks • Step-by-step interactive studio
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2 text-xs">
+          <div className="inline-flex rounded-lg border border-blue-700 bg-blue-950/80 p-0.5">
+            <button
+              type="button"
+              onClick={() => setViewMode('deck')}
+              className={`px-2 py-0.5 rounded-md font-semibold transition ${
+                viewMode === 'deck' ? 'bg-blue-600 text-white shadow-2xs' : 'text-blue-200 hover:text-white'
+              }`}
+            >
+              🃏 Concept Deck
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`px-2 py-0.5 rounded-md font-semibold transition ${
+                viewMode === 'list' ? 'bg-blue-600 text-white shadow-2xs' : 'text-blue-200 hover:text-white'
+              }`}
+            >
+              📑 All Cards
+            </button>
+          </div>
           <button
             type="button"
             onClick={toggleAll}
@@ -327,9 +433,6 @@ function RichCurriculumContent({
           >
             {areAllCollapsed ? '▼ Expand All' : '▲ Collapse All'}
           </button>
-          <span className="px-2.5 py-1 rounded-full bg-emerald-900/80 text-emerald-300 border border-emerald-700 font-semibold">
-            ✓ 100% Plain English
-          </span>
         </div>
       </div>
 
@@ -358,102 +461,271 @@ function RichCurriculumContent({
         </div>
       )}
 
-      {/* Structured Modular Concept Cards */}
-      <div className="space-y-4">
-        {sections.map((section, sIdx) => {
-          const lower = section.title.toLowerCase();
-          const isWarning =
-            lower.includes('penalty') ||
-            lower.includes('risk') ||
-            lower.includes('trade-off') ||
-            lower.includes('caution') ||
-            lower.includes('mandatory');
-          const isSafety =
-            lower.includes('safety') ||
-            lower.includes('protection') ||
-            lower.includes('fdic') ||
-            lower.includes('sipc');
-          const isDefinition =
-            lower.includes('what is') || lower.includes('introduction') || lower.includes('primer');
-          const isAction =
-            lower.includes('when to choose') ||
-            lower.includes('role') ||
-            lower.includes('how') ||
-            lower.includes('instant') ||
-            lower.includes('simulator');
-
-          const cardStyle = isWarning
-            ? 'border-amber-300 bg-gradient-to-br from-amber-50/70 via-white to-orange-50/40 text-amber-950'
-            : isSafety
-            ? 'border-emerald-300 bg-gradient-to-br from-emerald-50/70 via-white to-teal-50/40 text-emerald-950'
-            : isDefinition
-            ? 'border-blue-300 bg-gradient-to-br from-blue-50/70 via-white to-indigo-50/40 text-blue-950'
-            : isAction
-            ? 'border-indigo-300 bg-gradient-to-br from-indigo-50/60 via-white to-purple-50/30 text-indigo-950'
-            : 'border-slate-300 bg-gradient-to-br from-slate-50/80 via-white to-slate-100/40 text-slate-900';
-
-          const badgeText = isWarning
-            ? '⚠️ Trade-Off & Risk Alert'
-            : isSafety
-            ? '🛡️ Federal & Custodial Safety'
-            : isDefinition
-            ? '💡 Core Concept Definition'
-            : isAction
-            ? '🎯 Strategy & Real-World Use'
-            : '📘 Market Mechanics';
-
-          const badgeStyle = isWarning
-            ? 'bg-amber-100 text-amber-900 border-amber-300'
-            : isSafety
-            ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-            : isDefinition
-            ? 'bg-blue-100 text-blue-900 border-blue-300'
-            : isAction
-            ? 'bg-indigo-100 text-indigo-900 border-indigo-300'
-            : 'bg-slate-100 text-slate-800 border-slate-300';
-
-          const isCollapsed = !!collapsedSections[sIdx];
-
-          return (
-            <div
-              key={sIdx}
-              className={`rounded-2xl border p-5 shadow-xs hover:shadow-md transition-all duration-150 ${cardStyle}`}
-            >
-              <div
-                onClick={() => toggleSection(sIdx)}
-                className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-3 mb-2 cursor-pointer select-none"
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    toggleSection(sIdx);
-                  }
-                }}
-                aria-expanded={!isCollapsed}
-              >
-                <h4 className="text-sm sm:text-base font-bold tracking-tight flex items-center gap-2">
-                  <span className="text-slate-400 text-xs">{isCollapsed ? '▶' : '▼'}</span>
-                  <span>{section.title}</span>
-                </h4>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${badgeStyle}`}
-                  >
-                    {badgeText}
+      {/* VIEW MODE 1: INTERACTIVE CONCEPT DECK STUDIO */}
+      {viewMode === 'deck' && activeSec && (
+        <div className="space-y-4">
+          {/* Step Selector Pills */}
+          <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-xl bg-slate-100/90 border border-slate-200">
+            {sections.map((sec, idx) => {
+              const isSelected = idx === activeConceptIdx;
+              const isDone = !!understoodMap[idx];
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setActiveConceptIdx(idx)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : isDone
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
+                      : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>{isDone ? '✓' : `${idx + 1}.`}</span>
+                  <span className="truncate max-w-[140px] sm:max-w-[200px]">
+                    {sec.title.replace('###', '').trim()}
                   </span>
-                </div>
-              </div>
+                </button>
+              );
+            })}
+          </div>
 
-              {!isCollapsed && (
-                <div className={`space-y-3 pt-1 ${fontSize === 'large' ? 'text-base' : 'text-sm'}`}>
-                  {renderSectionLines(section.lines)}
-                </div>
-              )}
+          {/* Active Concept Card */}
+          <div className={`rounded-2xl border p-5 shadow-sm space-y-4 ${activeCardStyle}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-400">Concept {activeConceptIdx + 1} of {sections.length}:</span>
+                <h4 className="text-base sm:text-lg font-bold tracking-tight text-slate-900">
+                  {activeSec.title}
+                </h4>
+              </div>
+              <span
+                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${activeBadgeStyle}`}
+              >
+                {activeBadgeText}
+              </span>
             </div>
-          );
-        })}
-      </div>
+
+            {/* Executive Key Takeaway Callout */}
+            <div className="p-3.5 rounded-xl bg-white/95 border border-slate-200 shadow-2xs space-y-1">
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 block">
+                💡 Executive Key Takeaway
+              </span>
+              <p className="text-xs sm:text-sm font-semibold text-slate-900 leading-relaxed">
+                {getExecutiveTakeaway(activeSec.title)}
+              </p>
+            </div>
+
+            {/* Content Lines */}
+            <div className={`space-y-3 pt-1 ${fontSize === 'large' ? 'text-base' : 'text-sm'}`}>
+              {renderSectionLines(activeSec.lines)}
+            </div>
+
+            {/* Card Footer Controls */}
+            <div className="pt-3 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setUnderstoodMap((prev) => {
+                    const next = { ...prev, [activeConceptIdx]: !prev[activeConceptIdx] };
+                    // If marking understood, also check off matching item in checklist
+                    if (activeConceptIdx < 3) {
+                      setCheckList((cPrev) => {
+                        const cNext = [...cPrev];
+                        cNext[activeConceptIdx] = true;
+                        return cNext;
+                      });
+                    }
+                    return next;
+                  });
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 ${
+                  understoodMap[activeConceptIdx]
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                    : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
+                }`}
+              >
+                <span>{understoodMap[activeConceptIdx] ? '✓' : '○'}</span>
+                <span>
+                  {understoodMap[activeConceptIdx] ? 'Understood & Mastered' : 'Mark Concept Understood'}
+                </span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={activeConceptIdx === 0}
+                  onClick={() => setActiveConceptIdx((p) => Math.max(0, p - 1))}
+                  className="px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-slate-700"
+                >
+                  ← Prev Concept
+                </button>
+                <button
+                  type="button"
+                  disabled={activeConceptIdx === sections.length - 1}
+                  onClick={() => setActiveConceptIdx((p) => Math.min(sections.length - 1, p + 1))}
+                  className="px-3 py-1 text-xs rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-white shadow-2xs"
+                >
+                  Next Concept →
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Collapsible reference cards for remaining sections so all text is 100% accessible in DOM */}
+          <div className="space-y-2 pt-2">
+            <h5 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              All Lesson Sections (Click to expand any section):
+            </h5>
+            {sections.map((section, sIdx) => {
+              if (sIdx === activeConceptIdx) return null;
+              const isCollapsed = collapsedSections[sIdx] !== false; // default collapsed in deck mode
+
+              return (
+                <div
+                  key={sIdx}
+                  className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs hover:border-blue-200 transition-colors"
+                >
+                  <div
+                    onClick={() => toggleSection(sIdx)}
+                    className="flex items-center justify-between cursor-pointer select-none"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        toggleSection(sIdx);
+                      }
+                    }}
+                    aria-expanded={!isCollapsed}
+                  >
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                      <span className="text-slate-400 text-[10px]">{isCollapsed ? '▶' : '▼'}</span>
+                      <span>{section.title}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveConceptIdx(sIdx);
+                      }}
+                      className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 hover:underline px-2 py-0.5 rounded bg-blue-50"
+                    >
+                      Open in Studio →
+                    </button>
+                  </div>
+
+                  {!isCollapsed && (
+                    <div className={`space-y-3 pt-3 border-t border-slate-100 mt-2 ${fontSize === 'large' ? 'text-base' : 'text-sm'}`}>
+                      {renderSectionLines(section.lines)}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* VIEW MODE 2: FULL EXPANDED CARDS LIST */}
+      {viewMode === 'list' && (
+        <div className="space-y-4">
+          {sections.map((section, sIdx) => {
+            const lower = section.title.toLowerCase();
+            const isWarning =
+              lower.includes('penalty') ||
+              lower.includes('risk') ||
+              lower.includes('trade-off') ||
+              lower.includes('caution') ||
+              lower.includes('mandatory');
+            const isSafety =
+              lower.includes('safety') ||
+              lower.includes('protection') ||
+              lower.includes('fdic') ||
+              lower.includes('sipc');
+            const isDefinition =
+              lower.includes('what is') || lower.includes('introduction') || lower.includes('primer');
+            const isAction =
+              lower.includes('when to choose') ||
+              lower.includes('role') ||
+              lower.includes('how') ||
+              lower.includes('instant') ||
+              lower.includes('simulator');
+
+            const cardStyle = isWarning
+              ? 'border-amber-300 bg-gradient-to-br from-amber-50/70 via-white to-orange-50/40 text-amber-950'
+              : isSafety
+              ? 'border-emerald-300 bg-gradient-to-br from-emerald-50/70 via-white to-teal-50/40 text-emerald-950'
+              : isDefinition
+              ? 'border-blue-300 bg-gradient-to-br from-blue-50/70 via-white to-indigo-50/40 text-blue-950'
+              : isAction
+              ? 'border-indigo-300 bg-gradient-to-br from-indigo-50/60 via-white to-purple-50/30 text-indigo-950'
+              : 'border-slate-300 bg-gradient-to-br from-slate-50/80 via-white to-slate-100/40 text-slate-900';
+
+            const badgeText = isWarning
+              ? '⚠️ Trade-Off & Risk Alert'
+              : isSafety
+              ? '🛡️ Federal & Custodial Safety'
+              : isDefinition
+              ? '💡 Core Concept Definition'
+              : isAction
+              ? '🎯 Strategy & Real-World Use'
+              : '📘 Market Mechanics';
+
+            const badgeStyle = isWarning
+              ? 'bg-amber-100 text-amber-900 border-amber-300'
+              : isSafety
+              ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+              : isDefinition
+              ? 'bg-blue-100 text-blue-900 border-blue-300'
+              : isAction
+              ? 'bg-indigo-100 text-indigo-900 border-indigo-300'
+              : 'bg-slate-100 text-slate-800 border-slate-300';
+
+            const isCollapsed = !!collapsedSections[sIdx];
+
+            return (
+              <div
+                key={sIdx}
+                className={`rounded-2xl border p-5 shadow-xs hover:shadow-md transition-all duration-150 ${cardStyle}`}
+              >
+                <div
+                  onClick={() => toggleSection(sIdx)}
+                  className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-3 mb-2 cursor-pointer select-none"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleSection(sIdx);
+                    }
+                  }}
+                  aria-expanded={!isCollapsed}
+                >
+                  <h4 className="text-sm sm:text-base font-bold tracking-tight flex items-center gap-2">
+                    <span className="text-slate-400 text-xs">{isCollapsed ? '▶' : '▼'}</span>
+                    <span>{section.title}</span>
+                  </h4>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${badgeStyle}`}
+                    >
+                      {badgeText}
+                    </span>
+                  </div>
+                </div>
+
+                {!isCollapsed && (
+                  <div className={`space-y-3 pt-1 ${fontSize === 'large' ? 'text-base' : 'text-sm'}`}>
+                    {renderSectionLines(section.lines)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Interactive Concept Checkoff Card */}
       <div className="rounded-2xl border border-slate-300/80 bg-white p-5 shadow-xs space-y-3">
@@ -571,6 +843,7 @@ export function LearningView({
 
   const completedCount = Object.values(progressMap).filter((p) => p.completed).length;
   const scenarios = TOPIC_SCENARIOS[selectedTopicId] || TOPIC_SCENARIOS['cd-basics'];
+  const [activePersonaIdx, setActivePersonaIdx] = useState<number>(0);
 
   // Handle switching topic
   const handleSelectTopic = (topicId: string) => {
@@ -579,6 +852,7 @@ export function LearningView({
     setValidationError(null);
     setAttemptResult(null);
     setOpenHints({});
+    setActivePersonaIdx(0);
     // Reset simulator defaults based on topic
     if (topicId === 'hysa-basics') {
       setSimApy(4.5);
@@ -894,6 +1168,12 @@ export function LearningView({
                   </div>
                 </div>
 
+                {/* Interactive Lifecycle Step-Through Diagram */}
+                <InstrumentLifecycleDiagram topicId={selectedTopicId} />
+
+                {/* Specialized Interactive What-If Scenario Lab */}
+                <InteractiveWhatIfTool topicId={selectedTopicId} />
+
                 {/* Hands-On Mini-Simulator Widget */}
                 <div className="rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50/60 via-slate-50 to-blue-50/40 p-4 space-y-4">
                   <div className="flex items-center justify-between">
@@ -999,30 +1279,83 @@ export function LearningView({
                   </div>
                 </div>
 
-                {/* Inclusive Real-World Relatable Personas */}
-                <div className="space-y-3">
-                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Inclusive Real-World Scenarios
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Interactive Goal & Asset Matcher */}
+                <InteractiveGoalMatcher onSelectTopic={handleSelectTopic} />
+
+                {/* Interactive Real-World Case Studies */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">👥</span>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">
+                          Interactive Real-World Case Studies
+                        </h4>
+                        <p className="text-[11px] text-slate-500">
+                          Click any saver or investor to see their scenario and tactical takeaway.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200">
+                      Case Study {activePersonaIdx + 1} of {scenarios.length}
+                    </span>
+                  </div>
+
+                  {/* Persona Selector Ribbon */}
+                  <div className="flex flex-wrap items-center gap-2">
                     {scenarios.map((sc, idx) => (
-                      <div
+                      <button
                         key={idx}
-                        className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-blue-200 transition space-y-1.5"
+                        type="button"
+                        onClick={() => setActivePersonaIdx(idx)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 ${
+                          idx === activePersonaIdx
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                            : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                        }`}
                       >
+                        <span>👤</span>
+                        <span>{sc.name}</span>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded font-normal ${
+                            idx === activePersonaIdx ? 'bg-blue-700 text-blue-100' : 'bg-slate-200 text-slate-600'
+                          }`}
+                        >
+                          {sc.tag}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Active Persona Card */}
+                  {scenarios[activePersonaIdx] && (() => {
+                    const sc = scenarios[activePersonaIdx];
+                    return (
+                      <div className="p-4 rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50/50 via-white to-slate-50/50 space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-slate-900">{sc.name}</span>
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                          <div>
+                            <span className="text-xs font-bold text-blue-950 block">{sc.name}</span>
+                            <span className="text-[11px] text-slate-500">{sc.role}</span>
+                          </div>
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-200">
                             {sc.tag}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-600">{sc.situation}</p>
-                        <div className="text-xs font-medium text-blue-900 bg-blue-50/60 p-2 rounded border border-blue-100">
-                          <strong>Key Takeaway:</strong> {sc.takeaway}
+                        <p className="text-xs text-slate-700 leading-relaxed bg-white p-3 rounded-lg border border-slate-200/80">
+                          <strong>Situation:</strong> {sc.situation}
+                        </p>
+                        <div className="p-3 rounded-lg bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-950 flex items-start gap-2">
+                          <span className="text-base">💡</span>
+                          <div>
+                            <strong className="block text-[11px] uppercase tracking-wider text-emerald-900">
+                              Key Takeaway &amp; Strategy:
+                            </strong>
+                            <span className="leading-relaxed">{sc.takeaway}</span>
+                          </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Complete Lesson Body Text with Rich Modular Cards */}
