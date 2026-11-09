@@ -76,3 +76,167 @@ Simulation creation, advance, orders, and quiz submission require a client-gener
 Record handoffs in `docs/HANDOFFS.md` with owner, dependency, schema/version, reproduction steps, checks, and pending acceptance. Prepare a copyable summary; send external messages only if the user authorizes them.
 
 Release requires real core API integration: auth, lesson/quiz persistence, simulation advance, queued buy/sell, reconciled portfolio, ownership checks, and no future data. Keep fixture results separate. Optional AI may remain disabled with a clear limitation. Use a durable volume for SQLite with a single-writer deployment, or a supported hosted database with verified migrations; a DATABASE_URL by itself does not preserve data. Verify save/restart/reload persistence. Demo seeds never reset real user records.
+
+### Phase 3 auth implementation details (verified 2026-11-07)
+
+This section specifies bounds for the existing v2 auth shapes; it does not
+introduce a breaking shape change. Matching synthetic examples are in
+`docs/fixtures/auth.json`. Generated OpenAPI publishes exact request/response
+models. Phase 3 acceptance passed: 73 tests, matching fixtures, and the real HTTP
+auth flow including restart/revocation persistence. Dependencies are installed
+and included in the hashed lockfile.
+
+- Both register and login accept only `email` and `password`; unknown fields,
+  missing fields, non-string values, invalid JSON, and invalid bounds return 422
+  using the error envelope. Errors do not echo inputs or validation context.
+- Email: plain ASCII address, 3–254 characters after trimming, lowercased for
+  both registration and login; no display-name syntax. Email-validator performs
+  syntax checks without DNS/deliverability checks. No claim of mailbox ownership
+  or email verification is made.
+- Password: 12–128 characters, preserved exactly (including whitespace); no
+  coercion, trimming, or composition rule. Argon2id hashes are stored, never raw
+  passwords. Successful login upgrades hash parameters when necessary.
+- Registration returns 201 `{user:{id,email}}`; a normalized duplicate email
+  returns 409 `email_registered`. Registration does not issue a token.
+- Login returns 200 `{access_token,token_type:"bearer",expires_at}`. Tokens use
+  32 random bytes encoded as 43 URL-safe characters. Only SHA-256 digests are
+  persisted. Expiry is UTC `YYYY-MM-DDTHH:MM:SSZ`, default one hour, configurable
+  using `AUTH_TOKEN_TTL_SECONDS` (60–86400). A token is invalid at expiry.
+- Unknown email and incorrect password yield the same 401 `invalid_credentials`
+  message. A dummy Argon2 verification is performed for unknown users.
+- `/me` returns only the authenticated user's `{id,email}`. `/logout` revokes
+  only the presented token and returns an empty 204. Other sessions remain valid.
+  Missing, malformed, unknown, expired, or revoked tokens return 401
+  `unauthenticated` with `WWW-Authenticate: Bearer`; repeated logout is 401.
+- Auth responses use `Cache-Control: no-store`. Auth has no idempotency receipts.
+  Store frontend tokens in memory and send `Authorization: Bearer <token>`;
+  use HTTPS outside localhost. Do not log passwords or Authorization headers.
+- Login throttling counts all schema-valid login requests, including successful
+  ones, per server-observed client address. Defaults: 10 requests in a fixed
+  60-second window. `LOGIN_MAX_ATTEMPTS` accepts 1–1000;
+  `LOGIN_WINDOW_SECONDS` accepts 1–3600. A full window returns **429**
+  `login_rate_limited` and integer `Retry-After` seconds. This explicitly adds
+  the standard rate-limit status to the shared error-status list.
+- The limiter is thread-safe, process-local, capped at 10000 active peer entries,
+  and clears on restart. At peer capacity, new peers receive 503
+  `auth_unavailable`; expired entries are discarded. It is suitable for the
+  single-process MVP, not distributed throttling. Direct local serving should
+  disable proxy headers; deployment must explicitly configure trusted proxies.
+  Registration throttling, password recovery, email verification, and auth UI
+  are not implemented in this phase.
+
+### Phase 4 dataset implementation details
+
+- `GET /api/v1/datasets` requires bearer auth and returns
+  `{items:[{id,label,source,synthetic,session_dates,symbols}]}`. Dates and symbols
+  are metadata, never OHLCV. Only sealed imports are listed, ordered by ID.
+- `GET /api/v1/instruments?dataset_id=...` requires bearer auth and returns
+  `{items:[{symbol,name}]}` ordered by symbol; unknown IDs return 404
+  `dataset_not_found`. Missing/invalid IDs and extra query fields return 422.
+  Datasets are shared reference data, not user-owned resources. Both users see
+  the same catalog. Matching fixtures: `docs/fixtures/datasets.json` and
+  `docs/fixtures/instruments.json`. No full-history price endpoint exists.
+- Dataset IDs are 1–64 lowercase ASCII letters/digits/underscores/hyphens,
+  starting with a letter or digit. Symbols are 1–12 uppercase ASCII
+  letters/digits/dots/hyphens, starting with a letter.
+- Import is an offline administrator CLI, not an HTTP upload. Manifest schema:
+  `backend/data/manifest.schema.json`; example:
+  `backend/data/fixtures/accounting.manifest.json`. Unknown manifest keys and
+  duplicate JSON keys are rejected. Versions are integers 1–1000000.
+- Bounds: at most 100 datasets, 25 symbols and 366 sessions per dataset; CSV
+  at most 5000000 bytes and UTF-8 manifest at most 128000 bytes. Each declared
+  symbol/session pair must have exactly one bar, with CSV rows ordered by date
+  then symbol. Symbol and session definitions must be unique and sorted.
+- CSV header is exactly `symbol,session_date,open,high,low,close,volume`.
+  Prices use plain decimal notation with at most six decimal places, within
+  0.010000–1000000.000000 USD, and must be exact whole cents. No float conversion,
+  exponent notation, silent rounding, or fractional-cent ingestion. Storage is
+  six-place scaled integers with SQLite integer-type/range/cent constraints.
+  OHLC relationships are validated. Volume is an integer 0–9223372036854775807.
+- Manifest preserves source/terms URLs and notes, retrieval date, raw/unadjusted
+  USD policy, symbols/names, exact UTC open/close timestamps per session,
+  no-action evidence/assumption, calendar notes, limitations, and CSV SHA-256.
+  UTC sessions must open before close on their declared date. Review and
+  retrieval dates must cover the last session. Session-calendar correctness
+  and source permissions remain the importing operator's responsibility.
+- Real imports require source/terms URLs plus `verified_none` corporate-action
+  evidence; synthetic imports require `assumed_none`. The importer validates
+  declarations, not remote evidence or licensing truth. Never treat a fabricated
+  provenance declaration as real-source acceptance.
+- The canonical manifest has a separately stored SHA-256 fingerprint. Matching
+  CSV/manifest reimports return `unchanged`; changed CSV bytes or metadata for
+  an existing ID are rejected. Use a new dataset ID and incremented version.
+  Import checks, inserts, and sealing occur atomically under `BEGIN IMMEDIATE`.
+  Database triggers prohibit changes or extensions to a sealed dataset.
+- Phase 4 state: `complete_local`. Synthetic and real personal-research imports
+  and HTTP metadata checks passed. The Alpha Vantage IBM sample is kept only
+  under ignored `backend/data/local/`; its personal-use terms do not establish
+  permission for shared-app distribution. Obtain a dataset with suitable
+  project rights before final real-core integration/release (no later than
+  Phase 10). Do not bundle local research files into frontend/build artifacts.
+
+### Phase 5 simulation implementation details (verified 2026-11-07)
+
+- Implemented authenticated routes: POST/GET `/api/v1/simulations`, GET
+  `/api/v1/simulations/{id}`, POST `/api/v1/simulations/{id}/advance`, and GET
+  `/api/v1/simulations/{id}/market-data/{symbol}`. Exact schemas are published
+  in OpenAPI; synthetic shape examples are in `docs/fixtures/simulations.json`.
+  Every resource route checks ownership; absent and foreign IDs both return
+  404 `simulation_not_found`. Lists contain only the current user's simulations.
+- Create requires exactly `{dataset_id,start_session,end_session,initial_cash}`.
+  Dates are actual YYYY-MM-DD calendar dates and must be declared dataset
+  sessions, with start <= end; unsupported sessions return 422
+  `unsupported_session`. No automatic weekend/holiday adjustment occurs.
+  Initial cash is a JSON string with exactly two decimal places, > 0 and
+  <= 1000000000.00 USD; no numbers, exponent notation, or leading-zero amounts.
+  Unknown fields and invalid body types/bounds return safe 422 envelopes.
+- A user may create at most 100 simulations (422 `simulation_limit_reached`).
+  Each has a server-generated opaque ID, initial version 1, and a fixed
+  immutable dataset ID/manifest fingerprint. Its symbols and session schedule
+  come from that pinned manifest. Importing another dataset version does not
+  redirect existing simulations. The maximum version is 1000000000.
+- The initial cursor is after the selected start session's close. `current_time`
+  is the dataset's UTC close, never processing wall-clock time. Start=end creates
+  an immediately completed simulation. Cash is stored in integer cents; an
+  initial equity snapshot is created for that visited start session only.
+- Advance accepts exactly `{expected_version}`, a strict integer 1–1000000000.
+  Writes acquire SQLite `BEGIN IMMEDIATE` before receipt/version checks, using
+  a separate connection from authentication reads. A stale version returns 409
+  `stale_version`; an already-completed simulation returns 409
+  `simulation_completed`. Each success advances exactly one declared session,
+  increments the version, records one equity snapshot, and returns
+  `{simulation:Simulation,order_results:[]}`. The last selected session completes
+  the simulation. There is no order execution in Phase 5.
+- Create and advance require `Idempotency-Key`: 1–128 ASCII letters/digits,
+  underscores, dots, colons, or hyphens, starting with a letter or digit; a UUID
+  is recommended. Keys are scoped by user + route + resource (create has an
+  empty resource scope). The fingerprint covers the canonical validated JSON
+  body. Same key/payload returns the original response body/status byte for byte,
+  even after later advances or restart; it does not return refreshed state.
+  A different valid payload returns 409 `idempotency_conflict`. Receipts precede
+  stale-version/completion checks. Failed writes save no success receipt.
+  Mutations, snapshots, and receipt commit together; auth responses are never
+  stored. After a timeout, retry the SAME key/payload; use GET to refresh state.
+- Market-data query parameters are optional `from` and `to`, using exact session
+  dates. Defaults are the simulation start and captured current session. Each
+  bound must be a declared visible session within the selected simulation window;
+  reversed/unsupported bounds return 422 `unsupported_range`. Either bound after
+  the cursor returns 422 `future_data_requested`, with no price data in the error.
+  Extra query fields are rejected. Unknown symbols return 404
+  `instrument_not_found`. Ownership is checked before semantic range checks.
+- Market SQL filters both session dates and `available_at` (the dataset session
+  close) against the owned captured cursor. Prices are strings with six places,
+  volume is an integer, and each bar has its session date/UTC availability time.
+  Prior dataset history outside the selected simulation window is not exposed.
+  End/session dates in simulation/catalog responses remain public metadata;
+  knowing a future date does not grant access to its prices.
+- Missing/corrupted required market data returns 503 `market_data_unavailable`;
+  an advance rolls back instead of skipping a session. Database operational
+  failures return a safe 503 `database_unavailable`. Unexpected failures roll
+  back the complete transaction and return the generic 500 envelope. Errors do
+  not echo prices or exception details. Simulation responses use no-store.
+- Cash and snapshots are internal foundations only in this phase. Order,
+  transaction, portfolio, and performance routes are not implemented yet.
+  Phase 6 adds fills/accounting; Phase 7 publishes portfolio/performance.
+  The Phase 4 shared-app real-data rights dependency remains open until resolved
+  before final integration, no later than Phase 10.

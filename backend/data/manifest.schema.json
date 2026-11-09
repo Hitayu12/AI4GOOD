@@ -1,0 +1,238 @@
+{
+  "$defs": {
+    "CorporateActions": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "assumed_none",
+            "verified_none"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "checked_on": {
+          "format": "date",
+          "title": "Checked On",
+          "type": "string"
+        },
+        "evidence_urls": {
+          "items": {
+            "format": "uri",
+            "maxLength": 2083,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Evidence Urls",
+          "type": "array"
+        },
+        "notes": {
+          "maxLength": 2000,
+          "minLength": 20,
+          "title": "Notes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "checked_on",
+        "evidence_urls",
+        "notes"
+      ],
+      "title": "CorporateActions",
+      "type": "object"
+    },
+    "Instrument": {
+      "additionalProperties": false,
+      "properties": {
+        "symbol": {
+          "pattern": "^[A-Z][A-Z0-9.-]{0,11}$",
+          "title": "Symbol",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "symbol",
+        "name"
+      ],
+      "title": "Instrument",
+      "type": "object"
+    },
+    "SessionDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "session_date": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "title": "Session Date",
+          "type": "string"
+        },
+        "open_at": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "title": "Open At",
+          "type": "string"
+        },
+        "close_at": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "title": "Close At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_date",
+        "open_at",
+        "close_at"
+      ],
+      "title": "SessionDefinition",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_-]*$",
+      "title": "Id",
+      "type": "string"
+    },
+    "version": {
+      "maximum": 1000000,
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "label": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Label",
+      "type": "string"
+    },
+    "source": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "source_urls": {
+      "items": {
+        "format": "uri",
+        "maxLength": 2083,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Source Urls",
+      "type": "array"
+    },
+    "usage_terms": {
+      "maxLength": 2000,
+      "minLength": 20,
+      "title": "Usage Terms",
+      "type": "string"
+    },
+    "usage_terms_url": {
+      "anyOf": [
+        {
+          "format": "uri",
+          "maxLength": 2083,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Usage Terms Url"
+    },
+    "retrieved_on": {
+      "format": "date",
+      "title": "Retrieved On",
+      "type": "string"
+    },
+    "synthetic": {
+      "title": "Synthetic",
+      "type": "boolean"
+    },
+    "currency": {
+      "const": "USD",
+      "title": "Currency",
+      "type": "string"
+    },
+    "price_policy": {
+      "const": "raw_unadjusted",
+      "title": "Price Policy",
+      "type": "string"
+    },
+    "csv_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Csv Sha256",
+      "type": "string"
+    },
+    "instruments": {
+      "items": {
+        "$ref": "#/$defs/Instrument"
+      },
+      "maxItems": 25,
+      "minItems": 1,
+      "title": "Instruments",
+      "type": "array"
+    },
+    "sessions": {
+      "items": {
+        "$ref": "#/$defs/SessionDefinition"
+      },
+      "maxItems": 366,
+      "minItems": 1,
+      "title": "Sessions",
+      "type": "array"
+    },
+    "calendar_notes": {
+      "maxLength": 2000,
+      "minLength": 20,
+      "title": "Calendar Notes",
+      "type": "string"
+    },
+    "corporate_actions": {
+      "$ref": "#/$defs/CorporateActions"
+    },
+    "limitations": {
+      "items": {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "title": "Limitations",
+      "type": "array"
+    }
+  },
+  "required": [
+    "id",
+    "version",
+    "label",
+    "source",
+    "source_urls",
+    "usage_terms",
+    "usage_terms_url",
+    "retrieved_on",
+    "synthetic",
+    "currency",
+    "price_policy",
+    "csv_sha256",
+    "instruments",
+    "sessions",
+    "calendar_notes",
+    "corporate_actions",
+    "limitations"
+  ],
+  "title": "DatasetManifest",
+  "type": "object"
+}

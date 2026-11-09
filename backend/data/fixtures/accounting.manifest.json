@@ -1,0 +1,54 @@
+{
+  "id": "synthetic-accounting-v1",
+  "version": 1,
+  "label": "Synthetic accounting reference (not market data)",
+  "source": "Project-authored synthetic fixture",
+  "source_urls": [],
+  "usage_terms": "Project-authored synthetic data for deterministic tests and local demonstrations; not real market prices.",
+  "usage_terms_url": null,
+  "retrieved_on": "2026-11-07",
+  "synthetic": true,
+  "currency": "USD",
+  "price_policy": "raw_unadjusted",
+  "csv_sha256": "a2753efdc33cdd52b12062ebb1478e84b37f7ee93c37a17b095533371b0a107f",
+  "instruments": [
+    {
+      "symbol": "TEST",
+      "name": "Synthetic reference equity"
+    }
+  ],
+  "sessions": [
+    {
+      "session_date": "2026-01-05",
+      "open_at": "2026-01-05T14:30:00Z",
+      "close_at": "2026-01-05T21:00:00Z"
+    },
+    {
+      "session_date": "2026-01-06",
+      "open_at": "2026-01-06T14:30:00Z",
+      "close_at": "2026-01-06T21:00:00Z"
+    },
+    {
+      "session_date": "2026-01-07",
+      "open_at": "2026-01-07T14:30:00Z",
+      "close_at": "2026-01-07T21:00:00Z"
+    },
+    {
+      "session_date": "2026-01-08",
+      "open_at": "2026-01-08T14:30:00Z",
+      "close_at": "2026-01-08T21:00:00Z"
+    }
+  ],
+  "calendar_notes": "Declared four-session synthetic calendar; US regular-session UTC times in January. No real exchange coverage is claimed.",
+  "corporate_actions": {
+    "status": "assumed_none",
+    "checked_on": "2026-11-07",
+    "evidence_urls": [],
+    "notes": "Synthetic fixture explicitly assumes no splits, dividends, or other corporate actions."
+  },
+  "limitations": [
+    "Synthetic prices and volume, not investment data.",
+    "Fixed single-symbol universe and four sessions.",
+    "No fees, dividends, or corporate-action processing."
+  ]
+}
