@@ -8,6 +8,7 @@ import { QUIZZES } from './content/quizDefinitions';
 import { SERVER_ANSWER_KEYS, QuizScoringData } from './content/serverAnswerKeys';
 import { evaluateQuizAttempt } from './quizScoring';
 import { MarketStrategiesLab } from './strategies/MarketStrategiesLab';
+import { TabOverviewModal } from '../../components/common/TabOverviewModal';
 import {
   InstrumentLifecycleDiagram,
   InteractiveWhatIfTool,
@@ -799,6 +800,7 @@ export function LearningView({
   // View presentation mode: 'interactive' | 'strategies' | 'reader' | 'matrix'
   const [activeTab, setActiveTab] = useState<'interactive' | 'strategies' | 'reader' | 'matrix'>('interactive');
   const [fontSize, setFontSize] = useState<'normal' | 'large'>('normal');
+  const [isOverviewOpen, setIsOverviewOpen] = useState<boolean>(false);
 
   // Interactive Mini-Simulator State
   const [simDeposit, setSimDeposit] = useState<number>(1000);
@@ -982,6 +984,13 @@ export function LearningView({
 
   return (
     <div className="space-y-8">
+      {/* Learn Tab Overview Popup */}
+      <TabOverviewModal
+        tab="learning"
+        isOpen={isOverviewOpen}
+        onClose={() => setIsOverviewOpen(false)}
+      />
+
       {/* View Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
@@ -991,7 +1000,16 @@ export function LearningView({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setIsOverviewOpen(true)}
+            aria-label="What is Learn Tab?"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition-colors shadow-2xs cursor-pointer"
+          >
+            <span>💡</span>
+            <span>What is Learn?</span>
+          </button>
           <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
             Completed: {completedCount} of {LESSON_SUMMARIES.length} Topics
           </span>

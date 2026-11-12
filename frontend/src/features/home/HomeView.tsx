@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { HowItWorksModal } from './HowItWorksModal';
+import { TabOverviewModal } from '../../components/common/TabOverviewModal';
 
 export interface HomeViewProps {
   onNavigateTab: (
@@ -14,8 +15,9 @@ export function HomeView({
   cashDollars = 10000,
   totalEquityDollars = 10000,
 }: HomeViewProps) {
-  // Modal State for How It Works
+  // Modal State for How It Works & Tab Overview
   const [isHowItWorksOpen, setIsHowItWorksOpen] = useState(false);
+  const [isOverviewOpen, setIsOverviewOpen] = useState(false);
 
   // Interactive Daily Challenge Poll State
   const [pollSelected, setPollSelected] = useState<string | null>(null);
@@ -114,6 +116,14 @@ export function HomeView({
         onNavigateTab={onNavigateTab}
       />
 
+      {/* Tab Overview Modal */}
+      <TabOverviewModal
+        tab="home"
+        isOpen={isOverviewOpen}
+        onClose={() => setIsOverviewOpen(false)}
+        onNavigateTab={onNavigateTab}
+      />
+
       {/* Institutional Hero Banner with Richer Gradient & Floating Glow Orbs */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 border border-slate-800 shadow-2xl p-6 sm:p-10 text-white space-y-6">
         {/* Ambient Gradient Glow Spheres */}
@@ -194,6 +204,16 @@ export function HomeView({
               <span className="text-[10px] bg-slate-950/20 px-2 py-0.5 rounded-full font-mono font-bold">
                 START HERE
               </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsOverviewOpen(true)}
+              aria-label="What is Home Tab?"
+              className="px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/20 font-bold text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer backdrop-blur-xs"
+            >
+              <span>💡</span>
+              <span>What is Home?</span>
             </button>
 
             <button

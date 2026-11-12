@@ -17,6 +17,7 @@ import {
   INITIAL_SIMULATION_FIXTURE,
 } from './simulationFixtures';
 import { SimulationService } from './simulationService';
+import { TabOverviewModal } from '../../components/common/TabOverviewModal';
 
 export interface SimulationViewProps {
   service?: SimulationService;
@@ -106,6 +107,7 @@ export function SimulationView({
   const [startingCashInput, setStartingCashInput] = useState<string>(DEFAULT_STARTING_CASH_USD.toString());
   const [cashValidationError, setCashValidationError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState<boolean>(false);
+  const [isOverviewOpen, setIsOverviewOpen] = useState<boolean>(false);
 
   // Live region announcement
   const liveAnnounceId = useId();
@@ -252,6 +254,13 @@ export function SimulationView({
 
   return (
     <div className="space-y-6">
+      {/* Simulation Tab Overview Popup */}
+      <TabOverviewModal
+        tab="simulation"
+        isOpen={isOverviewOpen}
+        onClose={() => setIsOverviewOpen(false)}
+      />
+
       {/* Live Region for Screen Reader Announcements */}
       <div id={liveAnnounceId} role="status" aria-live="polite" className="sr-only">
         {announcement}
@@ -291,6 +300,16 @@ export function SimulationView({
               </select>
             </div>
           )}
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsOverviewOpen(true)}
+            aria-label="What is Simulation Tab?"
+            className="border-indigo-200 bg-indigo-50 text-indigo-800 hover:bg-indigo-100 font-bold"
+          >
+            <span>💡 What is Simulation?</span>
+          </Button>
 
           <Button
             size="sm"

@@ -12,6 +12,7 @@ import { PortfolioView } from './features/portfolio';
 import { TutorView } from './features/tutor';
 import { NotificationProvider, NotificationCenter, useNotifications } from './features/notifications';
 import { AuthModal } from './components/auth/AuthModal';
+import { TabOverviewModal, TAB_OVERVIEWS } from './components/common/TabOverviewModal';
 import { User } from './api/types';
 
 function AppContent() {
@@ -21,6 +22,7 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<'home' | 'portfolio' | 'trading' | 'simulation' | 'learning' | 'calculator' | 'tutor' | 'status'>('home');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isOverviewModalOpen, setIsOverviewModalOpen] = useState(false);
   const { notify } = useNotifications();
 
   useEffect(() => {
@@ -312,8 +314,19 @@ function AppContent() {
               <span className="text-purple-600 font-bold">♿</span> WCAG 2.1 AA Accessible
             </span>
           </div>
-          <div className="text-slate-400 text-[10px]">
-            Accessible Educational Simulator
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsOverviewModalOpen(true)}
+              aria-label={`Open ${TAB_OVERVIEWS[activeTab]?.tabName || 'Tab'} Overview`}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-gradient-to-r from-blue-600 via-indigo-600 to-teal-500 hover:from-blue-500 hover:to-teal-400 text-white shadow-xs ring-1 ring-white/20 transition-all transform hover:-translate-y-0.5 cursor-pointer"
+            >
+              <span className="text-sm">💡</span>
+              <span>What is {TAB_OVERVIEWS[activeTab]?.tabName || 'this Tab'}?</span>
+              <span className="text-[9px] bg-slate-950/30 px-1.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider">
+                Overview
+              </span>
+            </button>
           </div>
         </div>
       </section>
@@ -335,7 +348,18 @@ function AppContent() {
         ) : activeTab === 'tutor' ? (
           <TutorView />
         ) : (
-          <div className="max-w-xl mx-auto space-y-6">
+          <div className="max-w-xl mx-auto space-y-4">
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsOverviewModalOpen(true)}
+                aria-label="What is System Status Tab?"
+                className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+              >
+                <span>💡</span>
+                <span>What is System Status?</span>
+              </button>
+            </div>
             <Card title="System &amp; Transport Status" subtitle="API connection &amp; transport boundary">
               <div className="space-y-4">
                 <div className="flex items-center justify-between text-sm">
@@ -418,6 +442,13 @@ function AppContent() {
             message: `Welcome, ${user.email}! Session token active.`,
           });
         }}
+      />
+
+      <TabOverviewModal
+        tab={activeTab}
+        isOpen={isOverviewModalOpen}
+        onClose={() => setIsOverviewModalOpen(false)}
+        onNavigateTab={(tab) => setActiveTab(tab)}
       />
     </div>
   );

@@ -28,6 +28,7 @@ import {
   MODERN_BASELINE_PRICES,
 } from './yahooFinanceService';
 import { TradeConfirmationModal, ExecutedTradeReceipt } from './TradeConfirmationModal';
+import { TabOverviewModal } from '../../components/common/TabOverviewModal';
 
 export interface TradingViewProps {
   initialSimulation?: Simulation;
@@ -212,6 +213,7 @@ export function TradingView({
   const [selectedSymbol, setSelectedSymbol] = useState<string>('AAPL');
   const [orderSide, setOrderSide] = useState<OrderSide>('buy');
   const [quantityInput, setQuantityInput] = useState<string>('1');
+  const [isOverviewOpen, setIsOverviewOpen] = useState<boolean>(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState<string>(() => generateIdempotencyKey());
   const [instantFill, setInstantFill] = useState<boolean>(false);
@@ -628,6 +630,13 @@ export function TradingView({
         onClose={() => setTradeReceipt(null)}
       />
 
+      {/* Trading Tab Overview Modal */}
+      <TabOverviewModal
+        tab="trading"
+        isOpen={isOverviewOpen}
+        onClose={() => setIsOverviewOpen(false)}
+      />
+
       {/* Mode Switcher Segmented Control */}
       <div className="rounded-2xl border border-slate-200/90 bg-white p-3 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-xl">
@@ -668,7 +677,16 @@ export function TradingView({
           </button>
         </div>
 
-        <div className="flex items-center gap-3 text-xs text-slate-500 justify-between md:justify-end px-1">
+        <div className="flex items-center gap-3 text-xs text-slate-500 justify-between md:justify-end px-1 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setIsOverviewOpen(true)}
+            aria-label="What is Trading Tab?"
+            className="px-3 py-1.5 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-900 font-bold text-xs flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+          >
+            <span>💡</span>
+            <span>What is Trading?</span>
+          </button>
           {tradingMode === 'live_yahoo' ? (
             <div className="flex items-center gap-2.5">
               <span className="flex items-center gap-1.5 font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg text-xs">

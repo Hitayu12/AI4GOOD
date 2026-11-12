@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Card } from '../../components/common/Card';
+import { TabOverviewModal } from '../../components/common/TabOverviewModal';
 import {
   EquityPoint,
   PortfolioViewProps,
@@ -160,6 +161,7 @@ export function PortfolioView({
   // State for interactive tooltip & table toggle
   const [activePoint, setActivePoint] = useState<{ session_date: string; total_equity: number } | null>(null);
   const [showTable, setShowTable] = useState<boolean>(false);
+  const [isOverviewOpen, setIsOverviewOpen] = useState<boolean>(false);
 
   // 1. Resolve effective current session cursor
   const effectiveCurrentSession = useMemo(() => {
@@ -363,6 +365,13 @@ export function PortfolioView({
 
   return (
     <div className={`space-y-6 ${className}`} data-testid="portfolio-view">
+      {/* Portfolio Tab Overview Popup */}
+      <TabOverviewModal
+        tab="portfolio"
+        isOpen={isOverviewOpen}
+        onClose={() => setIsOverviewOpen(false)}
+      />
+
       {/* Portfolio Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-200 pb-4">
         <div>
@@ -371,7 +380,16 @@ export function PortfolioView({
             Real-time equity tracking, historical curve, and transparent loss-accessible analytics
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setIsOverviewOpen(true)}
+            aria-label="What is Portfolio Tab?"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-2xs cursor-pointer"
+          >
+            <span>💡</span>
+            <span>What is Portfolio?</span>
+          </button>
           {futureSessionsCount > 0 && (
             <span
               data-testid="future-sessions-hidden-badge"

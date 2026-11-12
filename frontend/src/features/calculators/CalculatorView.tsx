@@ -2,6 +2,7 @@ import { useState, useId } from 'react';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { TabOverviewModal } from '../../components/common/TabOverviewModal';
 import {
   calculateGrowth,
   validateCalculatorInputs,
@@ -18,6 +19,7 @@ export function CalculatorView() {
   const [annualRateStr, setAnnualRateStr] = useState<string>('5.0');
   const [horizonStr, setHorizonStr] = useState<string>('12');
   const [showTable, setShowTable] = useState<boolean>(false);
+  const [isOverviewOpen, setIsOverviewOpen] = useState<boolean>(false);
 
   const startingAmount = parseFloat(startingAmountStr) || 0;
   const monthlyContribution = parseFloat(monthlyContributionStr) || 0;
@@ -60,6 +62,13 @@ export function CalculatorView() {
 
   return (
     <div className="space-y-8">
+      {/* Calculators Tab Overview Popup */}
+      <TabOverviewModal
+        tab="calculator"
+        isOpen={isOverviewOpen}
+        onClose={() => setIsOverviewOpen(false)}
+      />
+
       {/* Header and Mode Selector */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
@@ -71,7 +80,18 @@ export function CalculatorView() {
           </p>
         </div>
 
-        <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1" role="tablist" aria-label="Calculator Mode">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setIsOverviewOpen(true)}
+            aria-label="What is Calculators Tab?"
+            className="px-3 py-1.5 rounded-lg border border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold text-xs flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+          >
+            <span>💡</span>
+            <span>What is Calculators?</span>
+          </button>
+
+          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1" role="tablist" aria-label="Calculator Mode">
           <button
             type="button"
             role="tab"
@@ -99,6 +119,7 @@ export function CalculatorView() {
           </button>
         </div>
       </div>
+    </div>
 
       {/* Quick Presets */}
       <div className="flex flex-wrap items-center gap-2 text-xs">

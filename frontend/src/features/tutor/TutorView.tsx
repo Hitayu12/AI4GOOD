@@ -8,6 +8,7 @@ import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { ApiClient, defaultApiClient } from '../../api/client';
 import { TutorMessageItem } from './tutorTypes';
+import { TabOverviewModal } from '../../components/common/TabOverviewModal';
 import {
   MAX_TUTOR_MESSAGE_LENGTH,
   QUICK_PROMPTS,
@@ -38,6 +39,7 @@ export function TutorView({ apiClient = defaultApiClient, initialSimulationId }:
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [serviceUnavailable, setServiceUnavailable] = useState(false);
+  const [isOverviewOpen, setIsOverviewOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -136,18 +138,37 @@ export function TutorView({ apiClient = defaultApiClient, initialSimulationId }:
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      {/* Educational Disclaimer Banner */}
-      <div
-        role="region"
-        aria-label="Educational Disclaimer"
-        className="bg-amber-50 border border-amber-200 rounded-lg p-3.5 text-xs text-amber-900 flex items-start gap-2.5"
-      >
-        <span className="font-bold text-amber-700 uppercase tracking-wider text-[11px] mt-0.5">
-          [DISCLAIMER]
-        </span>
-        <div>
-          <span className="font-semibold">Educational Purposes Only:</span> The AI Tutor explains financial concepts, historical simulation mechanics, and curriculum lessons. It does not provide personalized investment advice, stock recommendations, or price forecasts.
+      {/* AI Tutor Tab Overview Popup */}
+      <TabOverviewModal
+        tab="tutor"
+        isOpen={isOverviewOpen}
+        onClose={() => setIsOverviewOpen(false)}
+      />
+
+      {/* Educational Disclaimer Banner & Tab Overview Action */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div
+          role="region"
+          aria-label="Educational Disclaimer"
+          className="bg-amber-50 border border-amber-200 rounded-lg p-3.5 text-xs text-amber-900 flex items-start gap-2.5 flex-1"
+        >
+          <span className="font-bold text-amber-700 uppercase tracking-wider text-[11px] mt-0.5">
+            [DISCLAIMER]
+          </span>
+          <div>
+            <span className="font-semibold">Educational Purposes Only:</span> The AI Tutor explains financial concepts, historical simulation mechanics, and curriculum lessons. It does not provide personalized investment advice, stock recommendations, or price forecasts.
+          </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setIsOverviewOpen(true)}
+          aria-label="What is AI Tutor Tab?"
+          className="px-3.5 py-2 rounded-xl border border-fuchsia-200 bg-fuchsia-50 hover:bg-fuchsia-100 text-fuchsia-900 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-2xs shrink-0 cursor-pointer"
+        >
+          <span>💡</span>
+          <span>What is AI Tutor?</span>
+        </button>
       </div>
 
       {/* Service Unavailable Banner (when 503 is returned) */}
