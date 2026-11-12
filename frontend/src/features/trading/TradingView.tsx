@@ -27,6 +27,7 @@ import {
   LiveQuote,
   MODERN_BASELINE_PRICES,
 } from './yahooFinanceService';
+import { TradeConfirmationModal, ExecutedTradeReceipt } from './TradeConfirmationModal';
 
 export interface TradingViewProps {
   initialSimulation?: Simulation;
@@ -215,9 +216,10 @@ export function TradingView({
   const [idempotencyKey, setIdempotencyKey] = useState<string>(() => generateIdempotencyKey());
   const [instantFill, setInstantFill] = useState<boolean>(false);
 
-  // Execution Feedback Notices
+  // Execution Feedback Notices & Modal
   const [rejectionNotice, setRejectionNotice] = useState<string | null>(null);
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
+  const [tradeReceipt, setTradeReceipt] = useState<ExecutedTradeReceipt | null>(null);
 
   // Single active pending order (if any)
   const pendingOrder: Order | null = orders.find((o) => o.status === 'pending') || null;
@@ -387,13 +389,27 @@ export function TradingView({
 
         if (transaction) {
           setTransactions((prev) => [transaction, ...prev]);
+          const fillPriceNum = parseFloat(updatedOrder.execution_price || '0');
+          const grossNum = parseFloat(transaction.gross_amount);
           setSuccessNotice(
             `Filled ${updatedOrder.side.toUpperCase()} ${updatedOrder.quantity} ${
               updatedOrder.symbol
-            } at session open price of ${formatUSD(
-              parseFloat(updatedOrder.execution_price || '0')
-            )}!`
+            } at session open price of ${formatUSD(fillPriceNum)}!`
           );
+          // Trigger Trade Execution Pop-up
+          setTradeReceipt({
+            symbol: updatedOrder.symbol,
+            name: SYMBOL_NAMES[updatedOrder.symbol] || updatedOrder.symbol,
+            sector: SYMBOL_SECTORS[updatedOrder.symbol]?.sector,
+            side: updatedOrder.side,
+            quantity: updatedOrder.quantity,
+            price: fillPriceNum,
+            grossAmount: grossNum,
+            remainingCashDollars: result.updatedCashCents / 100,
+            mode: 'simulation',
+            sessionDate: transaction.session_date,
+            timestamp: new Date().toLocaleTimeString(),
+          });
         }
 
         if (rejMsg) {
@@ -540,6 +556,19 @@ export function TradingView({
       setSuccessNotice(
         `⚡ LIVE DAY TRADE EXECUTED: Filled ${orderSide.toUpperCase()} ${parsedQuantity} ${selectedSymbol} at $${fillPriceStr} (Total: ${formatUSD(parsedQuantity * fillPrice)}) via Yahoo Finance Feed!`
       );
+      // Trigger Trade Execution Pop-up
+      setTradeReceipt({
+        symbol: selectedSymbol,
+        name: SYMBOL_NAMES[selectedSymbol] || selectedSymbol,
+        sector: SYMBOL_SECTORS[selectedSymbol]?.sector,
+        side: orderSide,
+        quantity: parsedQuantity,
+        price: fillPrice,
+        grossAmount: parsedQuantity * fillPrice,
+        remainingCashDollars: (orderSide === 'buy' ? cashCents - costCents : cashCents + costCents) / 100,
+        mode: 'live_yahoo',
+        timestamp: new Date().toLocaleTimeString(),
+      });
       onOrderPlaced?.(liveOrder);
       return;
     }
@@ -593,6 +622,12 @@ export function TradingView({
 
   return (
     <div className="space-y-6" data-testid="trading-view">
+      {/* Trade Execution Confirmation Pop-up Modal */}
+      <TradeConfirmationModal
+        receipt={tradeReceipt}
+        onClose={() => setTradeReceipt(null)}
+      />
+
       {/* Mode Switcher Segmented Control */}
       <div className="rounded-2xl border border-slate-200/90 bg-white p-3 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-xl">
