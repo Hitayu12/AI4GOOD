@@ -3,6 +3,7 @@ import { Card } from './components/common/Card';
 import { Button } from './components/common/Button';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { defaultApiClient } from './api/client';
+import { HomeView } from './features/home/HomeView';
 import { CalculatorView } from './features/calculators/CalculatorView';
 import { LearningView } from './features/learning/LearningView';
 import { SimulationView } from './features/simulation';
@@ -17,10 +18,9 @@ function AppContent() {
   const [healthStatus, setHealthStatus] = useState<'checking' | 'ok' | 'error'>('checking');
   const [fixtureMode, setFixtureMode] = useState<boolean>(defaultApiClient.fixtureMode);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'portfolio' | 'trading' | 'simulation' | 'learning' | 'calculator' | 'tutor' | 'status'>('portfolio');
+  const [activeTab, setActiveTab] = useState<'home' | 'portfolio' | 'trading' | 'simulation' | 'learning' | 'calculator' | 'tutor' | 'status'>('home');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [showAudienceGuide, setShowAudienceGuide] = useState(false);
   const { notify } = useNotifications();
 
   useEffect(() => {
@@ -97,113 +97,143 @@ function AppContent() {
       )}
 
       {/* Elevated Modern Header */}
-      <header className="border-b border-slate-800 bg-slate-900/95 backdrop-blur-md sticky top-0 z-20 shadow-md text-white">
+      <header className="border-b border-slate-800 bg-slate-950/95 backdrop-blur-md sticky top-0 z-20 shadow-md text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="h-16 flex items-center justify-between gap-4">
-            {/* Brand Logo & Name */}
+            {/* Brand Logo & Professional Title */}
             <div className="flex items-center space-x-3 shrink-0">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-500 to-violet-500 flex items-center justify-center text-white font-black text-sm shadow-md ring-1 ring-white/20">
-                AI
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-500 to-teal-400 flex items-center justify-center text-white font-black text-sm shadow-md ring-1 ring-white/20">
+                <span className="tracking-tighter">AI</span>
               </div>
-              <div>
+              <div className="flex flex-col">
                 <div className="flex items-center gap-2">
-                  <h1 className="text-base font-black tracking-tight text-white leading-none">
+                  <h1 className="text-sm font-black tracking-tight text-white leading-tight">
                     Rutgers AI4Good 2026
                   </h1>
-                  <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  <span className="hidden xl:inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                     LIVE
                   </span>
                 </div>
-                <p className="text-xs text-slate-400 mt-0.5 font-medium">Features &amp; Integration — Kiran</p>
+                <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium">
+                  <span className="text-blue-400 font-semibold">FINTECH LAB</span>
+                  <span>•</span>
+                  <span>Features &amp; Integration — Kiran</span>
+                </div>
               </div>
             </div>
 
-            {/* Main Navigation Tabs */}
-            <nav aria-label="Main Navigation" className="flex items-center gap-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700/80 overflow-x-auto max-w-full scrollbar-none">
+            {/* Main Navigation Tabs - Compact, Professional & No Scrollbar */}
+            <nav aria-label="Main Navigation" className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
+              <button
+                type="button"
+                onClick={() => setActiveTab('home')}
+                aria-label="Home Overview"
+                className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 whitespace-nowrap ${
+                  activeTab === 'home'
+                    ? 'bg-blue-600 text-white shadow-xs font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <span>🏠</span>
+                <span>Home</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('portfolio')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 flex items-center gap-1.5 whitespace-nowrap ${
+                aria-label="Portfolio (Phase 6)"
+                className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 whitespace-nowrap ${
                   activeTab === 'portfolio'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                    ? 'bg-blue-600 text-white shadow-xs font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
                 <span>📊</span>
-                <span>Portfolio (Phase 6)</span>
+                <span>Portfolio</span>
+                <span className="sr-only"> (Phase 6)</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('trading')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 flex items-center gap-1.5 whitespace-nowrap ${
+                aria-label="Paper Trading (Phase 5)"
+                className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 whitespace-nowrap ${
                   activeTab === 'trading'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                    ? 'bg-blue-600 text-white shadow-xs font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
                 <span>⚡</span>
-                <span>Paper Trading (Phase 5)</span>
+                <span>Trading</span>
+                <span className="sr-only"> (Phase 5)</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('simulation')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 flex items-center gap-1.5 whitespace-nowrap ${
+                aria-label="Simulation (Phase 4)"
+                className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 whitespace-nowrap ${
                   activeTab === 'simulation'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                    ? 'bg-blue-600 text-white shadow-xs font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
                 <span>⏳</span>
-                <span>Simulation (Phase 4)</span>
+                <span>Simulation</span>
+                <span className="sr-only"> (Phase 4)</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('learning')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 flex items-center gap-1.5 whitespace-nowrap ${
+                aria-label="Lessons & Quizzes (Phase 3)"
+                className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 whitespace-nowrap ${
                   activeTab === 'learning'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                    ? 'bg-blue-600 text-white shadow-xs font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
                 <span>📚</span>
-                <span>Lessons &amp; Quizzes (Phase 3)</span>
+                <span>Learn</span>
+                <span className="sr-only"> (Phase 3)</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('calculator')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 flex items-center gap-1.5 whitespace-nowrap ${
+                aria-label="Calculators (Phase 2)"
+                className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 whitespace-nowrap ${
                   activeTab === 'calculator'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                    ? 'bg-blue-600 text-white shadow-xs font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
                 <span>🧮</span>
-                <span>Calculators (Phase 2)</span>
+                <span>Calculators</span>
+                <span className="sr-only"> (Phase 2)</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('tutor')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 flex items-center gap-1.5 whitespace-nowrap ${
+                aria-label="AI Tutor (Phase 8)"
+                className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 whitespace-nowrap ${
                   activeTab === 'tutor'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                    ? 'bg-blue-600 text-white shadow-xs font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
                 <span>🤖</span>
-                <span>AI Tutor (Phase 8)</span>
+                <span>AI Tutor</span>
+                <span className="sr-only"> (Phase 8)</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('status')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 flex items-center gap-1.5 whitespace-nowrap ${
+                aria-label="System Status"
+                className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 whitespace-nowrap ${
                   activeTab === 'status'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                    ? 'bg-blue-600 text-white shadow-xs font-bold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
                 <span>🩺</span>
-                <span>System Status</span>
+                <span>Status</span>
               </button>
             </nav>
 
@@ -289,165 +319,10 @@ function AppContent() {
       </section>
 
       {/* Main Workspace */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
-        {/* Audience & Platform Guide Showcase Banner */}
-        <section aria-label="Platform Mission & Audience Guide" className="mb-8">
-          <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-indigo-500/30 relative overflow-hidden">
-            {/* Ambient background glow */}
-            <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
-            <div className="absolute bottom-0 left-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20" />
-
-            <div className="relative z-10">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-indigo-800/60">
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/30 text-indigo-300 border border-indigo-400/40 tracking-wide uppercase">
-                      Financial Literacy &amp; Inclusion Sandbox
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                      100% Zero Financial Risk
-                    </span>
-                  </div>
-                  <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white mt-1">
-                    Zero-Risk Educational Paper Trading &amp; Market Simulator
-                  </h2>
-                  <p className="text-sm text-slate-300 max-w-3xl leading-relaxed mt-1">
-                    Empowering students, first-generation investors, and everyday learners. Master compound interest, test trading strategies across historical market cycles without future data leakage, and build wealth-building confidence before ever risking real money.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setShowAudienceGuide((prev) => !prev)}
-                  className="self-start sm:self-center text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all flex items-center gap-1.5 whitespace-nowrap"
-                  aria-expanded={showAudienceGuide}
-                >
-                  <span>{showAudienceGuide ? 'Hide Audience Guide' : 'Show Audience Guide'}</span>
-                  <span>{showAudienceGuide ? '▲' : '▼'}</span>
-                </button>
-              </div>
-
-              {showAudienceGuide && (
-                <div className="pt-6 space-y-6">
-                  {/* The Problem vs The Solution Bar */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-slate-800/70 rounded-2xl p-4 border border-rose-500/20">
-                      <div className="flex items-center gap-2 text-rose-300 font-bold text-xs uppercase tracking-wider mb-1">
-                        <span>⚠️</span> The Problem We Solve
-                      </div>
-                      <p className="text-xs text-slate-300 leading-relaxed">
-                        Over 60% of young adults lack foundational financial literacy and avoid long-term investing out of intimidation, or risk hard-earned savings on speculative assets without understanding volatility, compound math, or drawdown risk.
-                      </p>
-                    </div>
-
-                    <div className="bg-slate-800/70 rounded-2xl p-4 border border-emerald-500/20">
-                      <div className="flex items-center gap-2 text-emerald-300 font-bold text-xs uppercase tracking-wider mb-1">
-                        <span>💡</span> How This Platform Works
-                      </div>
-                      <p className="text-xs text-slate-300 leading-relaxed">
-                        A fully integrated, gamified educational sandbox with 5 hands-on stages: bite-sized lessons, compound growth calculators, zero-lookahead historical session replay, paper trading across 15 stocks &amp; ETFs (Tech, Healthcare, Financials, Consumer Staples, Energy), and real-time portfolio analytics.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* 5-Step Audience Tour / Interactive Jump Buttons */}
-                  <div>
-                    <h3 className="text-xs font-bold text-indigo-200 uppercase tracking-wider mb-3">
-                      Interactive Audience Tour — Select Any Step Below:
-                    </h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('learning')}
-                        className={`text-left p-3 rounded-xl border transition-all ${
-                          activeTab === 'learning'
-                            ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                            : 'bg-slate-800/60 border-slate-700/80 text-slate-300 hover:bg-slate-800 hover:text-white'
-                        }`}
-                      >
-                        <div className="text-lg mb-1">📚</div>
-                        <div className="text-xs font-bold">1. Learn</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">Lessons &amp; Quizzes</div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('calculator')}
-                        className={`text-left p-3 rounded-xl border transition-all ${
-                          activeTab === 'calculator'
-                            ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                            : 'bg-slate-800/60 border-slate-700/80 text-slate-300 hover:bg-slate-800 hover:text-white'
-                        }`}
-                      >
-                        <div className="text-lg mb-1">🧮</div>
-                        <div className="text-xs font-bold">2. Calculate</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">Compound APY &amp; CDs</div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('simulation')}
-                        className={`text-left p-3 rounded-xl border transition-all ${
-                          activeTab === 'simulation'
-                            ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                            : 'bg-slate-800/60 border-slate-700/80 text-slate-300 hover:bg-slate-800 hover:text-white'
-                        }`}
-                      >
-                        <div className="text-lg mb-1">⏳</div>
-                        <div className="text-xs font-bold">3. Simulate</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">Historical Time-Travel</div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('trading')}
-                        className={`text-left p-3 rounded-xl border transition-all ${
-                          activeTab === 'trading'
-                            ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                            : 'bg-slate-800/60 border-slate-700/80 text-slate-300 hover:bg-slate-800 hover:text-white'
-                        }`}
-                      >
-                        <div className="text-lg mb-1">⚡</div>
-                        <div className="text-xs font-bold">4. Paper Trade</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">15 Multi-Sector Stocks</div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('portfolio')}
-                        className={`text-left p-3 rounded-xl border transition-all ${
-                          activeTab === 'portfolio'
-                            ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                            : 'bg-slate-800/60 border-slate-700/80 text-slate-300 hover:bg-slate-800 hover:text-white'
-                        }`}
-                      >
-                        <div className="text-lg mb-1">📊</div>
-                        <div className="text-xs font-bold">5. Portfolio</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">Live Equity Curves</div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('tutor')}
-                        className={`text-left p-3 rounded-xl border transition-all ${
-                          activeTab === 'tutor'
-                            ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                            : 'bg-slate-800/60 border-slate-700/80 text-slate-300 hover:bg-slate-800 hover:text-white'
-                        }`}
-                      >
-                        <div className="text-lg mb-1">🤖</div>
-                        <div className="text-xs font-bold">6. AI Tutor</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">Safe Guided Q&amp;A</div>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
-        {activeTab === 'portfolio' ? (
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 relative z-10">
+        {activeTab === 'home' ? (
+          <HomeView onNavigateTab={(tab) => setActiveTab(tab)} />
+        ) : activeTab === 'portfolio' ? (
           <PortfolioView />
         ) : activeTab === 'trading' ? (
           <TradingView />
