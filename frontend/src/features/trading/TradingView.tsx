@@ -65,21 +65,21 @@ export const SUPPORTED_SYMBOLS = [
 ];
 
 export const SYMBOL_NAMES: Record<string, string> = {
-  AAPL: 'Apple Inc.',
-  MSFT: 'Microsoft Corporation',
-  NVDA: 'NVIDIA Corporation',
-  AMZN: 'Amazon.com Inc.',
-  GOOGL: 'Alphabet Inc.',
-  TSLA: 'Tesla, Inc.',
-  META: 'Meta Platforms Inc.',
-  SPY: 'SPDR S&P 500 ETF Trust',
-  QQQ: 'Invesco QQQ Trust',
-  JNJ: 'Johnson & Johnson',
-  JPM: 'JPMorgan Chase & Co.',
-  WMT: 'Walmart Inc.',
-  KO: 'The Coca-Cola Company',
-  XOM: 'Exxon Mobil Corporation',
-  MCD: "McDonald's Corporation",
+  AAPL: 'Apple Inc. (iPhones, Macs & AI)',
+  MSFT: 'Microsoft Corporation (Windows & Xbox)',
+  NVDA: 'NVIDIA Corporation (AI Chips & GPUs)',
+  AMZN: 'Amazon.com Inc. (Prime & E-Commerce)',
+  GOOGL: 'Alphabet Inc. (Google & YouTube)',
+  TSLA: 'Tesla, Inc. (EVs & Clean Energy)',
+  META: 'Meta Platforms Inc. (Instagram & VR)',
+  SPY: 'SPDR S&P 500 ETF (Top 500 US Giants)',
+  QQQ: 'Invesco QQQ Trust (Top 100 Tech Giants)',
+  JNJ: 'Johnson & Johnson (Healthcare & Pharma)',
+  JPM: 'JPMorgan Chase & Co. (Top US Bank)',
+  WMT: 'Walmart Inc. (Everyday Low Prices)',
+  KO: 'The Coca-Cola Company (Coke & Drinks)',
+  XOM: 'Exxon Mobil Corporation (Global Energy)',
+  MCD: "McDonald's Corporation (Burgers & Real Estate)",
 };
 
 export const SYMBOL_SECTORS: Record<string, { sector: string; badgeColor: string }> = {

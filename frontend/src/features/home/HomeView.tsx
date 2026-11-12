@@ -20,15 +20,15 @@ export function HomeView({
   // Interactive Daily Challenge Poll State
   const [pollSelected, setPollSelected] = useState<string | null>(null);
 
-  // Top Tradable Assets Spotlight with Sector Colors
+  // Top Tradable Assets Spotlight with Teenager-Friendly Brand Descriptions
   const SPOTLIGHT_ASSETS = [
-    { symbol: 'SPY', name: 'S&P 500 ETF Trust', sector: 'Broad Index ETF', price: '$472.40', change: '+0.42%', badge: 'bg-emerald-100 text-emerald-800 border-emerald-200', border: 'border-emerald-200/90 hover:border-emerald-400' },
-    { symbol: 'AAPL', name: 'Apple Inc.', sector: 'Consumer Tech', price: '$185.64', change: '-0.38%', badge: 'bg-blue-100 text-blue-800 border-blue-200', border: 'border-blue-200/90 hover:border-blue-400' },
-    { symbol: 'NVDA', name: 'NVIDIA Corporation', sector: 'Semiconductors / AI', price: '$142.50', change: '+1.85%', badge: 'bg-purple-100 text-purple-800 border-purple-200', border: 'border-purple-200/90 hover:border-purple-400' },
-    { symbol: 'JNJ', name: 'Johnson & Johnson', sector: 'Healthcare & Pharma', price: '$160.85', change: '+0.15%', badge: 'bg-rose-100 text-rose-800 border-rose-200', border: 'border-rose-200/90 hover:border-rose-400' },
-    { symbol: 'JPM', name: 'JPMorgan Chase & Co.', sector: 'Banking & Financials', price: '$170.20', change: '+0.88%', badge: 'bg-teal-100 text-teal-800 border-teal-200', border: 'border-teal-200/90 hover:border-teal-400' },
-    { symbol: 'KO', name: 'The Coca-Cola Company', sector: 'Consumer Staples', price: '$59.85', change: '+0.22%', badge: 'bg-amber-100 text-amber-800 border-amber-200', border: 'border-amber-200/90 hover:border-amber-400' },
-    { symbol: 'XOM', name: 'Exxon Mobil Corporation', sector: 'Energy & Oil/Gas', price: '$102.40', change: '+1.10%', badge: 'bg-orange-100 text-orange-800 border-orange-200', border: 'border-orange-200/90 hover:border-orange-400' },
+    { symbol: 'AAPL', name: 'Apple (iPhones, Macs & AI)', sector: 'Consumer Tech', price: '$185.64', change: '-0.38%', badge: 'bg-blue-100 text-blue-800 border-blue-200', border: 'border-blue-200 hover:border-blue-400' },
+    { symbol: 'NVDA', name: 'NVIDIA (AI Chips & Gaming GPUs)', sector: 'Semiconductors / AI', price: '$142.50', change: '+1.85%', badge: 'bg-purple-100 text-purple-800 border-purple-200', border: 'border-purple-200 hover:border-purple-400' },
+    { symbol: 'TSLA', name: 'Tesla (EVs & Clean Energy)', sector: 'Clean Tech & Auto', price: '$248.50', change: '+2.14%', badge: 'bg-rose-100 text-rose-800 border-rose-200', border: 'border-rose-200 hover:border-rose-400' },
+    { symbol: 'SPY', name: 'S&P 500 (America’s Top 500)', sector: 'Broad Index ETF', price: '$472.40', change: '+0.42%', badge: 'bg-emerald-100 text-emerald-800 border-emerald-200', border: 'border-emerald-200 hover:border-emerald-400' },
+    { symbol: 'AMZN', name: 'Amazon (E-Commerce & Prime)', sector: 'Retail & Cloud', price: '$178.25', change: '+0.65%', badge: 'bg-amber-100 text-amber-800 border-amber-200', border: 'border-amber-200 hover:border-amber-400' },
+    { symbol: 'MCD', name: "McDonald's (Burgers & Real Estate)", sector: 'Consumer Dining', price: '$295.40', change: '+0.12%', badge: 'bg-yellow-100 text-yellow-800 border-yellow-200', border: 'border-yellow-200 hover:border-yellow-400' },
+    { symbol: 'KO', name: 'Coca-Cola (Classic Drinks)', sector: 'Consumer Staples', price: '$59.85', change: '+0.22%', badge: 'bg-red-100 text-red-800 border-red-200', border: 'border-red-200 hover:border-red-400' },
   ];
 
   // Interactive 5-Stage Pathway Steps with Colorful Accents
@@ -38,7 +38,7 @@ export function HomeView({
       step: '01',
       icon: '📚',
       title: 'Learn & Master',
-      subtitle: 'Modular Concepts & 80% Quizzes',
+      subtitle: '2-Min Lessons & 80% Quizzes',
       badge: 'STAGE 01 • START HERE',
       badgeStyle: 'bg-blue-100 text-blue-800 border-blue-300',
       borderHover: 'hover:border-blue-400 hover:shadow-blue-500/10',
@@ -52,7 +52,7 @@ export function HomeView({
       step: '02',
       icon: '🧮',
       title: 'Calculate & Model',
-      subtitle: 'Compound Interest & Yield Modeling',
+      subtitle: 'Compound APY & Boba Math',
       badge: 'STAGE 02 • MATH',
       badgeStyle: 'bg-indigo-100 text-indigo-800 border-indigo-300',
       borderHover: 'hover:border-indigo-400 hover:shadow-indigo-500/10',
@@ -66,7 +66,7 @@ export function HomeView({
       step: '03',
       icon: '⏳',
       title: 'Zero-Lookahead Sim',
-      subtitle: 'Historical Zero-Lookahead Replay',
+      subtitle: 'Historical 2024 Market Replay',
       badge: 'STAGE 03 • 2024 DATA',
       badgeStyle: 'bg-purple-100 text-purple-800 border-purple-300',
       borderHover: 'hover:border-purple-400 hover:shadow-purple-500/10',
@@ -115,18 +115,51 @@ export function HomeView({
       />
 
       {/* Institutional Hero Banner with Richer Gradient & Floating Glow Orbs */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 border border-slate-800 shadow-2xl p-6 sm:p-10 text-white">
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 border border-slate-800 shadow-2xl p-6 sm:p-10 text-white space-y-6">
         {/* Ambient Gradient Glow Spheres */}
         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/15 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
         <div className="absolute bottom-0 left-0 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20" />
         <div className="absolute top-1/2 left-1/3 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Gen Z Gamer / Youth Investor Level Bar */}
+        <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 text-xs text-white">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-400 to-orange-500 text-slate-950 font-black flex items-center justify-center text-sm shadow-sm">
+              ⭐
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-black text-white text-xs sm:text-sm">Rookie Trader</span>
+                <span className="px-2 py-0.2 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-400/20 text-emerald-300 border border-emerald-400/40">
+                  LEVEL 1
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-300">Practice account funded with $10,000 virtual cash</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 text-[11px] font-semibold text-slate-200">
+            <div className="flex items-center gap-1.5">
+              <span className="text-amber-400 text-sm">🔥</span>
+              <span>1-Day Streak</span>
+            </div>
+            <div className="hidden sm:flex items-center gap-1.5">
+              <span className="text-purple-300 text-sm">🏆</span>
+              <span>5 Badges to Unlock</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-emerald-400 text-sm">💵</span>
+              <span className="font-mono text-emerald-300 font-bold">$10,000.00</span>
+            </div>
+          </div>
+        </div>
 
         <div className="relative z-10 space-y-6">
           {/* Top Pill Badges */}
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-blue-500/20 text-blue-300 border border-blue-400/30 uppercase tracking-wider flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-              Institutional FinTech Sandbox
+              Youth FinTech Sandbox
             </span>
             <span className="px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1">
               <span>🛡️</span> 100% Zero Capital Risk
@@ -139,13 +172,13 @@ export function HomeView({
           {/* Headline & Mission */}
           <div className="max-w-3xl space-y-3">
             <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white leading-tight">
-              Master the Financial Markets. <br />
-              <span className="bg-gradient-to-r from-blue-400 via-teal-300 to-emerald-300 bg-clip-text text-transparent">
-                Completely Zero Financial Risk.
+              Level Up Your Financial Game. <br />
+              <span className="bg-gradient-to-r from-emerald-300 via-teal-300 to-cyan-300 bg-clip-text text-transparent">
+                Zero Risk. Real Market Power.
               </span>
             </h1>
             <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-2xl">
-              An all-in-one educational platform engineered for students, first-generation investors, and wealth builders. Learn cash yield instruments, simulate historical market cycles with zero data leakage, and paper-trade 15 multi-sector stocks with institutional precision.
+              Engineered for high schoolers, college students, and first-time wealth builders. Learn cash yield instruments, test 2024 historical market cycles with zero data leakage, and day-trade 15 real-world stocks live with institutional precision.
             </p>
           </div>
 
@@ -233,6 +266,62 @@ export function HomeView({
         </button>
       </section>
 
+      {/* Gen Z Financial Cheat Sheet (Myth Busters & Life Hacks) */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <span>🧠</span>
+              <span>Gen Z Financial Cheat Sheet &amp; Myth Busters</span>
+            </h3>
+            <p className="text-xs text-slate-500">
+              Three essential money principles school never taught you.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/90 via-white to-orange-50/50 border border-amber-200 shadow-xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xl">🧋</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                BOBA MATH
+              </span>
+            </div>
+            <h4 className="text-sm font-bold text-slate-900">The Power of Small Habits</h4>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Skipping one $6 drink a week and putting $25/month into an 8% compound ETF turns into <strong>$15,000+</strong> by age 30. Compounding turns tiny habits into serious bankroll!
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/90 via-white to-indigo-50/50 border border-blue-200 shadow-xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xl">📱</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-300">
+                CASH APP TRAP
+              </span>
+            </div>
+            <h4 className="text-sm font-bold text-slate-900">Idle Cash Loses Money</h4>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Leaving all your savings on Venmo or standard checking earns 0% while inflation silently burns 3% a year. A <strong>5.0% HYSA</strong> pays you free passive income monthly with FDIC protection!
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/50 border border-emerald-200 shadow-xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xl">💎</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                DIAMOND HANDS
+              </span>
+            </div>
+            <h4 className="text-sm font-bold text-slate-900">ETFs vs. Meme Gambles</h4>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Trying to guess which meme stock will pop is gambling. Buying an S&amp;P 500 ETF (like <strong>SPY</strong>) instantly gives you a slice of Apple, Nvidia, Microsoft, and Amazon all at once!
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* Contract-Compliant Live Portfolio & Performance Snapshot */}
       <section className="bg-gradient-to-br from-white via-slate-50/70 to-emerald-50/30 rounded-3xl border border-slate-200/90 p-6 shadow-xs space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200/80 pb-4">
@@ -304,7 +393,7 @@ export function HomeView({
         </div>
       </section>
 
-      {/* Multi-Sector Market Watch Carousel with Sector Glows */}
+      {/* Multi-Sector Market Watch Carousel with Sector Glows & Brands Teenagers Know */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
@@ -313,7 +402,7 @@ export function HomeView({
               <span>15 Multi-Sector Tradable Universe Spotlight</span>
             </h3>
             <p className="text-xs text-slate-500">
-              Spotlight instruments spanning Tech, Healthcare, Banking, Consumer Staples, Energy &amp; Index ETFs.
+              Popular household brands spanning Tech, Gaming, Clean Energy, Dining, Drinks &amp; Index ETFs.
             </p>
           </div>
           <button

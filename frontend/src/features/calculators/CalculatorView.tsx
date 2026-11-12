@@ -119,6 +119,14 @@ export function CalculatorView() {
         </button>
         <button
           type="button"
+          onClick={() => applyPreset('investment', 100, 150, 8.5, 120)}
+          className="rounded-lg border border-amber-300 bg-amber-50/90 px-2.5 py-1 text-amber-900 font-bold hover:bg-amber-100 flex items-center gap-1 transition-colors"
+        >
+          <span>🧋</span>
+          <span>Boba to Wealth ($150/mo, 10 yrs)</span>
+        </button>
+        <button
+          type="button"
           onClick={() => applyPreset('investment', 1000, 0, 12.0, 12)}
           className="rounded border border-slate-200 bg-white px-2.5 py-1 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
         >

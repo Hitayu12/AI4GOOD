@@ -81,6 +81,12 @@ export function TradeConfirmationModal({ receipt, onClose }: TradeConfirmationMo
               <p className="text-xs text-white/80 font-medium">
                 {receipt.name} {receipt.sector ? `• ${receipt.sector}` : ''}
               </p>
+
+              {/* Gamified XP Reward Toast */}
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-slate-950 shadow-sm mt-1">
+                <span>⚡ +50 XP</span>
+                <span>• Trading Skill Unlocked!</span>
+              </div>
             </div>
 
             <button
