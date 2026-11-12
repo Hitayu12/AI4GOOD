@@ -131,7 +131,7 @@ function AppContent() {
                 aria-label="Home Overview"
                 className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 whitespace-nowrap ${
                   activeTab === 'home'
-                    ? 'bg-blue-600 text-white shadow-xs font-bold'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs font-bold ring-1 ring-blue-400/40'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -144,7 +144,7 @@ function AppContent() {
                 aria-label="Portfolio (Phase 6)"
                 className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 whitespace-nowrap ${
                   activeTab === 'portfolio'
-                    ? 'bg-blue-600 text-white shadow-xs font-bold'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs font-bold ring-1 ring-blue-400/40'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -158,7 +158,7 @@ function AppContent() {
                 aria-label="Paper Trading (Phase 5)"
                 className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 whitespace-nowrap ${
                   activeTab === 'trading'
-                    ? 'bg-blue-600 text-white shadow-xs font-bold'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs font-bold ring-1 ring-blue-400/40'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -172,7 +172,7 @@ function AppContent() {
                 aria-label="Simulation (Phase 4)"
                 className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 whitespace-nowrap ${
                   activeTab === 'simulation'
-                    ? 'bg-blue-600 text-white shadow-xs font-bold'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs font-bold ring-1 ring-blue-400/40'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -186,7 +186,7 @@ function AppContent() {
                 aria-label="Lessons & Quizzes (Phase 3)"
                 className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 whitespace-nowrap ${
                   activeTab === 'learning'
-                    ? 'bg-blue-600 text-white shadow-xs font-bold'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs font-bold ring-1 ring-blue-400/40'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -200,7 +200,7 @@ function AppContent() {
                 aria-label="Calculators (Phase 2)"
                 className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 whitespace-nowrap ${
                   activeTab === 'calculator'
-                    ? 'bg-blue-600 text-white shadow-xs font-bold'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs font-bold ring-1 ring-blue-400/40'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -214,7 +214,7 @@ function AppContent() {
                 aria-label="AI Tutor (Phase 8)"
                 className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 whitespace-nowrap ${
                   activeTab === 'tutor'
-                    ? 'bg-blue-600 text-white shadow-xs font-bold'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs font-bold ring-1 ring-blue-400/40'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -228,7 +228,7 @@ function AppContent() {
                 aria-label="System Status"
                 className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 whitespace-nowrap ${
                   activeTab === 'status'
-                    ? 'bg-blue-600 text-white shadow-xs font-bold'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs font-bold ring-1 ring-blue-400/40'
                     : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
