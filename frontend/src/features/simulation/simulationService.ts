@@ -18,9 +18,11 @@ import {
 } from './simulationTypes';
 import {
   FIXTURE_DATASET_ID,
+  FIXTURE_DATASET_METADATA,
   FIXTURE_DATASETS,
   FIXTURE_INSTRUMENTS,
   filterVisibleMarketData,
+  generateTradingDays,
   INITIAL_SIMULATION_FIXTURE,
 } from './simulationFixtures';
 
@@ -266,6 +268,57 @@ export class SimulationService {
       order_results: [],
       ...sim,
     };
+  }
+
+  /**
+   * Extends the simulation calendar by N sessions (e.g. 30 days) and reactivates it,
+   * allowing the user to trade continuously.
+   */
+  public async extendSimulation(
+    id: string,
+    additionalDays: number = 30
+  ): Promise<Simulation> {
+    const sim = this.simulations.get(id);
+    if (!sim) {
+      throw new ApiError(404, 'simulation_not_found', `Simulation '${id}' not found.`);
+    }
+
+    const dataset = FIXTURE_DATASETS.find((d) => d.id === sim.dataset_id) || FIXTURE_DATASET_METADATA;
+
+    // Start generating from the latest session in dataset
+    const lastSession = dataset.session_dates[dataset.session_dates.length - 1];
+    const newDates = generateTradingDays(lastSession, additionalDays);
+
+    for (const d of newDates) {
+      if (!dataset.session_dates.includes(d)) {
+        dataset.session_dates.push(d);
+      }
+    }
+
+    const newEnd = dataset.session_dates[dataset.session_dates.length - 1];
+    sim.end_session = newEnd;
+    sim.status = 'active';
+
+    this.simulations.set(id, { ...sim });
+    return { ...sim };
+  }
+
+  /**
+   * Resets simulation back to start_session with active status and version 1.
+   */
+  public async resetSimulation(id: string): Promise<Simulation> {
+    const sim = this.simulations.get(id);
+    if (!sim) {
+      throw new ApiError(404, 'simulation_not_found', `Simulation '${id}' not found.`);
+    }
+
+    sim.current_session = sim.start_session;
+    sim.current_time = `${sim.start_session}T21:00:00Z`;
+    sim.version = 1;
+    sim.status = 'active';
+
+    this.simulations.set(id, { ...sim });
+    return { ...sim };
   }
 
   /**

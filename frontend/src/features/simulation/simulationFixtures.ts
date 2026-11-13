@@ -774,6 +774,76 @@ export const RAW_MARKET_DATA: Record<string, MarketDataBar[]> = {
 };
 
 /**
+ * Computes next weekday trading date (skipping Saturday & Sunday).
+ */
+export function getNextTradingDay(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  do {
+    d.setUTCDate(d.getUTCDate() + 1);
+  } while (d.getUTCDay() === 0 || d.getUTCDay() === 6);
+  return d.toISOString().split('T')[0];
+}
+
+/**
+ * Generates an array of N consecutive trading dates after startDate.
+ */
+export function generateTradingDays(startDate: string, count: number): string[] {
+  const days: string[] = [];
+  let curr = startDate;
+  for (let i = 0; i < count; i++) {
+    curr = getNextTradingDay(curr);
+    days.push(curr);
+  }
+  return days;
+}
+
+// In-memory cache for dynamically generated extended market bars
+const extendedMarketBarsCache: Record<string, Record<string, MarketDataBar>> = {};
+
+function deterministicHash(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(Math.sin(hash)) % 1;
+}
+
+/**
+ * Generates or retrieves deterministic extended bars for dates after 2024-01-08.
+ */
+export function getExtendedMarketBar(symbol: string, date: string, prevBar: MarketDataBar): MarketDataBar {
+  if (!extendedMarketBarsCache[symbol]) {
+    extendedMarketBarsCache[symbol] = {};
+  }
+  if (extendedMarketBarsCache[symbol][date]) {
+    return extendedMarketBarsCache[symbol][date];
+  }
+
+  const prevClose = parseFloat(prevBar.close);
+  const seed = `${symbol}-${date}`;
+  const ret = -0.015 + deterministicHash(seed + '-ret') * 0.032; // -1.5% to +1.7%
+  const close = Math.max(5, prevClose * (1 + ret));
+  const open = prevClose * (1 + (-0.005 + deterministicHash(seed + '-open') * 0.01));
+  const high = Math.max(open, close) * (1 + deterministicHash(seed + '-high') * 0.008);
+  const low = Math.min(open, close) * (1 - deterministicHash(seed + '-low') * 0.008);
+  const volume = Math.floor(30000000 + deterministicHash(seed + '-vol') * 60000000);
+
+  const bar: MarketDataBar = {
+    session_date: date,
+    available_at: `${date}T21:00:00Z`,
+    open: open.toFixed(6),
+    high: high.toFixed(6),
+    low: low.toFixed(6),
+    close: close.toFixed(6),
+    volume,
+  };
+
+  extendedMarketBarsCache[symbol][date] = bar;
+  return bar;
+}
+
+/**
  * Crucial security invariant:
  * MUST NEVER return bars where session_date > currentSession.
  * Future historical prices must be completely invisible to the client before the advance completes.
@@ -784,9 +854,29 @@ export function filterVisibleMarketData(symbol: string, currentSession: string):
     return [];
   }
 
-  return bars
+  const baseBars = bars
     .filter((bar) => bar.session_date <= currentSession)
     .map((bar) => ({ ...bar }));
+
+  // If currentSession is within base fixture range, return baseBars directly
+  const lastBase = bars[bars.length - 1];
+  if (!lastBase || currentSession <= lastBase.session_date) {
+    return baseBars;
+  }
+
+  // Iteratively generate extended bars up to currentSession
+  const result = [...baseBars];
+  let currDate = lastBase.session_date;
+  let prevBar = lastBase;
+
+  while (currDate < currentSession) {
+    currDate = getNextTradingDay(currDate);
+    const newBar = getExtendedMarketBar(symbol, currDate, prevBar);
+    result.push({ ...newBar });
+    prevBar = newBar;
+  }
+
+  return result;
 }
 
 /**

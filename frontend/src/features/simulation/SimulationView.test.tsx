@@ -295,4 +295,109 @@ describe('SimulationView Component', () => {
     expect(screen.getByTestId('symbol-picker-SPY')).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText(/Viewing Symbol:/i)).toHaveTextContent('SPY');
   });
+
+  // Additional Test 11: Direct paper trading desk on Simulation tab (Buy and Sell)
+  it('11. executes buy and sell paper trades directly within Simulation tab and updates holdings', async () => {
+    render(<SimulationView />);
+
+    // Check initial cash ($1,000,000.00 fixture default) and empty holdings
+    expect(screen.getByText(/Cash Balance/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/\$1,000,000\.00/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/No stocks owned in this simulation yet/i)).toBeInTheDocument();
+
+    // Buy 10 shares of AAPL
+    const buyButton = screen.getByRole('button', { name: /Buy 10 AAPL/i });
+    expect(buyButton).toBeInTheDocument();
+    fireEvent.click(buyButton);
+
+    // Trade confirmation modal should appear
+    await waitFor(() => {
+      expect(screen.getByTestId('trade-confirmation-modal')).toBeInTheDocument();
+    });
+    expect(screen.getByText(/You Bought/i)).toBeInTheDocument();
+
+    // Close modal
+    const closeBtn = screen.getByRole('button', { name: /Close trade confirmation/i });
+    fireEvent.click(closeBtn);
+    expect(screen.queryByTestId('trade-confirmation-modal')).toBeNull();
+
+    // Verify holding table now shows AAPL with 10 shares
+    expect(screen.getByText(/Active Simulation Holdings/i)).toBeInTheDocument();
+    const holdingsTable = screen.getByLabelText(/Simulation Holdings Table/i);
+    expect(holdingsTable).toBeInTheDocument();
+    expect(holdingsTable).toHaveTextContent('AAPL');
+    expect(holdingsTable).toHaveTextContent('10');
+
+    // Now sell 1 share via quick sell button
+    const sellOneBtn = screen.getByRole('button', { name: /Sell 1/i });
+    fireEvent.click(sellOneBtn);
+
+    // Form switches to sell 1
+    const executeSellBtn = screen.getByRole('button', { name: /Sell 1 AAPL/i });
+    fireEvent.click(executeSellBtn);
+
+    // Confirmation appears
+    await waitFor(() => {
+      expect(screen.getByTestId('trade-confirmation-modal')).toBeInTheDocument();
+      expect(screen.getByText(/You Sold/i)).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Close trade confirmation/i }));
+
+    // Remaining shares should be 9
+    expect(holdingsTable).toHaveTextContent('9');
+  });
+
+  // Additional Test 12: Calendar extension allows extending simulation horizon
+  it('12. allows extending calendar by +30 days when simulation reaches completed status', async () => {
+    const completedSim: Simulation = {
+      ...INITIAL_SIMULATION_FIXTURE,
+      id: 'sim_completed_extend_test',
+      current_session: '2024-01-08',
+      current_time: '2024-01-08T21:00:00Z',
+      status: 'completed',
+      version: 5,
+    };
+
+    const service = new SimulationService([completedSim]);
+    render(<SimulationView service={service} initialSimulations={[completedSim]} />);
+
+    // Expect completed state and extension button
+    expect(screen.getByTestId('simulation-status-badge')).toHaveTextContent('Completed');
+    const extendBtn = screen.getByTestId('extend-calendar-btn');
+    expect(extendBtn).toBeInTheDocument();
+
+    // Click extend calendar
+    fireEvent.click(extendBtn);
+
+    // After extension, status becomes active again and advance button becomes enabled
+    await waitFor(() => {
+      expect(screen.getByTestId('simulation-status-badge')).toHaveTextContent('Active');
+    });
+
+    const advanceBtn = screen.getByTestId('advance-session-btn');
+    expect(advanceBtn).not.toBeDisabled();
+    expect(advanceBtn).toHaveTextContent(/Advance Session/i);
+  });
+
+  // Additional Test 13: Reset to Day 1 restores start session and active status
+  it('13. resets simulation cursor and cash back to Day 1 via reset button', async () => {
+    const service = new SimulationService();
+    render(<SimulationView service={service} />);
+
+    // Advance to 2024-01-03
+    fireEvent.click(screen.getByTestId('advance-session-btn'));
+    await waitFor(() => {
+      expect(screen.getByTestId('cursor-current-session')).toHaveTextContent('2024-01-03');
+    });
+
+    // Click Reset Run
+    const resetBtn = screen.getByRole('button', { name: /Reset Run/i });
+    fireEvent.click(resetBtn);
+
+    // Cursor resets to 2024-01-02
+    await waitFor(() => {
+      expect(screen.getByTestId('cursor-current-session')).toHaveTextContent('2024-01-02');
+      expect(screen.getByTestId('simulation-version')).toHaveTextContent('v1');
+    });
+  });
 });

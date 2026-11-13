@@ -18,6 +18,10 @@ import {
 } from './simulationFixtures';
 import { SimulationService } from './simulationService';
 import { TabOverviewModal } from '../../components/common/TabOverviewModal';
+import { TradeConfirmationModal, ExecutedTradeReceipt } from '../trading/TradeConfirmationModal';
+import { Position, Transaction } from '../trading/tradingTypes';
+import { LossGainBadge } from '../portfolio/PortfolioView';
+import { SYMBOL_NAMES, SYMBOL_SECTORS } from '../trading/TradingView';
 
 export interface SimulationViewProps {
   service?: SimulationService;
@@ -109,6 +113,19 @@ export function SimulationView({
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [isOverviewOpen, setIsOverviewOpen] = useState<boolean>(false);
 
+  // Simulation Paper Trading & Portfolio State
+  const [cashCents, setCashCents] = useState<number>(() => {
+    const raw = activeSimulation.initial_cash;
+    return raw > 100_000_000 ? raw : raw <= 100_000 ? raw * 100 : raw;
+  });
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [orderSide, setOrderSide] = useState<'buy' | 'sell'>('buy');
+  const [tradeQtyInput, setTradeQtyInput] = useState<string>('10');
+  const [tradeValidationError, setTradeValidationError] = useState<string | null>(null);
+  const [tradeSuccessNotice, setTradeSuccessNotice] = useState<string | null>(null);
+  const [tradeReceipt, setTradeReceipt] = useState<ExecutedTradeReceipt | null>(null);
+
   // Live region announcement
   const liveAnnounceId = useId();
   const [announcement, setAnnouncement] = useState<string>('');
@@ -133,6 +150,12 @@ export function SimulationView({
     setAdvanceError(null);
     const chosen = simulations.find((s) => s.id === simId);
     if (chosen) {
+      const raw = chosen.initial_cash;
+      setCashCents(raw > 100_000_000 ? raw : raw <= 100_000 ? raw * 100 : raw);
+      setPositions([]);
+      setTransactions([]);
+      setTradeValidationError(null);
+      setTradeSuccessNotice(null);
       if (onSimulationChange) {
         onSimulationChange(chosen);
       }
@@ -170,6 +193,24 @@ export function SimulationView({
         prev.map((s) => (s.id === updated.id ? { ...updated } : s))
       );
 
+      // Re-evaluate positions market prices and unrealized P&L on new session
+      setPositions((prev) =>
+        prev.map((pos) => {
+          const bars = filterVisibleMarketData(pos.symbol, updated.current_session);
+          const bar = bars[bars.length - 1];
+          const newPrice = bar ? parseFloat(bar.close) : parseFloat(pos.market_price);
+          const costBasis = parseFloat(pos.cost_basis);
+          const marketVal = (pos.quantity * newPrice).toFixed(2);
+          const pnl = (pos.quantity * (newPrice - costBasis)).toFixed(2);
+          return {
+            ...pos,
+            market_price: newPrice.toFixed(2),
+            market_value: marketVal,
+            unrealized_pnl: pnl,
+          };
+        })
+      );
+
       if (onAdvance) {
         onAdvance(updated);
       }
@@ -191,6 +232,54 @@ export function SimulationView({
         setAdvanceError({ message: 'Unexpected failure while advancing simulation session.' });
         setAnnouncement('Advance failed.');
       }
+    } finally {
+      setIsAdvancing(false);
+    }
+  };
+
+  // Extend Calendar Handler (allows trading more sessions as much as desired)
+  const handleExtendSessions = async (additionalDays: number = 30) => {
+    setIsAdvancing(true);
+    setAdvanceError(null);
+    try {
+      const updated = await simService.extendSimulation(activeSimulation.id, additionalDays);
+      setSimulations((prev) =>
+        prev.map((s) => (s.id === updated.id ? { ...updated } : s))
+      );
+      if (onSimulationChange) {
+        onSimulationChange(updated);
+      }
+      setAnnouncement(`Calendar extended by ${additionalDays} days! You can now continue advancing and trading.`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to extend calendar.';
+      setAdvanceError({ message: msg });
+    } finally {
+      setIsAdvancing(false);
+    }
+  };
+
+  // Reset Simulation to Day 1 Handler
+  const handleResetSimulation = async () => {
+    setIsAdvancing(true);
+    setAdvanceError(null);
+    try {
+      const updated = await simService.resetSimulation(activeSimulation.id);
+      setSimulations((prev) =>
+        prev.map((s) => (s.id === updated.id ? { ...updated } : s))
+      );
+      const raw = updated.initial_cash;
+      setCashCents(raw > 100_000_000 ? raw : raw <= 100_000 ? raw * 100 : raw);
+      setPositions([]);
+      setTransactions([]);
+      setTradeValidationError(null);
+      setTradeSuccessNotice('Reset simulation to Day 1 with fresh virtual cash. Ready to trade again!');
+      if (onSimulationChange) {
+        onSimulationChange(updated);
+      }
+      setAnnouncement(`Reset simulation to session ${updated.start_session}.`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to reset simulation.';
+      setAdvanceError({ message: msg });
     } finally {
       setIsAdvancing(false);
     }
@@ -230,6 +319,11 @@ export function SimulationView({
 
       setSimulations((prev) => [created, ...prev]);
       setActiveSimulationId(created.id);
+      setCashCents(initialCashCents);
+      setPositions([]);
+      setTransactions([]);
+      setTradeValidationError(null);
+      setTradeSuccessNotice(null);
       setShowCreateModal(false);
       setStartingCashInput(DEFAULT_STARTING_CASH_USD.toString());
 
@@ -252,8 +346,229 @@ export function SimulationView({
 
   const latestVisibleBar: MarketDataBar | undefined = visibleMarketData[visibleMarketData.length - 1];
 
+  // Current session market price of selected symbol
+  const activeSessionPrice = latestVisibleBar ? parseFloat(latestVisibleBar.close) : 150.0;
+
+  // Active held shares for currently selected symbol
+  const currentHeldShares = positions.find((p) => p.symbol === selectedSymbol)?.quantity ?? 0;
+
+  // Total portfolio market value and equity
+  const totalMarketValueDollars = positions.reduce(
+    (sum, pos) => sum + parseFloat(pos.market_value),
+    0
+  );
+  const totalEquityDollars = cashCents / 100 + totalMarketValueDollars;
+  const initialCashDollars =
+    activeSimulation.initial_cash > 100_000_000
+      ? activeSimulation.initial_cash / 100
+      : activeSimulation.initial_cash <= 100_000
+      ? activeSimulation.initial_cash
+      : activeSimulation.initial_cash / 100;
+  const totalReturnDollars = totalEquityDollars - initialCashDollars;
+  const totalReturnPct =
+    initialCashDollars > 0 ? (totalReturnDollars / initialCashDollars) * 100 : 0;
+
+  // Execute trade order directly in simulation
+  const handleExecuteTrade = () => {
+    setTradeValidationError(null);
+    setTradeSuccessNotice(null);
+
+    const qty = parseInt(tradeQtyInput, 10);
+    if (!tradeQtyInput || isNaN(qty) || qty < 1) {
+      setTradeValidationError('Quantity must be at least 1 whole share.');
+      return;
+    }
+    if (qty > 1_000_000) {
+      setTradeValidationError('Quantity cannot exceed 1,000,000 shares.');
+      return;
+    }
+
+    if (!latestVisibleBar) {
+      setTradeValidationError('No market bar available for this symbol on the current session.');
+      return;
+    }
+
+    const price = parseFloat(latestVisibleBar.close);
+    const orderCostCents = Math.round(qty * price * 100);
+
+    if (orderSide === 'buy') {
+      if (orderCostCents > cashCents) {
+        setTradeValidationError(
+          `Insufficient cash: Estimated cost ${formatUSD(orderCostCents / 100)} exceeds available cash ${formatUSD(
+            cashCents / 100
+          )}.`
+        );
+        return;
+      }
+
+      setCashCents((prev) => prev - orderCostCents);
+
+      setPositions((prev) => {
+        const existing = prev.find((p) => p.symbol === selectedSymbol);
+        if (existing) {
+          const newQty = existing.quantity + qty;
+          const totalCostBasis =
+            parseFloat(existing.cost_basis) * existing.quantity + price * qty;
+          const avgBasis = (totalCostBasis / newQty).toFixed(2);
+          const marketVal = (newQty * price).toFixed(2);
+          const pnl = (newQty * (price - parseFloat(avgBasis))).toFixed(2);
+
+          return prev.map((p) =>
+            p.symbol === selectedSymbol
+              ? {
+                  ...p,
+                  quantity: newQty,
+                  cost_basis: avgBasis,
+                  market_price: price.toFixed(2),
+                  market_value: marketVal,
+                  unrealized_pnl: pnl,
+                }
+              : p
+          );
+        }
+
+        const marketVal = (qty * price).toFixed(2);
+        return [
+          ...prev,
+          {
+            symbol: selectedSymbol,
+            quantity: qty,
+            cost_basis: price.toFixed(2),
+            market_price: price.toFixed(2),
+            market_value: marketVal,
+            unrealized_pnl: '0.00',
+          },
+        ];
+      });
+
+      const nowIso = new Date().toISOString();
+      const newTxn: Transaction = {
+        id: `sim-txn-${Date.now().toString().slice(-6)}`,
+        order_id: `sim-ord-${Date.now().toString().slice(-6)}`,
+        symbol: selectedSymbol,
+        side: 'buy',
+        quantity: qty,
+        price: price.toFixed(2),
+        gross_amount: (qty * price).toFixed(2),
+        session_date: activeSimulation.current_session,
+        executed_at: nowIso,
+      };
+      setTransactions((prev) => [newTxn, ...prev]);
+
+      setTradeReceipt({
+        symbol: selectedSymbol,
+        name: SYMBOL_NAMES[selectedSymbol] || selectedSymbol,
+        sector: SYMBOL_SECTORS[selectedSymbol]?.sector,
+        side: 'buy',
+        quantity: qty,
+        price,
+        grossAmount: qty * price,
+        remainingCashDollars: (cashCents - orderCostCents) / 100,
+        mode: 'simulation',
+        sessionDate: activeSimulation.current_session,
+        timestamp: new Date().toLocaleTimeString(),
+      });
+
+      setTradeSuccessNotice(
+        `Bought ${qty} share(s) of ${selectedSymbol} at $${price.toFixed(
+          2
+        )} on session ${activeSimulation.current_session}!`
+      );
+    } else {
+      // SELL
+      const existing = positions.find((p) => p.symbol === selectedSymbol);
+      const held = existing?.quantity ?? 0;
+
+      if (held === 0) {
+        setTradeValidationError(
+          `Cannot place sell order: You do not own any shares of ${selectedSymbol} (no short selling).`
+        );
+        return;
+      }
+      if (qty > held) {
+        setTradeValidationError(
+          `Oversell error: Cannot sell ${qty} shares; you only hold ${held} shares of ${selectedSymbol}.`
+        );
+        return;
+      }
+
+      setCashCents((prev) => prev + orderCostCents);
+
+      setPositions((prev) => {
+        const remainingQty = held - qty;
+        if (remainingQty <= 0) {
+          return prev.filter((p) => p.symbol !== selectedSymbol);
+        }
+        const costBasis = parseFloat(existing?.cost_basis || price.toFixed(2));
+        const marketVal = (remainingQty * price).toFixed(2);
+        const pnl = (remainingQty * (price - costBasis)).toFixed(2);
+
+        return prev.map((p) =>
+          p.symbol === selectedSymbol
+            ? {
+                ...p,
+                quantity: remainingQty,
+                market_price: price.toFixed(2),
+                market_value: marketVal,
+                unrealized_pnl: pnl,
+              }
+            : p
+        );
+      });
+
+      const nowIso = new Date().toISOString();
+      const newTxn: Transaction = {
+        id: `sim-txn-${Date.now().toString().slice(-6)}`,
+        order_id: `sim-ord-${Date.now().toString().slice(-6)}`,
+        symbol: selectedSymbol,
+        side: 'sell',
+        quantity: qty,
+        price: price.toFixed(2),
+        gross_amount: (qty * price).toFixed(2),
+        session_date: activeSimulation.current_session,
+        executed_at: nowIso,
+      };
+      setTransactions((prev) => [newTxn, ...prev]);
+
+      setTradeReceipt({
+        symbol: selectedSymbol,
+        name: SYMBOL_NAMES[selectedSymbol] || selectedSymbol,
+        sector: SYMBOL_SECTORS[selectedSymbol]?.sector,
+        side: 'sell',
+        quantity: qty,
+        price,
+        grossAmount: qty * price,
+        remainingCashDollars: (cashCents + orderCostCents) / 100,
+        mode: 'simulation',
+        sessionDate: activeSimulation.current_session,
+        timestamp: new Date().toLocaleTimeString(),
+      });
+
+      setTradeSuccessNotice(
+        `Sold ${qty} share(s) of ${selectedSymbol} at $${price.toFixed(
+          2
+        )} on session ${activeSimulation.current_session}!`
+      );
+    }
+  };
+
+  // Quick Sell Helper from Holdings Row
+  const handleQuickSell = (sym: string, qty: number) => {
+    setSelectedSymbol(sym);
+    setOrderSide('sell');
+    setTradeQtyInput(qty.toString());
+    setTradeValidationError(null);
+    setTradeSuccessNotice(null);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Trade Confirmation Pop-up Modal */}
+      <TradeConfirmationModal
+        receipt={tradeReceipt}
+        onClose={() => setTradeReceipt(null)}
+      />
+
       {/* Simulation Tab Overview Popup */}
       <TabOverviewModal
         tab="simulation"
@@ -555,8 +870,8 @@ export function SimulationView({
             </div>
           </div>
 
-          {/* Interactive Advance Session Button */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          {/* Interactive Advance Session Button & Quick Horizon Controls */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-wrap">
             <Button
               data-testid="advance-session-btn"
               variant={activeSimulation.status === 'completed' ? 'secondary' : 'primary'}
@@ -584,6 +899,54 @@ export function SimulationView({
                 'Advance Session →'
               )}
             </Button>
+
+            {activeSimulation.status === 'completed' ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  data-testid="extend-calendar-btn"
+                  onClick={() => handleExtendSessions(30)}
+                  disabled={isAdvancing}
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer ring-1 ring-emerald-300"
+                >
+                  <span>⚡</span>
+                  <span>Keep Trading (+30 Days)</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="replay-sim-btn"
+                  onClick={handleResetSimulation}
+                  disabled={isAdvancing}
+                  className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <span>🔁</span>
+                  <span>Reset to Day 1</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleExtendSessions(30)}
+                  disabled={isAdvancing}
+                  title="Add 30 more historical trading sessions to the calendar"
+                  className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                >
+                  <span>⚡</span>
+                  <span>+30 Days</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetSimulation}
+                  disabled={isAdvancing}
+                  title="Reset simulation back to Day 1 with fresh cash"
+                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                >
+                  <span>🔁</span>
+                  <span className="hidden sm:inline">Reset Run</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -624,6 +987,376 @@ export function SimulationView({
             </button>
           </div>
         )}
+      </section>
+
+      {/* Cycle Completed Celebration & Horizon Extension Card */}
+      {activeSimulation.status === 'completed' && (
+        <div className="rounded-2xl border border-emerald-300/80 bg-gradient-to-r from-emerald-950/90 via-slate-900 to-indigo-950/90 p-5 text-white shadow-xl space-y-3 animate-fadeIn">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🏆</span>
+                <span className="text-xs font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-400/20 text-emerald-300 border border-emerald-400/40">
+                  CYCLE COMPLETED
+                </span>
+              </div>
+              <h3 className="text-base sm:text-lg font-black text-white">
+                Historical Cycle Finished! Final Portfolio:{' '}
+                <span className="text-emerald-400">{formatUSD(totalEquityDollars)}</span>
+              </h3>
+              <p className="text-xs text-slate-300">
+                You navigated through {activeSimulation.end_session}. Don&apos;t stop now—extend the calendar by 30 days to keep your profits and continue trading, or restart to test a new strategy!
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+              <button
+                type="button"
+                onClick={() => handleExtendSessions(30)}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-xs shadow-lg transition-all flex items-center gap-2 ring-2 ring-emerald-300 cursor-pointer"
+              >
+                <span>⚡</span>
+                <span>Keep Trading (+30 Days)</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleResetSimulation}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 font-bold text-xs shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <span>🔁</span>
+                <span>Reset to Day 1</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Interactive Paper Trading Desk (Direct Buy & Sell Trading on Simulation Tab) */}
+      <section
+        aria-label="Simulation Paper Trading Desk"
+        className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs space-y-5"
+      >
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-lg">⚡</span>
+              <h3 className="text-base font-black text-slate-900 tracking-tight">
+                Simulation Paper Trading Desk
+              </h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
+                Active Session: {activeSimulation.current_session}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Buy and sell any stock on the current session without lookahead bias. Advance the day to see overnight returns!
+            </p>
+          </div>
+
+          {/* Quick Portfolio Balance Ribbon */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+              <span className="text-slate-500 block text-[10px] uppercase font-bold">Cash Balance</span>
+              <span className="font-mono font-bold text-slate-900">{formatUSD(cashCents / 100)}</span>
+            </div>
+            <div className="px-3 py-1.5 rounded-xl bg-blue-50/80 border border-blue-200 text-xs">
+              <span className="text-blue-700 block text-[10px] uppercase font-bold">Total Portfolio</span>
+              <span className="font-mono font-bold text-blue-950">{formatUSD(totalEquityDollars)}</span>
+            </div>
+            <div className="px-3 py-1.5 rounded-xl bg-emerald-50/80 border border-emerald-200 text-xs">
+              <span className="text-emerald-700 block text-[10px] uppercase font-bold">Overall Return</span>
+              <LossGainBadge
+                dollarValue={totalReturnDollars}
+                percentValue={totalReturnPct}
+                size="sm"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Order Ticket & Execution Form */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          <div className="lg:col-span-5 p-4 rounded-xl bg-slate-50/80 border border-slate-200/90 space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                Place Simulation Order
+              </span>
+              <span className="text-xs font-mono font-bold text-slate-900">
+                {selectedSymbol}: ${activeSessionPrice.toFixed(2)}
+              </span>
+            </div>
+
+            {/* Buy / Sell Toggle */}
+            <div className="grid grid-cols-2 gap-2 bg-slate-200/80 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setOrderSide('buy');
+                  setTradeValidationError(null);
+                }}
+                className={`py-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  orderSide === 'buy'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-700 hover:text-slate-950'
+                }`}
+              >
+                <span>🛒</span>
+                <span>Buy Shares</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOrderSide('sell');
+                  setTradeValidationError(null);
+                }}
+                className={`py-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  orderSide === 'sell'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'text-slate-700 hover:text-slate-950'
+                }`}
+              >
+                <span>💰</span>
+                <span>Sell Shares</span>
+              </button>
+            </div>
+
+            {/* Selected Symbol Info & Relatable Tag */}
+            <div className="p-3 rounded-lg bg-white border border-slate-200 text-xs space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-900">
+                  {selectedSymbol} • {SYMBOL_NAMES[selectedSymbol] || selectedSymbol}
+                </span>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                  Held: {currentHeldShares} shs
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-slate-500 text-[11px]">
+                <span>Session Close Price:</span>
+                <span className="font-mono font-bold text-slate-900">${activeSessionPrice.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Quantity Input + Quick Chips */}
+            <div className="space-y-1.5">
+              <label htmlFor="sim-trade-qty" className="block text-xs font-semibold text-slate-700">
+                Shares to {orderSide === 'buy' ? 'Buy' : 'Sell'}:
+              </label>
+              <Input
+                id="sim-trade-qty"
+                type="number"
+                min="1"
+                max="1000000"
+                value={tradeQtyInput}
+                onChange={(e) => {
+                  setTradeQtyInput(e.target.value);
+                  setTradeValidationError(null);
+                  setTradeSuccessNotice(null);
+                }}
+                placeholder="10"
+                className="w-full"
+              />
+              <div className="flex items-center gap-1.5 pt-1 flex-wrap">
+                <span className="text-[10px] font-semibold text-slate-400">Quick:</span>
+                {[1, 5, 10, 25, 50].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => {
+                      setTradeQtyInput(preset.toString());
+                      setTradeValidationError(null);
+                    }}
+                    className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white border border-slate-200 hover:border-blue-400 text-slate-700 transition-colors cursor-pointer"
+                  >
+                    +{preset}
+                  </button>
+                ))}
+                {orderSide === 'buy' && activeSessionPrice > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const maxShares = Math.max(1, Math.floor((cashCents / 100) / activeSessionPrice));
+                      setTradeQtyInput(maxShares.toString());
+                      setTradeValidationError(null);
+                    }}
+                    className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
+                  >
+                    Max Buy
+                  </button>
+                )}
+                {orderSide === 'sell' && currentHeldShares > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTradeQtyInput(currentHeldShares.toString());
+                      setTradeValidationError(null);
+                    }}
+                    className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100 transition-colors cursor-pointer"
+                  >
+                    Sell All ({currentHeldShares})
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Estimated Total */}
+            <div className="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between text-xs">
+              <span className="text-slate-600 font-medium">Estimated Gross Total:</span>
+              <span className="font-mono font-extrabold text-sm text-slate-900">
+                {formatUSD((parseInt(tradeQtyInput, 10) || 0) * activeSessionPrice)}
+              </span>
+            </div>
+
+            {/* Error & Success Messages */}
+            {tradeValidationError && (
+              <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
+                {tradeValidationError}
+              </div>
+            )}
+            {tradeSuccessNotice && (
+              <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800">
+                {tradeSuccessNotice}
+              </div>
+            )}
+
+            {/* Submit Trade Button */}
+            <button
+              type="button"
+              onClick={handleExecuteTrade}
+              className={`w-full py-3 rounded-xl font-black text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                orderSide === 'buy'
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-500/20'
+                  : 'bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white shadow-rose-500/20'
+              }`}
+            >
+              <span>{orderSide === 'buy' ? '🚀' : '💰'}</span>
+              <span>
+                {orderSide === 'buy' ? 'Buy' : 'Sell'}{' '}
+                {parseInt(tradeQtyInput, 10) || 1} {selectedSymbol} ({formatUSD((parseInt(tradeQtyInput, 10) || 1) * activeSessionPrice)})
+              </span>
+            </button>
+          </div>
+
+          {/* Active Simulation Holdings & Recent Orders */}
+          <div className="lg:col-span-7 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Active Simulation Holdings
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                  {positions.length} Positions
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-400">
+                Priced at {activeSimulation.current_session} Close
+              </span>
+            </div>
+
+            {positions.length > 0 ? (
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-left text-xs" aria-label="Simulation Holdings Table">
+                  <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                    <tr>
+                      <th className="py-2.5 px-3">Asset</th>
+                      <th className="py-2.5 px-3">Shares</th>
+                      <th className="py-2.5 px-3">Avg Cost</th>
+                      <th className="py-2.5 px-3">Market Value</th>
+                      <th className="py-2.5 px-3">P&amp;L</th>
+                      <th className="py-2.5 px-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-mono">
+                    {positions.map((pos) => {
+                      const costNum = parseFloat(pos.cost_basis);
+                      const priceNum = parseFloat(pos.market_price);
+                      const pnlNum = parseFloat(pos.unrealized_pnl);
+                      const pnlPct = costNum > 0 ? ((priceNum - costNum) / costNum) * 100 : 0;
+
+                      return (
+                        <tr key={pos.symbol} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-2 px-3">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedSymbol(pos.symbol)}
+                              className="font-bold text-blue-700 hover:underline text-left font-sans"
+                            >
+                              {pos.symbol}
+                            </button>
+                          </td>
+                          <td className="py-2 px-3 font-bold text-slate-900">{pos.quantity}</td>
+                          <td className="py-2 px-3 text-slate-600">${costNum.toFixed(2)}</td>
+                          <td className="py-2 px-3 font-bold text-slate-900">${parseFloat(pos.market_value).toFixed(2)}</td>
+                          <td className="py-2 px-3">
+                            <LossGainBadge
+                              dollarValue={pnlNum}
+                              percentValue={pnlPct}
+                              size="sm"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-right space-x-1 font-sans">
+                            <button
+                              type="button"
+                              onClick={() => handleQuickSell(pos.symbol, 1)}
+                              className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 cursor-pointer"
+                            >
+                              Sell 1
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleQuickSell(pos.symbol, pos.quantity)}
+                              className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-600 text-white hover:bg-rose-500 cursor-pointer"
+                            >
+                              All
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-6 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 text-center space-y-2">
+                <span className="text-3xl block">💼</span>
+                <h4 className="text-sm font-bold text-slate-800">No stocks owned in this simulation yet</h4>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Pick a stock on the left, enter how many shares you want, and click <strong>Buy Shares</strong> to start building your portfolio!
+                </p>
+              </div>
+            )}
+
+            {/* Quick Audit Log */}
+            {transactions.length > 0 && (
+              <div className="space-y-1.5 pt-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                  Recent Orders This Run ({transactions.length})
+                </span>
+                <div className="max-h-36 overflow-y-auto space-y-1 pr-1 font-mono text-[11px]">
+                  {transactions.slice(0, 6).map((txn) => (
+                    <div
+                      key={txn.id}
+                      className="p-2 rounded-lg bg-slate-50 border border-slate-200/80 flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-1.5 py-0.2 rounded font-sans text-[9px] font-bold uppercase ${
+                            txn.side === 'buy'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-rose-100 text-rose-800'
+                          }`}
+                        >
+                          {txn.side}
+                        </span>
+                        <span className="font-bold text-slate-900">{txn.quantity} {txn.symbol}</span>
+                        <span className="text-slate-500">@ ${parseFloat(txn.price).toFixed(2)}</span>
+                      </div>
+                      <span className="text-slate-400 font-sans text-[10px]">{txn.session_date}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </section>
 
       {/* Market Data View */}
