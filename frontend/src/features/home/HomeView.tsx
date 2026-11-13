@@ -29,13 +29,13 @@ export function HomeView({
 
   // Top Tradable Assets Spotlight with Teenager-Friendly Brand Descriptions
   const SPOTLIGHT_ASSETS = [
-    { symbol: 'AAPL', name: 'Apple (iPhones, Macs & AI)', sector: 'Consumer Tech', price: '$185.64', change: '-0.38%', badge: 'bg-blue-100 text-blue-800 border-blue-200', border: 'border-blue-200 hover:border-blue-400' },
-    { symbol: 'NVDA', name: 'NVIDIA (AI Chips & Gaming GPUs)', sector: 'Semiconductors / AI', price: '$142.50', change: '+1.85%', badge: 'bg-purple-100 text-purple-800 border-purple-200', border: 'border-purple-200 hover:border-purple-400' },
-    { symbol: 'TSLA', name: 'Tesla (EVs & Clean Energy)', sector: 'Clean Tech & Auto', price: '$248.50', change: '+2.14%', badge: 'bg-rose-100 text-rose-800 border-rose-200', border: 'border-rose-200 hover:border-rose-400' },
-    { symbol: 'SPY', name: 'S&P 500 (America’s Top 500)', sector: 'Broad Index ETF', price: '$472.40', change: '+0.42%', badge: 'bg-emerald-100 text-emerald-800 border-emerald-200', border: 'border-emerald-200 hover:border-emerald-400' },
-    { symbol: 'AMZN', name: 'Amazon (E-Commerce & Prime)', sector: 'Retail & Cloud', price: '$178.25', change: '+0.65%', badge: 'bg-amber-100 text-amber-800 border-amber-200', border: 'border-amber-200 hover:border-amber-400' },
-    { symbol: 'MCD', name: "McDonald's (Burgers & Real Estate)", sector: 'Consumer Dining', price: '$295.40', change: '+0.12%', badge: 'bg-yellow-100 text-yellow-800 border-yellow-200', border: 'border-yellow-200 hover:border-yellow-400' },
-    { symbol: 'KO', name: 'Coca-Cola (Classic Drinks)', sector: 'Consumer Staples', price: '$59.85', change: '+0.22%', badge: 'bg-red-100 text-red-800 border-red-200', border: 'border-red-200 hover:border-red-400' },
+    { symbol: 'AAPL', name: 'Apple (iPhones, Macs & AI)', sector: 'Consumer Tech', price: '$185.64', change: '-0.38%', badge: 'bg-blue-500/20 text-blue-300 border-blue-400/30', border: 'border-slate-800 hover:border-blue-400/60' },
+    { symbol: 'NVDA', name: 'NVIDIA (AI Chips & Gaming GPUs)', sector: 'Semiconductors / AI', price: '$142.50', change: '+1.85%', badge: 'bg-purple-500/20 text-purple-300 border-purple-400/30', border: 'border-slate-800 hover:border-purple-400/60' },
+    { symbol: 'TSLA', name: 'Tesla (EVs & Clean Energy)', sector: 'Clean Tech & Auto', price: '$248.50', change: '+2.14%', badge: 'bg-rose-500/20 text-rose-300 border-rose-400/30', border: 'border-slate-800 hover:border-rose-400/60' },
+    { symbol: 'SPY', name: 'S&P 500 (America’s Top 500)', sector: 'Broad Index ETF', price: '$472.40', change: '+0.42%', badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30', border: 'border-slate-800 hover:border-emerald-400/60' },
+    { symbol: 'AMZN', name: 'Amazon (E-Commerce & Prime)', sector: 'Retail & Cloud', price: '$178.25', change: '+0.65%', badge: 'bg-amber-500/20 text-amber-300 border-amber-400/30', border: 'border-slate-800 hover:border-amber-400/60' },
+    { symbol: 'MCD', name: "McDonald's (Burgers & Real Estate)", sector: 'Consumer Dining', price: '$295.40', change: '+0.12%', badge: 'bg-yellow-500/20 text-yellow-300 border-yellow-400/30', border: 'border-slate-800 hover:border-yellow-400/60' },
+    { symbol: 'KO', name: 'Coca-Cola (Classic Drinks)', sector: 'Consumer Staples', price: '$59.85', change: '+0.22%', badge: 'bg-red-500/20 text-red-300 border-red-400/30', border: 'border-slate-800 hover:border-red-400/60' },
   ];
 
   // Interactive 5-Stage Pathway Steps with Colorful Accents
@@ -47,12 +47,12 @@ export function HomeView({
       title: 'Learn & Master',
       subtitle: '2-Min Lessons & 80% Quizzes',
       badge: 'STAGE 01 • START HERE',
-      badgeStyle: 'bg-blue-100 text-blue-800 border-blue-300',
-      borderHover: 'hover:border-blue-400 hover:shadow-blue-500/10',
+      badgeStyle: 'bg-blue-500/20 text-blue-300 border-blue-400/30',
+      borderHover: 'hover:border-blue-400 hover:shadow-blue-500/20',
       desc: 'Bite-sized visual lessons on CDs, HYSAs, Stocks, and ETFs. Includes US vs. EU strategies and 80% passing quizzes.',
       action: 'Open Lessons',
-      cardGradient: 'from-blue-50/60 via-white to-indigo-50/30',
-      accentColor: 'text-blue-600',
+      cardGradient: 'from-blue-950/40 via-slate-900 to-indigo-950/40',
+      accentColor: 'text-blue-400',
     },
     {
       id: 'calculator' as const,
@@ -61,12 +61,12 @@ export function HomeView({
       title: 'Calculate & Model',
       subtitle: 'Compound APY & Boba Math',
       badge: 'STAGE 02 • MATH',
-      badgeStyle: 'bg-indigo-100 text-indigo-800 border-indigo-300',
-      borderHover: 'hover:border-indigo-400 hover:shadow-indigo-500/10',
+      badgeStyle: 'bg-indigo-500/20 text-indigo-300 border-indigo-400/30',
+      borderHover: 'hover:border-indigo-400 hover:shadow-indigo-500/20',
       desc: 'Model compound APY, monthly contributions, and CD early break penalties using effective annual rate math.',
       action: 'Open Calculators',
-      cardGradient: 'from-indigo-50/60 via-white to-purple-50/30',
-      accentColor: 'text-indigo-600',
+      cardGradient: 'from-indigo-950/40 via-slate-900 to-purple-950/40',
+      accentColor: 'text-indigo-400',
     },
     {
       id: 'simulation' as const,
@@ -75,12 +75,12 @@ export function HomeView({
       title: 'Zero-Lookahead Sim',
       subtitle: 'Historical 2024 Market Replay',
       badge: 'STAGE 03 • 2024 DATA',
-      badgeStyle: 'bg-purple-100 text-purple-800 border-purple-300',
-      borderHover: 'hover:border-purple-400 hover:shadow-purple-500/10',
+      badgeStyle: 'bg-purple-500/20 text-purple-300 border-purple-400/30',
+      borderHover: 'hover:border-purple-400 hover:shadow-purple-500/20',
       desc: 'Step through historical market sessions session-by-session without future price data leakage.',
       action: 'Launch Simulation',
-      cardGradient: 'from-purple-50/60 via-white to-pink-50/30',
-      accentColor: 'text-purple-600',
+      cardGradient: 'from-purple-950/40 via-slate-900 to-pink-950/40',
+      accentColor: 'text-purple-400',
     },
     {
       id: 'trading' as const,
@@ -89,12 +89,12 @@ export function HomeView({
       title: 'Paper Trading',
       subtitle: 'Spot Orders & Live Yahoo Feed',
       badge: 'STAGE 04 • LIVE STREAM',
-      badgeStyle: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-      borderHover: 'hover:border-emerald-400 hover:shadow-emerald-500/10',
+      badgeStyle: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30',
+      borderHover: 'hover:border-emerald-400 hover:shadow-emerald-500/20',
       desc: 'Execute whole-share orders across 15 stocks with both 2024 simulation and real-time streaming Yahoo Finance prices.',
       action: 'Start Trading',
-      cardGradient: 'from-emerald-50/60 via-white to-teal-50/30',
-      accentColor: 'text-emerald-600',
+      cardGradient: 'from-emerald-950/40 via-slate-900 to-teal-950/40',
+      accentColor: 'text-emerald-400',
     },
     {
       id: 'portfolio' as const,
@@ -103,12 +103,12 @@ export function HomeView({
       title: 'Portfolio Analytics',
       subtitle: 'Real-Time Equity & Balance Analytics',
       badge: 'STAGE 05 • TRACKING',
-      badgeStyle: 'bg-sky-100 text-sky-800 border-sky-300',
-      borderHover: 'hover:border-sky-400 hover:shadow-sky-500/10',
+      badgeStyle: 'bg-cyan-500/20 text-cyan-300 border-cyan-400/30',
+      borderHover: 'hover:border-cyan-400 hover:shadow-cyan-500/20',
       desc: 'Track account net worth, unrealized PnL, cash allocations, and portfolio performance over time.',
       action: 'View Portfolio',
-      cardGradient: 'from-sky-50/60 via-white to-blue-50/30',
-      accentColor: 'text-sky-600',
+      cardGradient: 'from-cyan-950/40 via-slate-900 to-blue-950/40',
+      accentColor: 'text-cyan-400',
     },
   ];
 
@@ -294,21 +294,21 @@ export function HomeView({
       </section>
 
       {/* Guided Fast-Track Banner */}
-      <section className="rounded-2xl border border-blue-200/90 bg-gradient-to-r from-blue-50 via-indigo-50/70 to-emerald-50/50 p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+      <section className="rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-slate-900/90 via-indigo-950/60 to-slate-900/90 backdrop-blur-xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg shadow-black/20 text-white">
         <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-xl shadow-md shrink-0">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-cyan-500 via-teal-500 to-emerald-400 text-slate-950 font-black flex items-center justify-center text-xl shadow-md shadow-cyan-500/20 shrink-0">
             🧭
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-slate-900">
-                New to the platform? Where should you begin?
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <span>New to the platform? Where should you begin?</span>
               </h3>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
                 Quick Roadmap
               </span>
             </div>
-            <p className="text-xs text-slate-600 mt-0.5">
+            <p className="text-xs text-slate-300 mt-0.5">
               1. Learn Cash vs Equities → 2. Model 5.0% APY → 3. Test Historical Sim → 4. Place Live Day Trades → 5. Check Portfolio.
             </p>
           </div>
@@ -317,7 +317,7 @@ export function HomeView({
         <button
           type="button"
           onClick={() => setIsHowItWorksOpen(true)}
-          className="w-full sm:w-auto px-4 py-2 rounded-xl bg-white hover:bg-blue-50 text-blue-700 font-bold text-xs border border-blue-300 shadow-xs transition-all flex items-center justify-center gap-1.5 shrink-0"
+          className="w-full sm:w-auto px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs shadow-md transition-all flex items-center justify-center gap-1.5 shrink-0"
         >
           <span>Open Step-by-Step Instructions</span>
           <span>→</span>
@@ -328,52 +328,52 @@ export function HomeView({
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
               <span>🧠</span>
               <span>Gen Z Financial Cheat Sheet &amp; Myth Busters</span>
             </h3>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-400">
               Three essential money principles school never taught you.
             </p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/90 via-white to-orange-50/50 border border-amber-200 shadow-xs space-y-2">
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-950/40 via-slate-900/90 to-slate-900 border border-amber-500/40 hover:border-amber-400 shadow-lg shadow-black/30 space-y-2 backdrop-blur-xl transition-all">
             <div className="flex items-center justify-between">
               <span className="text-xl">🧋</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/40">
                 BOBA MATH
               </span>
             </div>
-            <h4 className="text-sm font-bold text-slate-900">The Power of Small Habits</h4>
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <h4 className="text-sm font-bold text-amber-200">The Power of Small Habits</h4>
+            <p className="text-xs text-slate-300 leading-relaxed">
               Skipping one $6 drink a week and putting $25/month into an 8% compound ETF turns into <strong>$15,000+</strong> by age 30. Compounding turns tiny habits into serious bankroll!
             </p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/90 via-white to-indigo-50/50 border border-blue-200 shadow-xs space-y-2">
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-cyan-950/40 via-slate-900/90 to-slate-900 border border-cyan-500/40 hover:border-cyan-400 shadow-lg shadow-black/30 space-y-2 backdrop-blur-xl transition-all">
             <div className="flex items-center justify-between">
               <span className="text-xl">📱</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-300">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-400/40">
                 CASH APP TRAP
               </span>
             </div>
-            <h4 className="text-sm font-bold text-slate-900">Idle Cash Loses Money</h4>
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <h4 className="text-sm font-bold text-cyan-200">Idle Cash Loses Money</h4>
+            <p className="text-xs text-slate-300 leading-relaxed">
               Leaving all your savings on Venmo or standard checking earns 0% while inflation silently burns 3% a year. A <strong>5.0% HYSA</strong> pays you free passive income monthly with FDIC protection!
             </p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/50 border border-emerald-200 shadow-xs space-y-2">
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 via-slate-900/90 to-slate-900 border border-emerald-500/40 hover:border-emerald-400 shadow-lg shadow-black/30 space-y-2 backdrop-blur-xl transition-all">
             <div className="flex items-center justify-between">
               <span className="text-xl">💎</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">
                 DIAMOND HANDS
               </span>
             </div>
-            <h4 className="text-sm font-bold text-slate-900">ETFs vs. Meme Gambles</h4>
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <h4 className="text-sm font-bold text-emerald-200">ETFs vs. Meme Gambles</h4>
+            <p className="text-xs text-slate-300 leading-relaxed">
               Trying to guess which meme stock will pop is gambling. Buying an S&amp;P 500 ETF (like <strong>SPY</strong>) instantly gives you a slice of Apple, Nvidia, Microsoft, and Amazon all at once!
             </p>
           </div>
@@ -381,22 +381,22 @@ export function HomeView({
       </section>
 
       {/* Contract-Compliant Live Portfolio & Performance Snapshot */}
-      <section className="bg-gradient-to-br from-white via-slate-50/70 to-emerald-50/30 rounded-3xl border border-slate-200/90 p-6 shadow-xs space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200/80 pb-4">
+      <section className="bg-slate-900/90 backdrop-blur-xl rounded-3xl border border-slate-800/90 p-6 shadow-2xl space-y-5 text-white">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-800/80 pb-4">
           <div className="flex items-center gap-3.5">
             <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white flex items-center justify-center text-xl font-bold shadow-md shadow-emerald-500/20">
               📊
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                <h2 className="text-base sm:text-lg font-black text-white tracking-tight">
                   Portfolio &amp; Performance
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
                   ● Real-Time
                 </span>
               </div>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-400">
                 Live simulation holdings, cash reserves, and performance equity balance.
               </p>
             </div>
@@ -405,7 +405,7 @@ export function HomeView({
           <button
             type="button"
             onClick={() => onNavigateTab('portfolio')}
-            className="self-start sm:self-center px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all flex items-center gap-1.5"
+            className="self-start sm:self-center px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 shadow-sm transition-all flex items-center gap-1.5"
           >
             <span>Open Detailed Portfolio</span>
             <span>→</span>
@@ -413,40 +413,40 @@ export function HomeView({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-xs">
-          <div className="p-4 rounded-2xl bg-white border border-emerald-200 shadow-2xs hover:shadow-xs transition-shadow">
-            <span className="text-slate-500 block text-[11px] font-bold uppercase tracking-wider">Total Equity</span>
-            <span className="text-2xl font-black text-slate-900 font-mono mt-1 block tracking-tight">
+          <div className="p-4 rounded-2xl bg-slate-950/80 border border-emerald-500/40 shadow-lg hover:border-emerald-400/80 transition-all">
+            <span className="text-slate-400 block text-[11px] font-bold uppercase tracking-wider">Total Equity</span>
+            <span className="text-2xl font-black text-emerald-300 font-mono mt-1 block tracking-tight">
               ${totalEquityDollars.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
-            <span className="text-[10px] text-emerald-700 font-bold block mt-1.5 flex items-center gap-1">
+            <span className="text-[10px] text-emerald-400 font-bold block mt-1.5 flex items-center gap-1">
               <span>🛡️</span> 100% Capital Preserved
             </span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-white border border-blue-200 shadow-2xs hover:shadow-xs transition-shadow">
-            <span className="text-slate-500 block text-[11px] font-bold uppercase tracking-wider">Cash Available</span>
-            <span className="text-2xl font-black text-blue-900 font-mono mt-1 block tracking-tight">
+          <div className="p-4 rounded-2xl bg-slate-950/80 border border-cyan-500/40 shadow-lg hover:border-cyan-400/80 transition-all">
+            <span className="text-slate-400 block text-[11px] font-bold uppercase tracking-wider">Cash Available</span>
+            <span className="text-2xl font-black text-cyan-300 font-mono mt-1 block tracking-tight">
               ${cashDollars.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
-            <span className="text-[10px] text-blue-600 font-bold block mt-1.5 flex items-center gap-1">
+            <span className="text-[10px] text-cyan-400 font-bold block mt-1.5 flex items-center gap-1">
               <span>💵</span> Ready for Spot Orders
             </span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:shadow-xs transition-shadow">
-            <span className="text-slate-500 block text-[11px] font-bold uppercase tracking-wider">Unrealized P&amp;L</span>
-            <span className="text-2xl font-black text-slate-700 font-mono mt-1 block tracking-tight">
+          <div className="p-4 rounded-2xl bg-slate-950/80 border border-purple-500/40 shadow-lg hover:border-purple-400/80 transition-all">
+            <span className="text-slate-400 block text-[11px] font-bold uppercase tracking-wider">Unrealized P&amp;L</span>
+            <span className="text-2xl font-black text-purple-200 font-mono mt-1 block tracking-tight">
               +$0.00
             </span>
-            <span className="text-[10px] text-slate-500 font-medium block mt-1.5">0.00% Net Return</span>
+            <span className="text-[10px] text-slate-400 font-medium block mt-1.5">0.00% Net Return</span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-white border border-indigo-200 shadow-2xs hover:shadow-xs transition-shadow">
-            <span className="text-slate-500 block text-[11px] font-bold uppercase tracking-wider">Risk Protection Status</span>
-            <span className="text-xs font-black text-indigo-900 block mt-1">
+          <div className="p-4 rounded-2xl bg-slate-950/80 border border-amber-500/40 shadow-lg hover:border-amber-400/80 transition-all">
+            <span className="text-slate-400 block text-[11px] font-bold uppercase tracking-wider">Risk Protection Status</span>
+            <span className="text-xs font-black text-amber-300 block mt-1">
               🛡️ SIPC / Zero-Risk Emulated
             </span>
-            <span className="text-[10px] text-indigo-600/80 font-medium block mt-1.5">No Real Capital Exposed</span>
+            <span className="text-[10px] text-amber-400/80 font-medium block mt-1.5">No Real Capital Exposed</span>
           </div>
         </div>
       </section>
@@ -455,18 +455,18 @@ export function HomeView({
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+            <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
               <span>📈</span>
               <span>15 Multi-Sector Tradable Universe Spotlight</span>
             </h3>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-400">
               Popular household brands spanning Tech, Gaming, Clean Energy, Dining, Drinks &amp; Index ETFs.
             </p>
           </div>
           <button
             type="button"
             onClick={() => onNavigateTab('trading')}
-            className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline"
+            className="text-xs font-bold text-cyan-400 hover:text-cyan-300 hover:underline"
           >
             View All 15 Symbols →
           </button>
@@ -476,7 +476,7 @@ export function HomeView({
           {SPOTLIGHT_ASSETS.map((asset) => (
             <div
               key={asset.symbol}
-              className={`p-3.5 rounded-2xl border bg-white ${asset.border} hover:shadow-md transition-all space-y-2 cursor-pointer`}
+              className={`p-3.5 rounded-2xl border bg-slate-900/90 backdrop-blur-md ${asset.border} hover:shadow-[0_0_15px_rgba(168,85,247,0.2)] hover:border-purple-400/60 transition-all space-y-2 cursor-pointer`}
               onClick={() => onNavigateTab('trading')}
               role="button"
               tabIndex={0}
@@ -488,17 +488,17 @@ export function HomeView({
               }}
             >
               <div className="flex items-center justify-between">
-                <span className="font-black text-sm text-slate-900">{asset.symbol}</span>
+                <span className="font-black text-sm text-white">{asset.symbol}</span>
                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${asset.badge}`}>
                   {asset.sector.split(' ')[0]}
                 </span>
               </div>
-              <div className="text-[11px] text-slate-500 truncate" title={asset.name}>
+              <div className="text-[11px] text-slate-400 truncate" title={asset.name}>
                 {asset.name}
               </div>
-              <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-                <span className="font-mono font-bold text-xs text-slate-900">{asset.price}</span>
-                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+              <div className="flex items-center justify-between pt-1 border-t border-slate-800">
+                <span className="font-mono font-bold text-xs text-white">{asset.price}</span>
+                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-1.5 py-0.5 rounded">
                   {asset.change}
                 </span>
               </div>
@@ -510,11 +510,11 @@ export function HomeView({
       {/* 5-Stage Interactive Pathway with Individual Signature Color Glows */}
       <section className="space-y-4">
         <div>
-          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+          <h3 className="text-base font-bold text-white flex items-center gap-2">
             <span>🗺️</span>
             <span>Interactive 5-Stage Learning &amp; Trading Pathway</span>
           </h3>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-400">
             A guided progression from financial fundamentals to live market order execution.
           </p>
         </div>
@@ -524,7 +524,7 @@ export function HomeView({
             <div
               key={stg.id}
               onClick={() => onNavigateTab(stg.id)}
-              className={`rounded-3xl border border-slate-200/90 bg-gradient-to-br ${stg.cardGradient} p-5 shadow-2xs hover:shadow-lg ${stg.borderHover} transition-all cursor-pointer group flex flex-col justify-between`}
+              className={`rounded-3xl border border-slate-800/90 bg-gradient-to-br ${stg.cardGradient} p-5 shadow-lg ${stg.borderHover} transition-all cursor-pointer group flex flex-col justify-between backdrop-blur-xl`}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
@@ -536,7 +536,7 @@ export function HomeView({
             >
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="w-11 h-11 rounded-2xl bg-white shadow-xs group-hover:scale-105 text-xl flex items-center justify-center transition-transform">
+                  <div className="w-11 h-11 rounded-2xl bg-slate-800/80 border border-slate-700/80 shadow-md group-hover:scale-105 text-xl flex items-center justify-center transition-transform">
                     {stg.icon}
                   </div>
                   <span className={`text-[9px] font-black font-mono px-2 py-0.5 rounded-full border ${stg.badgeStyle}`}>
@@ -545,7 +545,7 @@ export function HomeView({
                 </div>
 
                 <div>
-                  <h4 className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                  <h4 className="text-base font-bold text-white group-hover:text-cyan-300 transition-colors">
                     {stg.title}
                   </h4>
                   <span className="text-[11px] font-semibold text-slate-400 block mt-0.5">
@@ -553,10 +553,10 @@ export function HomeView({
                   </span>
                 </div>
 
-                <p className="text-xs text-slate-600 leading-relaxed">{stg.desc}</p>
+                <p className="text-xs text-slate-300 leading-relaxed">{stg.desc}</p>
               </div>
 
-              <div className="pt-4 border-t border-slate-200/70 flex items-center justify-between text-xs font-bold text-blue-600 group-hover:text-blue-700">
+              <div className="pt-4 border-t border-slate-800 flex items-center justify-between text-xs font-bold text-cyan-400 group-hover:text-cyan-300">
                 <span>{stg.action}</span>
                 <span className="transform group-hover:translate-x-1.5 transition-transform">→</span>
               </div>
@@ -568,17 +568,17 @@ export function HomeView({
       {/* Interactive Daily Instinct Challenge & US vs EU Banner */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
         {/* Interactive Challenge Card */}
-        <div className="lg:col-span-7 rounded-3xl border border-indigo-200 bg-gradient-to-br from-indigo-50/80 via-white to-blue-50/60 p-6 shadow-xs flex flex-col justify-between space-y-4">
+        <div className="lg:col-span-7 rounded-3xl border border-indigo-500/40 bg-gradient-to-br from-slate-900/95 via-indigo-950/40 to-slate-900/95 backdrop-blur-xl p-6 shadow-xl flex flex-col justify-between space-y-4 text-white">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 flex items-center gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
                 <span>⚡</span> Daily Financial Instinct Challenge
               </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/40">
                 Test Your Instincts
               </span>
             </div>
-            <h4 className="text-sm font-bold text-slate-900 leading-snug">
+            <h4 className="text-sm font-bold text-white leading-snug">
               Scenario: You have $3,000 saved for college tuition due in exactly 10 months. Where should this capital be parked?
             </h4>
           </div>
@@ -596,9 +596,9 @@ export function HomeView({
                 className={`w-full text-left p-3.5 rounded-2xl border transition-all ${
                   pollSelected === choice.id
                     ? choice.correct
-                      ? 'bg-emerald-50 border-emerald-400 text-emerald-950 font-semibold shadow-xs'
-                      : 'bg-rose-50 border-rose-300 text-rose-950 font-semibold shadow-xs'
-                    : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
+                      ? 'bg-emerald-950/80 border-emerald-400 text-emerald-200 font-semibold shadow-lg shadow-emerald-500/10'
+                      : 'bg-rose-950/80 border-rose-400 text-rose-200 font-semibold shadow-lg shadow-rose-500/10'
+                    : 'bg-slate-950/70 hover:bg-slate-800/80 border-slate-800 text-slate-200'
                 }`}
               >
                 <span>{choice.text}</span>
@@ -610,8 +610,8 @@ export function HomeView({
             <div
               className={`p-3.5 rounded-2xl text-xs font-medium border ${
                 pollSelected === 'optB'
-                  ? 'bg-emerald-100 border-emerald-300 text-emerald-900'
-                  : 'bg-amber-50 border-amber-300 text-amber-900'
+                  ? 'bg-emerald-950/80 border-emerald-400/60 text-emerald-200'
+                  : 'bg-amber-950/80 border-amber-400/60 text-amber-200'
               }`}
             >
               {pollSelected === 'optB' ? (

@@ -21,6 +21,7 @@ import {
 import {
   FIXTURE_DATASET_METADATA,
   INITIAL_SIMULATION_FIXTURE,
+  generateTradingDays,
 } from '../simulation/simulationFixtures';
 import {
   fetchAllLiveQuotes,
@@ -364,13 +365,36 @@ export function TradingView({
   };
 
   // Advance Session & Execute Order Core Handler
-  const executeAdvanceWithOrder = (orderToExecute: Order | null) => {
+  const executeAdvanceWithOrder = (orderToExecute: Order | null, overrideSim?: Simulation) => {
     setRejectionNotice(null);
     setSuccessNotice(null);
 
+    const dataset = customDataset || FIXTURE_DATASET_METADATA;
+    let currentSim = overrideSim || simulation;
+    const curIdx = dataset.session_dates.indexOf(currentSim.current_session);
+    if (
+      currentSim.status === 'completed' ||
+      curIdx === -1 ||
+      curIdx + 1 >= dataset.session_dates.length ||
+      currentSim.current_session >= currentSim.end_session
+    ) {
+      const lastSession = dataset.session_dates[dataset.session_dates.length - 1];
+      const newDates = generateTradingDays(lastSession, 30);
+      for (const d of newDates) {
+        if (!dataset.session_dates.includes(d)) dataset.session_dates.push(d);
+      }
+      const newEnd = dataset.session_dates[dataset.session_dates.length - 1];
+      currentSim = {
+        ...currentSim,
+        end_session: newEnd,
+        status: 'active',
+      };
+      setSimulation(currentSim);
+    }
+
     try {
       const result = tradingService.advanceAndExecute(
-        simulation,
+        currentSim,
         cashCents,
         positions,
         orderToExecute
@@ -433,7 +457,102 @@ export function TradingView({
 
   // Advance Session & Execute Order Handler
   const handleAdvanceAndExecute = () => {
+    const dataset = customDataset || FIXTURE_DATASET_METADATA;
+    const curIdx = dataset.session_dates.indexOf(simulation.current_session);
+    if (
+      simulation.status === 'completed' ||
+      curIdx === -1 ||
+      curIdx + 1 >= dataset.session_dates.length ||
+      simulation.current_session >= simulation.end_session
+    ) {
+      const lastSession = dataset.session_dates[dataset.session_dates.length - 1];
+      const newDates = generateTradingDays(lastSession, 30);
+      for (const d of newDates) {
+        if (!dataset.session_dates.includes(d)) dataset.session_dates.push(d);
+      }
+      const newEnd = dataset.session_dates[dataset.session_dates.length - 1];
+      const updatedSim: Simulation = {
+        ...simulation,
+        end_session: newEnd,
+        status: 'active',
+      };
+      setSimulation(updatedSim);
+      executeAdvanceWithOrder(pendingOrder, updatedSim);
+      return;
+    }
     executeAdvanceWithOrder(pendingOrder);
+  };
+
+  // Extend Simulation Calendar (+30 Days)
+  const handleExtendSimulation = async (additionalDays: number = 30) => {
+    setRejectionNotice(null);
+    try {
+      if (service) {
+        const updated = await service.extendSimulation(simulation.id, additionalDays);
+        setSimulation(updated);
+      } else {
+        const dataset = customDataset || FIXTURE_DATASET_METADATA;
+        const lastSession = dataset.session_dates[dataset.session_dates.length - 1];
+        const newDates = generateTradingDays(lastSession, additionalDays);
+        for (const d of newDates) {
+          if (!dataset.session_dates.includes(d)) dataset.session_dates.push(d);
+        }
+        const newEnd = dataset.session_dates[dataset.session_dates.length - 1];
+        setSimulation((prev) => ({
+          ...prev,
+          end_session: newEnd,
+          status: 'active',
+        }));
+      }
+      setSuccessNotice(
+        `⚡ Extended simulation horizon by +${additionalDays} trading days! You can now place orders and advance sessions as much as you want.`
+      );
+    } catch {
+      const dataset = customDataset || FIXTURE_DATASET_METADATA;
+      const lastSession = dataset.session_dates[dataset.session_dates.length - 1];
+      const newDates = generateTradingDays(lastSession, additionalDays);
+      for (const d of newDates) {
+        if (!dataset.session_dates.includes(d)) dataset.session_dates.push(d);
+      }
+      const newEnd = dataset.session_dates[dataset.session_dates.length - 1];
+      setSimulation((prev) => ({
+        ...prev,
+        end_session: newEnd,
+        status: 'active',
+      }));
+      setSuccessNotice(
+        `⚡ Extended simulation horizon by +${additionalDays} trading days! You can now place orders and advance sessions as much as you want.`
+      );
+    }
+  };
+
+  // Reset Simulation to Day 1
+  const handleResetSimulation = async () => {
+    setRejectionNotice(null);
+    try {
+      if (service) {
+        const resetSim = await service.resetSimulation(simulation.id);
+        setSimulation(resetSim);
+      } else {
+        setSimulation((prev) => ({
+          ...prev,
+          current_session: prev.start_session,
+          current_time: `${prev.start_session}T21:00:00Z`,
+          version: 1,
+          status: 'active',
+        }));
+      }
+      setSuccessNotice('🔁 Simulation reset to Day 1. Fresh session ready for trading!');
+    } catch {
+      setSimulation((prev) => ({
+        ...prev,
+        current_session: prev.start_session,
+        current_time: `${prev.start_session}T21:00:00Z`,
+        version: 1,
+        status: 'active',
+      }));
+      setSuccessNotice('🔁 Simulation reset to Day 1. Fresh session ready for trading!');
+    }
   };
 
   // Order Submission Handler
@@ -576,12 +695,26 @@ export function TradingView({
     }
 
     // Historical Simulation Mode (zero-lookahead paper trading)
+    let effectiveEndSession = simulation.end_session;
+    if (simulation.status === 'completed' || simulation.current_session >= simulation.end_session) {
+      const dataset = customDataset || FIXTURE_DATASET_METADATA;
+      const lastSession = dataset.session_dates[dataset.session_dates.length - 1];
+      const newDates = generateTradingDays(lastSession, 30);
+      for (const d of newDates) {
+        if (!dataset.session_dates.includes(d)) dataset.session_dates.push(d);
+      }
+      effectiveEndSession = dataset.session_dates[dataset.session_dates.length - 1];
+      simulation.end_session = effectiveEndSession;
+      simulation.status = 'active';
+      setSimulation({ ...simulation });
+    }
+
     const validation = tradingService.validateOrderSubmission(
       { symbol: selectedSymbol, side: orderSide, quantity: parsedQuantity },
       cashCents,
       positions,
       simulation.current_session,
-      simulation.end_session,
+      effectiveEndSession,
       pendingOrder !== null
     );
 
@@ -638,8 +771,8 @@ export function TradingView({
       />
 
       {/* Mode Switcher Segmented Control */}
-      <div className="rounded-2xl border border-slate-200/90 bg-white p-3 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-xl">
+      <div className="rounded-2xl border border-slate-800/80 bg-slate-900/80 backdrop-blur-xl p-3 shadow-xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 text-white">
+        <div className="flex items-center gap-1.5 bg-slate-950/80 p-1 rounded-xl border border-slate-800/80">
           <button
             type="button"
             onClick={() => {
@@ -649,8 +782,8 @@ export function TradingView({
             }}
             className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
               tradingMode === 'simulation'
-                ? 'bg-white text-blue-950 shadow-xs border border-slate-200/90'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white shadow-md shadow-purple-500/20'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
             <span>📅</span>
@@ -665,39 +798,39 @@ export function TradingView({
             }}
             className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
               tradingMode === 'live_yahoo'
-                ? 'bg-emerald-600 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-black shadow-md shadow-emerald-500/20'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-200"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-300"></span>
             </span>
             <span>⚡ Live Day Trading (Yahoo Finance Feed)</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-3 text-xs text-slate-500 justify-between md:justify-end px-1 flex-wrap">
+        <div className="flex items-center gap-3 text-xs text-slate-400 justify-between md:justify-end px-1 flex-wrap">
           <button
             type="button"
             onClick={() => setIsOverviewOpen(true)}
             aria-label="What is Trading Tab?"
-            className="px-3 py-1.5 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-900 font-bold text-xs flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+            className="px-3 py-1.5 rounded-lg border border-purple-500/40 bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <span>💡</span>
             <span>What is Trading?</span>
           </button>
           {tradingMode === 'live_yahoo' ? (
             <div className="flex items-center gap-2.5">
-              <span className="flex items-center gap-1.5 font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg text-xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="flex items-center gap-1.5 font-semibold text-emerald-300 bg-emerald-500/20 border border-emerald-400/40 px-2.5 py-1 rounded-lg text-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 {activeLiveQuote?.source === 'yahoo-live' ? 'Yahoo Live API' : 'Real-Time Stream'}
               </span>
               <button
                 type="button"
                 onClick={refreshLiveQuotes}
                 disabled={isLiveRefreshing}
-                className="px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium flex items-center gap-1.5 transition-colors text-xs disabled:opacity-50"
+                className="px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-950 hover:bg-slate-800 text-slate-300 font-medium flex items-center gap-1.5 transition-colors text-xs disabled:opacity-50"
               >
                 <span className={isLiveRefreshing ? 'animate-spin' : ''}>🔄</span>
                 <span>{isLiveRefreshing ? 'Syncing...' : 'Refresh'}</span>
@@ -705,8 +838,8 @@ export function TradingView({
               <span className="text-[11px] text-slate-400 hidden sm:inline">Feed: {lastRefreshedAt}</span>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-slate-600">
-              <span className="text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg text-[11px] font-semibold">
+            <div className="flex items-center gap-2 text-slate-400">
+              <span className="text-cyan-300 bg-cyan-500/20 border border-cyan-400/30 px-2.5 py-1 rounded-lg text-[11px] font-semibold">
                 Zero-Lookahead Backtest Mode
               </span>
               <span className="hidden sm:inline text-[11px] text-slate-400">
@@ -720,30 +853,30 @@ export function TradingView({
       {tradingMode === 'live_yahoo' ? (
         <>
           {/* Live Yahoo Finance Market Ticker Card */}
-          <div className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50/90 via-teal-50/70 to-slate-50 p-5 shadow-xs">
+          <div className="rounded-2xl border border-emerald-500/40 bg-gradient-to-r from-slate-900/95 via-emerald-950/30 to-slate-900/95 backdrop-blur-xl p-5 shadow-xl text-white">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 flex items-center justify-center text-white font-black text-lg shadow-sm">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-slate-950 font-black text-lg shadow-md shadow-emerald-500/20">
                   {selectedSymbol.slice(0, 4)}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs uppercase tracking-wider font-bold text-emerald-950">
+                    <span className="text-xs uppercase tracking-wider font-bold text-emerald-300">
                       {selectedSymbol} • {SYMBOL_NAMES[selectedSymbol] || selectedSymbol}
                     </span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
                       ● Streaming Live
                     </span>
                   </div>
                   <div className="flex flex-wrap items-baseline gap-3 mt-1">
-                    <span className="text-3xl font-black text-slate-900 font-mono tracking-tight">
+                    <span className="text-3xl font-black text-white font-mono tracking-tight">
                       ${activeLiveQuote?.price.toFixed(2) ?? '—'}
                     </span>
                     <span
                       className={`text-sm font-bold font-mono px-2 py-0.5 rounded-md ${
                         (activeLiveQuote?.change ?? 0) >= 0
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-red-100 text-red-800'
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                       }`}
                     >
                       {(activeLiveQuote?.change ?? 0) >= 0 ? '+' : ''}$
@@ -751,7 +884,7 @@ export function TradingView({
                       {(activeLiveQuote?.changePercent ?? 0) >= 0 ? '+' : ''}
                       {activeLiveQuote?.changePercent.toFixed(2)}%)
                     </span>
-                    <span className="text-xs text-slate-500 font-medium">
+                    <span className="text-xs text-slate-400 font-medium">
                       Prev Close: ${activeLiveQuote?.previousClose.toFixed(2)}
                     </span>
                   </div>
@@ -759,22 +892,22 @@ export function TradingView({
               </div>
 
               <div className="flex flex-wrap items-center gap-3 text-xs">
-                <div className="bg-white/90 border border-slate-200/90 rounded-xl p-2.5 space-y-0.5 min-w-[130px] shadow-2xs">
+                <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 space-y-0.5 min-w-[130px] shadow-sm">
                   <div className="text-[10px] uppercase font-bold text-slate-400">Bid / Ask (Spread)</div>
-                  <div className="font-mono text-slate-800 font-semibold text-xs">
+                  <div className="font-mono text-slate-200 font-semibold text-xs">
                     ${activeLiveQuote?.bid.toFixed(2)} / ${activeLiveQuote?.ask.toFixed(2)}
                   </div>
-                  <div className="text-[10px] text-slate-500">
+                  <div className="text-[10px] text-slate-400">
                     Spread: ${( (activeLiveQuote?.ask ?? 0) - (activeLiveQuote?.bid ?? 0) ).toFixed(2)}
                   </div>
                 </div>
 
-                <div className="bg-white/90 border border-slate-200/90 rounded-xl p-2.5 space-y-0.5 min-w-[130px] shadow-2xs">
+                <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 space-y-0.5 min-w-[130px] shadow-sm">
                   <div className="text-[10px] uppercase font-bold text-slate-400">Day's Range &amp; Volume</div>
-                  <div className="font-mono text-slate-800 font-semibold text-xs">
+                  <div className="font-mono text-slate-200 font-semibold text-xs">
                     ${activeLiveQuote?.dayLow.toFixed(2)} – ${activeLiveQuote?.dayHigh.toFixed(2)}
                   </div>
-                  <div className="text-[10px] text-slate-500">
+                  <div className="text-[10px] text-slate-400">
                     Vol: {activeLiveQuote?.volume ? (activeLiveQuote.volume / 1_000_000).toFixed(1) + 'M shs' : '—'}
                   </div>
                 </div>
@@ -785,12 +918,12 @@ export function TradingView({
           {/* Live Day Trading Educational Notice */}
           <aside
             role="note"
-            className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 text-emerald-950 shadow-sm"
+            className="rounded-2xl border border-emerald-500/30 bg-emerald-950/30 backdrop-blur-md p-4 text-emerald-200 shadow-md"
           >
             <div className="flex items-start gap-3">
               <span className="text-xl">⚡</span>
               <div className="text-xs sm:text-sm leading-relaxed">
-                <strong className="font-semibold block mb-0.5 text-emerald-950">
+                <strong className="font-semibold block mb-0.5 text-emerald-300">
                   Live Day Trading Feed Active (Yahoo Finance Real-Time)
                 </strong>
                 Orders placed in this mode execute instantly against streaming Yahoo market quotes. Experience true intraday price volatility, real-time purchasing power changes, and instant execution fills without waiting for session advance.
@@ -803,45 +936,45 @@ export function TradingView({
           {/* Top Simulation Cursor Banner */}
           <div
             data-testid="time-cursor-banner"
-            className="rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50 via-indigo-50 to-slate-50 p-4 shadow-sm flex flex-wrap items-center justify-between gap-4"
+            className="rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-slate-900/95 via-indigo-950/40 to-slate-900/95 backdrop-blur-xl p-4 shadow-xl flex flex-wrap items-center justify-between gap-4 text-white"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-slate-950 font-black text-sm shadow-md shadow-cyan-500/20">
                 Sim
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs uppercase tracking-wider font-semibold text-blue-900">
+                  <span className="text-xs uppercase tracking-wider font-bold text-cyan-300">
                     Simulation Cursor
                   </span>
                   <span
                     data-testid="simulation-status-badge"
-                    className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
+                    className={`px-2 py-0.5 text-xs font-semibold rounded-full border ${
                       simulation.status === 'active'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-slate-200 text-slate-700'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
+                        : 'bg-slate-800 text-slate-300 border-slate-700'
                     }`}
                   >
                     {simulation.status === 'active' ? 'Active' : 'Completed'}
                   </span>
                   <span
                     data-testid="simulation-version"
-                    className="text-xs font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded"
+                    className="text-xs font-mono bg-blue-500/20 text-blue-300 border border-blue-400/30 px-2 py-0.5 rounded-md"
                   >
                     v{simulation.version}
                   </span>
                 </div>
-                <div className="flex items-center gap-4 mt-1 text-sm text-slate-700">
+                <div className="flex items-center gap-4 mt-1 text-sm text-slate-300">
                   <span>
                     Session:{' '}
-                    <strong data-testid="cursor-current-session" className="font-semibold text-slate-900">
+                    <strong data-testid="cursor-current-session" className="font-bold text-white">
                       {simulation.current_session}
                     </strong>
                   </span>
-                  <span className="text-slate-300">|</span>
+                  <span className="text-slate-600">|</span>
                   <span>
                     Simulated Close (UTC):{' '}
-                    <strong data-testid="cursor-current-time" className="font-mono text-xs text-slate-800">
+                    <strong data-testid="cursor-current-time" className="font-mono text-xs text-slate-300">
                       {simulation.current_time}
                     </strong>
                   </span>
@@ -849,14 +982,13 @@ export function TradingView({
               </div>
             </div>
 
-            {/* Advance Action Button */}
-            <div>
+            {/* Advance Action Button & Extension Controls */}
+            <div className="flex items-center gap-2 flex-wrap">
               <Button
                 data-testid="advance-session-btn"
                 variant="primary"
                 onClick={handleAdvanceAndExecute}
-                disabled={simulation.status === 'completed'}
-                className="flex items-center gap-2 shadow-sm"
+                className="flex items-center gap-2 shadow-lg shadow-purple-600/20 bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 font-bold"
               >
                 <svg
                   className="w-4 h-4"
@@ -871,10 +1003,74 @@ export function TradingView({
                     d="M13 5l7 7-7 7M5 5l7 7-7 7"
                   />
                 </svg>
-                Advance Session &amp; Execute Order
+                {simulation.status === 'completed'
+                  ? '⚡ Advance & Keep Trading (+30 Days)'
+                  : 'Advance Session & Execute Order'}
               </Button>
+              <button
+                type="button"
+                data-testid="extend-trading-sim-btn"
+                onClick={() => handleExtendSimulation(30)}
+                className="aura-glow-btn px-3 py-2 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-white font-black text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer ring-1 ring-white/30"
+              >
+                <span>⚡</span>
+                <span>Keep Trading (+30 Days)</span>
+              </button>
+              <button
+                type="button"
+                data-testid="reset-trading-sim-btn"
+                onClick={handleResetSimulation}
+                className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>🔁</span>
+                <span>Reset Day 1</span>
+              </button>
             </div>
           </div>
+
+          {/* Celebratory 5-Day Historical Cycle Finished Banner */}
+          {simulation.status === 'completed' && (
+            <div
+              role="status"
+              data-testid="trading-sim-completed-banner"
+              className="rounded-2xl border border-purple-500/40 bg-gradient-to-r from-purple-950/80 via-slate-900 to-indigo-950/80 p-5 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-white"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-500 to-amber-400 text-slate-950 font-black flex items-center justify-center text-xl shadow-md shrink-0">
+                  🎉
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-white flex items-center gap-2">
+                    <span>5-Day Historical Cycle Finished!</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-400/20 text-emerald-300 border border-emerald-400/40">
+                      TRADING DESK UNLOCKED
+                    </span>
+                  </h4>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    You've reached the end of the initial 5 days. Keep trading for another 30 days to test longer-term market swings, or replay from Day 1!
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleExtendSimulation(30)}
+                  className="aura-glow-btn px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-white font-black text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer ring-1 ring-white/30"
+                >
+                  <span>⚡</span>
+                  <span>Keep Trading (+30 Days)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetSimulation}
+                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>🔁</span>
+                  <span>Reset Day 1</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Prominent Educational Notice */}
           <aside
@@ -954,53 +1150,53 @@ export function TradingView({
 
       {/* Portfolio Financial Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100/80 border border-emerald-300 shadow-xs hover:shadow-sm transition-all duration-200">
-          <div className="flex items-center justify-between text-xs font-bold text-emerald-900 uppercase tracking-wider">
+        <Card className="bg-slate-900/90 border border-emerald-500/40 shadow-xl shadow-black/30 hover:border-emerald-400/80 transition-all duration-200">
+          <div className="flex items-center justify-between text-xs font-bold text-emerald-400 uppercase tracking-wider">
             <span>Available Cash</span>
-            <span className="text-emerald-600 text-sm">💵</span>
+            <span className="text-emerald-400 text-sm">💵</span>
           </div>
           <div
             data-testid="cash-balance"
-            className="text-2xl font-black text-slate-900 mt-1 font-mono tracking-tight"
+            className="text-2xl font-black text-emerald-300 mt-1 font-mono tracking-tight"
           >
             {formatUSD(cashCents / 100)}
           </div>
-          <div className="text-xs text-emerald-700/80 mt-1 font-medium">Settled virtual purchasing power</div>
+          <div className="text-xs text-slate-400 mt-1 font-medium">Settled virtual purchasing power</div>
         </Card>
 
-        <Card className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100/80 border border-blue-300 shadow-xs hover:shadow-sm transition-all duration-200">
-          <div className="flex items-center justify-between text-xs font-bold text-blue-900 uppercase tracking-wider">
+        <Card className="bg-slate-900/90 border border-cyan-500/40 shadow-xl shadow-black/30 hover:border-cyan-400/80 transition-all duration-200">
+          <div className="flex items-center justify-between text-xs font-bold text-cyan-400 uppercase tracking-wider">
             <span>Total Equity</span>
-            <span className="text-blue-600 text-sm">💼</span>
+            <span className="text-cyan-400 text-sm">💼</span>
           </div>
           <div
             data-testid="total-equity"
-            className="text-2xl font-black text-slate-900 mt-1 font-mono tracking-tight"
+            className="text-2xl font-black text-cyan-300 mt-1 font-mono tracking-tight"
           >
             {formatUSD(totalEquity)}
           </div>
-          <div className="text-xs text-blue-700/80 mt-1 font-medium">Cash + holdings marked to close</div>
+          <div className="text-xs text-slate-400 mt-1 font-medium">Cash + holdings marked to close</div>
         </Card>
 
-        <Card className="bg-gradient-to-br from-indigo-50 via-purple-50 to-indigo-100/80 border border-indigo-300 shadow-xs hover:shadow-sm transition-all duration-200">
-          <div className="flex items-center justify-between text-xs font-bold text-indigo-900 uppercase tracking-wider">
+        <Card className="bg-slate-900/90 border border-purple-500/40 shadow-xl shadow-black/30 hover:border-purple-400/80 transition-all duration-200">
+          <div className="flex items-center justify-between text-xs font-bold text-purple-300 uppercase tracking-wider">
             <span>Unrealized P&amp;L</span>
-            <span className="text-indigo-600 text-sm">📊</span>
+            <span className="text-purple-400 text-sm">📊</span>
           </div>
           <div
             data-testid="portfolio-unrealized-pnl"
             className={`text-2xl font-black mt-1 font-mono tracking-tight ${
               totalUnrealizedPnl > 0
-                ? 'text-emerald-600'
+                ? 'text-emerald-400'
                 : totalUnrealizedPnl < 0
-                ? 'text-red-600'
-                : 'text-slate-900'
+                ? 'text-rose-400'
+                : 'text-slate-300'
             }`}
           >
             {totalUnrealizedPnl >= 0 ? '+' : ''}
             {formatUSD(totalUnrealizedPnl)}
           </div>
-          <div className="text-xs text-indigo-700/80 mt-1 font-medium">Open positions vs cost basis</div>
+          <div className="text-xs text-slate-400 mt-1 font-medium">Open positions vs cost basis</div>
         </Card>
       </div>
 
@@ -1008,7 +1204,7 @@ export function TradingView({
       {pendingOrder && (
         <Card
           data-testid="pending-order-card"
-          className="border-amber-300 bg-amber-50/70"
+          className="border-amber-500/50 bg-gradient-to-r from-amber-950/40 via-slate-900 to-amber-950/40 shadow-xl text-white"
           title="Active Pending Order"
           subtitle="Queued to execute at the upcoming session OPEN price"
         >
@@ -1056,7 +1252,6 @@ export function TradingView({
                 type="button"
                 variant="primary"
                 onClick={handleAdvanceAndExecute}
-                disabled={simulation.status === 'completed'}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs py-2 px-3 flex items-center justify-center gap-1.5 shadow"
               >
                 ⚡ Open Market &amp; Fill Order Now
@@ -1073,15 +1268,15 @@ export function TradingView({
       )}
 
       {/* Tradable Stock Universe Quick-Picker */}
-      <div className="rounded-2xl border border-slate-300/80 bg-white p-4 shadow-xs">
+      <div className="rounded-2xl border border-slate-800/80 bg-slate-900/80 backdrop-blur-xl p-4 shadow-xl text-white">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2">
             <span className="text-base">📊</span>
-            <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+            <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
               Tradable Markets Universe ({SUPPORTED_SYMBOLS.length} Stocks &amp; Index ETFs)
             </span>
           </div>
-          <span className="text-[11px] text-slate-500 font-medium">
+          <span className="text-[11px] text-slate-400 font-medium">
             Tech, Healthcare, Financials, Consumer Staples &amp; Energy
           </span>
         </div>
@@ -1095,18 +1290,18 @@ export function TradingView({
                 key={sym}
                 type="button"
                 onClick={() => handleSymbolChange(sym)}
-                disabled={pendingOrder !== null || (tradingMode === 'simulation' && simulation.status === 'completed')}
+                disabled={pendingOrder !== null}
                 className={`px-3 py-1.5 rounded-xl border text-xs transition-all flex items-center gap-2 ${
                   isSelected
-                    ? 'border-blue-600 bg-blue-50/90 text-blue-950 font-bold shadow-xs ring-1 ring-blue-500'
-                    : 'border-slate-200 bg-slate-50/80 hover:bg-white text-slate-700 hover:border-slate-300'
+                    ? 'border-purple-500 bg-purple-500/20 text-purple-200 font-bold shadow-md shadow-purple-500/20 ring-1 ring-purple-400'
+                    : 'border-slate-800 bg-slate-950/70 hover:bg-slate-800 hover:border-slate-700 text-slate-300'
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                <span className="font-mono font-bold text-slate-900">{sym}</span>
+                <span className="font-mono font-bold text-white">{sym}</span>
                 {tradingMode === 'live_yahoo' && liveQuote ? (
                   <span
                     className={`font-mono text-[11px] font-semibold ${
-                      liveQuote.change >= 0 ? 'text-emerald-700' : 'text-red-700'
+                      liveQuote.change >= 0 ? 'text-emerald-400' : 'text-rose-400'
                     }`}
                   >
                     ${liveQuote.price.toFixed(2)}
@@ -1116,7 +1311,7 @@ export function TradingView({
                     </span>
                   </span>
                 ) : (
-                  <span className="hidden sm:inline text-[11px] text-slate-500">
+                  <span className="hidden sm:inline text-[11px] text-slate-400">
                     {SYMBOL_NAMES[sym]?.split(' ')[0]}
                   </span>
                 )}
@@ -1137,7 +1332,7 @@ export function TradingView({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Order Form Card */}
         <Card
-          className="lg:col-span-2"
+          className="lg:col-span-2 border-slate-800/80 bg-slate-900/80 backdrop-blur-xl text-white"
           title={tradingMode === 'live_yahoo' ? 'Execute Live Day Trade' : 'Place Order'}
           subtitle={
             tradingMode === 'live_yahoo'
@@ -1154,7 +1349,7 @@ export function TradingView({
             <div>
               <label
                 htmlFor="order-symbol-select"
-                className="block text-sm font-medium text-slate-700 mb-1"
+                className="block text-sm font-medium text-slate-300 mb-1"
               >
                 Symbol
               </label>
@@ -1162,12 +1357,12 @@ export function TradingView({
                 id="order-symbol-select"
                 data-testid="symbol-select"
                 value={selectedSymbol}
-                disabled={pendingOrder !== null || (tradingMode === 'simulation' && simulation.status === 'completed')}
+                disabled={pendingOrder !== null}
                 onChange={(e) => handleSymbolChange(e.target.value)}
-                className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                className="block w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white shadow-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {SUPPORTED_SYMBOLS.map((sym) => (
-                  <option key={sym} value={sym}>
+                  <option key={sym} value={sym} className="bg-slate-950 text-white">
                     {sym} — {SYMBOL_NAMES[sym] || sym} ({SYMBOL_SECTORS[sym]?.sector || 'Stock'})
                   </option>
                 ))}
@@ -1176,7 +1371,7 @@ export function TradingView({
 
             {/* Side Toggle: Buy / Sell */}
             <div>
-              <span className="block text-sm font-medium text-slate-700 mb-1">
+              <span className="block text-sm font-medium text-slate-300 mb-1">
                 Order Side
               </span>
               <div
@@ -1189,12 +1384,12 @@ export function TradingView({
                   data-testid="side-toggle-buy"
                   aria-checked={orderSide === 'buy'}
                   role="radio"
-                  disabled={pendingOrder !== null || (tradingMode === 'simulation' && simulation.status === 'completed')}
+                  disabled={pendingOrder !== null}
                   onClick={() => handleSideToggle('buy')}
-                  className={`px-4 py-2 text-sm font-semibold rounded-md border transition-colors ${
+                  className={`px-4 py-2 text-sm font-semibold rounded-xl border transition-all ${
                     orderSide === 'buy'
-                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white border-emerald-500 shadow-md shadow-emerald-500/20'
+                      : 'bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-900 hover:text-white'
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   Buy
@@ -1204,12 +1399,12 @@ export function TradingView({
                   data-testid="side-toggle-sell"
                   aria-checked={orderSide === 'sell'}
                   role="radio"
-                  disabled={pendingOrder !== null || (tradingMode === 'simulation' && simulation.status === 'completed')}
+                  disabled={pendingOrder !== null}
                   onClick={() => handleSideToggle('sell')}
-                  className={`px-4 py-2 text-sm font-semibold rounded-md border transition-colors ${
+                  className={`px-4 py-2 text-sm font-semibold rounded-xl border transition-all ${
                     orderSide === 'sell'
-                      ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
-                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white border-rose-500 shadow-md shadow-rose-500/20'
+                      : 'bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-900 hover:text-white'
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   Sell
@@ -1227,7 +1422,7 @@ export function TradingView({
                 min="1"
                 max="1000000"
                 step="1"
-                disabled={pendingOrder !== null || (tradingMode === 'simulation' && simulation.status === 'completed')}
+                disabled={pendingOrder !== null}
                 value={quantityInput}
                 onChange={(e) => handleQuantityChange(e.target.value)}
                 helperText={
@@ -1237,15 +1432,15 @@ export function TradingView({
                 }
               />
               {/* Quick-Quantity Selector for Day Trading */}
-              <div className="flex items-center gap-1.5 mt-2">
-                <span className="text-[11px] font-semibold text-slate-500 mr-1">Quick:</span>
+              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                <span className="text-[11px] font-semibold text-slate-400 mr-1">Quick:</span>
                 {[1, 5, 10, 25, 50, 100].map((preset) => (
                   <button
                     key={preset}
                     type="button"
                     onClick={() => handleQuantityChange(String(preset))}
-                    disabled={pendingOrder !== null || (tradingMode === 'simulation' && simulation.status === 'completed')}
-                    className="px-2 py-0.5 rounded-md border border-slate-200 bg-slate-50 hover:bg-white text-xs font-mono font-semibold text-slate-700 hover:border-blue-400 transition-colors disabled:opacity-50"
+                    disabled={pendingOrder !== null}
+                    className="px-2 py-0.5 rounded-md border border-slate-700 bg-slate-950 hover:bg-slate-800 text-xs font-mono font-semibold text-slate-300 hover:border-purple-400 transition-colors disabled:opacity-50"
                   >
                     +{preset}
                   </button>
@@ -1258,8 +1453,8 @@ export function TradingView({
                       handleQuantityChange(String(Math.min(maxAfford, 1000000)));
                     }
                   }}
-                  disabled={pendingOrder !== null || (tradingMode === 'simulation' && simulation.status === 'completed')}
-                  className="px-2 py-0.5 rounded-md border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-xs font-semibold text-emerald-800 transition-colors disabled:opacity-50"
+                  disabled={pendingOrder !== null}
+                  className="px-2 py-0.5 rounded-md border border-emerald-500/50 bg-emerald-950/60 hover:bg-emerald-900 text-xs font-semibold text-emerald-300 transition-colors disabled:opacity-50"
                 >
                   Max Afford
                 </button>
@@ -1267,10 +1462,10 @@ export function TradingView({
             </div>
 
             {/* Dynamic Estimated Order Value Calculation */}
-            <div className="rounded-lg bg-slate-50 p-3 border border-slate-200 flex items-center justify-between text-sm">
+            <div className="rounded-xl bg-slate-950/90 p-3 border border-slate-800 flex items-center justify-between text-sm">
               <div>
-                <span className="text-slate-600">Estimated Order Value:</span>
-                <p className="text-xs text-slate-500">
+                <span className="text-slate-300">Estimated Order Value:</span>
+                <p className="text-xs text-slate-400">
                   {tradingMode === 'live_yahoo'
                     ? `Based on live Yahoo market price (${formatUSD(activePrice)})`
                     : `Based on latest visible close (${formatUSD(latestCloseNum)})`}
@@ -1278,7 +1473,7 @@ export function TradingView({
               </div>
               <div
                 data-testid="estimated-order-value"
-                className="text-lg font-bold font-mono text-slate-900"
+                className="text-lg font-bold font-mono text-cyan-300"
               >
                 {formatUSD(estimatedOrderValue)}
               </div>
@@ -1289,7 +1484,7 @@ export function TradingView({
               <p
                 role="alert"
                 data-testid="order-validation-error"
-                className="text-xs font-semibold text-red-600 bg-red-50 p-2.5 rounded border border-red-200"
+                className="text-xs font-semibold text-rose-300 bg-rose-950/80 p-2.5 rounded-xl border border-rose-500/40"
               >
                 {validationError}
               </p>
@@ -1297,18 +1492,18 @@ export function TradingView({
 
             {/* Instant Execution Toggle (shown in Simulation Mode) */}
             {tradingMode === 'simulation' && (
-              <div className="rounded-lg bg-emerald-50/60 p-3 border border-emerald-200 flex items-center justify-between">
-                <label htmlFor="instant-execution-toggle" className="flex items-center gap-2.5 text-xs text-slate-800 cursor-pointer select-none">
+              <div className="rounded-xl bg-emerald-950/30 p-3 border border-emerald-500/30 flex items-center justify-between">
+                <label htmlFor="instant-execution-toggle" className="flex items-center gap-2.5 text-xs text-slate-300 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     id="instant-execution-toggle"
                     checked={instantFill}
                     onChange={(e) => setInstantFill(e.target.checked)}
-                    disabled={pendingOrder !== null || simulation.status === 'completed'}
-                    className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+                    disabled={pendingOrder !== null}
+                    className="h-4 w-4 rounded border-emerald-500 text-emerald-600 focus:ring-emerald-500 bg-slate-950"
                   />
                   <span>
-                    <strong className="text-emerald-950 font-semibold">Instant Execution Mode:</strong> Automatically advance simulation and fill order immediately on submit.
+                    <strong className="text-emerald-300 font-semibold">Instant Execution Mode:</strong> Automatically advance simulation and fill order immediately on submit.
                   </span>
                 </label>
               </div>
@@ -1320,18 +1515,16 @@ export function TradingView({
               data-testid="submit-order-btn"
               variant={orderSide === 'buy' ? 'primary' : 'secondary'}
               disabled={
-                (tradingMode === 'simulation' && (pendingOrder !== null || simulation.status === 'completed')) ||
+                (tradingMode === 'simulation' && pendingOrder !== null) ||
                 !isQuantityValid ||
                 validationError !== null
               }
-              className="w-full py-2.5 text-sm font-semibold shadow-sm"
+              className="w-full py-3 text-sm font-bold shadow-lg shadow-purple-600/20 bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white rounded-xl"
             >
               {tradingMode === 'live_yahoo'
                 ? `⚡ Execute Live Market ${orderSide.toUpperCase()} Order`
                 : pendingOrder !== null
                 ? 'Pending Order Active (Only 1 pending order allowed for MVP)'
-                : simulation.status === 'completed'
-                ? 'Simulation Completed'
                 : `Review & Submit ${orderSide.toUpperCase()} Order`}
             </Button>
           </form>

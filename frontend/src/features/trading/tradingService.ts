@@ -30,6 +30,8 @@ import {
   FIXTURE_DATASET_METADATA,
   FIXTURE_DATASETS,
   RAW_MARKET_DATA,
+  filterVisibleMarketData,
+  generateTradingDays,
 } from '../simulation/simulationFixtures';
 import { CreateSimulationRequest } from '../simulation/simulationTypes';
 import {
@@ -778,10 +780,17 @@ export class TradingService extends SimulationService {
   // =========================================================================
 
   public getLatestVisibleBar(symbol: string, currentSession: string): MarketDataBar | null {
+    const customBars = this.customMarketDataMap.get(symbol);
+    if (customBars) {
+      const visible = customBars.filter((b) => b.session_date <= currentSession);
+      return visible.length > 0 ? visible[visible.length - 1] : null;
+    }
+    const visible = filterVisibleMarketData(symbol, currentSession);
+    if (visible.length > 0) return visible[visible.length - 1];
     const bars = this.rawMarketData[symbol] || [];
-    const visible = bars.filter((b) => b.session_date <= currentSession);
-    if (visible.length === 0) return null;
-    return visible[visible.length - 1];
+    const rawVisible = bars.filter((b) => b.session_date <= currentSession);
+    if (rawVisible.length === 0) return null;
+    return rawVisible[rawVisible.length - 1];
   }
 
   public getLatestClosePrice(symbol: string, currentSession: string): string | null {
@@ -891,21 +900,35 @@ export class TradingService extends SimulationService {
     updatedCashCents: number;
   } {
     const dates = this.datasetMetadata.session_dates;
-    const currentIndex = dates.indexOf(simulation.current_session);
-    if (currentIndex === -1 || currentIndex + 1 >= dates.length) {
+    let currentIndex = dates.indexOf(simulation.current_session);
+    if (currentIndex === -1) {
       throw new Error('Simulation has reached the end of available historical sessions.');
     }
 
+    if (currentIndex + 1 >= dates.length) {
+      const newDates = generateTradingDays(dates[dates.length - 1], 30);
+      for (const d of newDates) {
+        if (!dates.includes(d)) dates.push(d);
+      }
+    }
+
     const nextSession = dates[currentIndex + 1];
-    const isCompleted =
-      nextSession === simulation.end_session || currentIndex + 1 === dates.length - 1;
+    let endSession = simulation.end_session;
+    if (nextSession >= endSession) {
+      const newDates = generateTradingDays(dates[dates.length - 1], 30);
+      for (const d of newDates) {
+        if (!dates.includes(d)) dates.push(d);
+      }
+      endSession = dates[dates.length - 1];
+    }
 
     const nextSimulation: Simulation = {
       ...simulation,
+      end_session: endSession,
       current_session: nextSession,
       current_time: `${nextSession}T21:00:00Z`,
       version: simulation.version + 1,
-      status: isCompleted ? 'completed' : 'active',
+      status: 'active',
     };
 
     let updatedCashCents = cashCents;
@@ -913,8 +936,16 @@ export class TradingService extends SimulationService {
     let executionResult: ExecutionResult | undefined = undefined;
 
     if (pendingOrder && pendingOrder.status === 'pending') {
-      const symbolBars = this.rawMarketData[pendingOrder.symbol] || [];
-      const nextBar = symbolBars.find((b) => b.session_date === nextSession);
+      const customBars = this.customMarketDataMap.get(pendingOrder.symbol);
+      let nextBar = customBars?.find((b) => b.session_date === nextSession);
+      if (!nextBar) {
+        const symbolBars = this.rawMarketData[pendingOrder.symbol] || [];
+        nextBar = symbolBars.find((b) => b.session_date === nextSession);
+      }
+      if (!nextBar && !customBars) {
+        const genBars = filterVisibleMarketData(pendingOrder.symbol, nextSession);
+        nextBar = genBars.find((b) => b.session_date === nextSession);
+      }
 
       if (!nextBar) {
         const rejectedOrder: Order = {

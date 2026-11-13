@@ -84,12 +84,13 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-indigo-50/40 text-slate-900 flex flex-col relative selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-[#070b14] text-slate-100 flex flex-col relative selection:bg-purple-600 selection:text-white">
       {/* Decorative ambient background glows */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute -top-32 -right-32 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/3 -left-32 w-96 h-96 bg-indigo-400/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-10 right-1/4 w-96 h-96 bg-purple-400/10 rounded-full blur-3xl" />
+        <div className="absolute -top-32 -right-32 w-[550px] h-[550px] bg-purple-600/20 rounded-full blur-3xl animate-auraPulse" />
+        <div className="absolute top-1/3 -left-32 w-[500px] h-[500px] bg-cyan-600/15 rounded-full blur-3xl" />
+        <div className="absolute bottom-10 right-1/4 w-[450px] h-[450px] bg-emerald-600/15 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/3 left-1/3 w-[400px] h-[400px] bg-pink-600/10 rounded-full blur-3xl" />
       </div>
 
       <NotificationCenter position="top-right" />
