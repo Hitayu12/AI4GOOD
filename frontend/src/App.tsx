@@ -13,6 +13,7 @@ import { TutorView } from './features/tutor';
 import { NotificationProvider, NotificationCenter, useNotifications } from './features/notifications';
 import { AuthModal } from './components/auth/AuthModal';
 import { TabOverviewModal, TAB_OVERVIEWS } from './components/common/TabOverviewModal';
+import { AuraHubModal, AuraState, loadAuraState, saveAuraState } from './features/aura';
 import { User } from './api/types';
 
 function AppContent() {
@@ -23,7 +24,14 @@ function AppContent() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isOverviewModalOpen, setIsOverviewModalOpen] = useState(false);
+  const [auraState, setAuraState] = useState<AuraState>(() => loadAuraState());
+  const [isAuraModalOpen, setIsAuraModalOpen] = useState(false);
   const { notify } = useNotifications();
+
+  const handleUpdateAura = (newState: AuraState) => {
+    setAuraState(newState);
+    saveAuraState(newState);
+  };
 
   useEffect(() => {
     checkHealth();
@@ -240,7 +248,26 @@ function AppContent() {
             </nav>
 
             {/* Header Right Actions */}
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
+              {/* Interactive Aura Hub Trigger */}
+              <button
+                type="button"
+                onClick={() => setIsAuraModalOpen(true)}
+                aria-label="Open Aura Farming Hub"
+                className="aura-glow-btn group relative px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-950/90 via-indigo-950/90 to-slate-900 border border-purple-500/50 text-xs font-black flex items-center gap-2 cursor-pointer shadow-md shadow-purple-950/50 hover:border-purple-400 transition-all shrink-0"
+              >
+                <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping group-hover:bg-amber-400" />
+                <span className="bg-gradient-to-r from-purple-200 via-pink-200 to-amber-200 bg-clip-text text-transparent font-mono tracking-tight">
+                  ⚡ +{auraState.points.toLocaleString()} AURA
+                </span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-400/20 text-amber-300 border border-amber-400/40 font-bold">
+                  🔥 {auraState.streakDays}d
+                </span>
+                <span className="text-[10px] text-purple-300 hidden xl:inline font-bold">
+                  Farm Aura ▾
+                </span>
+              </button>
+
               <button
                 type="button"
                 onClick={toggleFixtureMode}
@@ -294,24 +321,24 @@ function AppContent() {
         </div>
       </header>
 
-      {/* Modern Sub-Header Feature Highlights Bar */}
-      <section className="bg-white/80 border-b border-slate-200/80 backdrop-blur-xs py-2 px-4 shadow-2xs z-10 relative">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-600 font-medium">
+      {/* Modern Sub-Header Feature Highlights Bar with Aura Flare */}
+      <section className="bg-slate-900/90 border-b border-slate-800 backdrop-blur-md py-2 px-4 shadow-sm z-10 relative">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-300 font-medium">
           <div className="flex flex-wrap items-center gap-4">
-            <span className="flex items-center gap-1.5 text-blue-900 font-semibold">
-              <span className="text-blue-600 font-bold">🛡️</span> Zero-Lookahead Engine
+            <span className="flex items-center gap-1.5 text-blue-300 font-semibold">
+              <span className="text-blue-400 font-bold">🛡️</span> Zero-Lookahead Engine
             </span>
-            <span className="hidden md:inline text-slate-300">|</span>
-            <span className="flex items-center gap-1.5 text-emerald-900 font-semibold">
-              <span className="text-emerald-600 font-bold">📈</span> 15 Multi-Sector S&amp;P 500 Symbols
+            <span className="hidden md:inline text-slate-700">|</span>
+            <span className="flex items-center gap-1.5 text-emerald-300 font-semibold">
+              <span className="text-emerald-400 font-bold">📈</span> 15 Multi-Sector S&amp;P 500 Symbols
             </span>
-            <span className="hidden md:inline text-slate-300">|</span>
-            <span className="flex items-center gap-1.5 text-indigo-900 font-semibold">
-              <span className="text-indigo-600 font-bold">🎓</span> 80% Mastery Threshold Quizzes
+            <span className="hidden md:inline text-slate-700">|</span>
+            <span className="flex items-center gap-1.5 text-purple-300 font-semibold">
+              <span className="text-purple-400 font-bold">⚡</span> Aura Farm Quests Active
             </span>
-            <span className="hidden md:inline text-slate-300">|</span>
-            <span className="flex items-center gap-1.5 text-purple-900 font-semibold">
-              <span className="text-purple-600 font-bold">♿</span> WCAG 2.1 AA Accessible
+            <span className="hidden md:inline text-slate-700">|</span>
+            <span className="flex items-center gap-1.5 text-indigo-300 font-semibold">
+              <span className="text-indigo-400 font-bold">🎓</span> 80% Mastery Threshold Quizzes
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -332,9 +359,13 @@ function AppContent() {
       </section>
 
       {/* Main Workspace */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 relative z-10">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-28 relative z-10">
         {activeTab === 'home' ? (
-          <HomeView onNavigateTab={(tab) => setActiveTab(tab)} />
+          <HomeView
+            onNavigateTab={(tab) => setActiveTab(tab)}
+            auraState={auraState}
+            onOpenAuraHub={() => setIsAuraModalOpen(true)}
+          />
         ) : activeTab === 'portfolio' ? (
           <PortfolioView />
         ) : activeTab === 'trading' ? (
@@ -413,6 +444,80 @@ function AppContent() {
         )}
       </main>
 
+      {/* Floating Cyber Quick-Navigation & Aura Dock */}
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 px-3 py-2 rounded-2xl bg-slate-950/90 backdrop-blur-xl border border-purple-500/30 shadow-2xl flex items-center gap-1.5 ring-1 ring-white/10 max-w-[95vw] overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => setActiveTab('home')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+            activeTab === 'home'
+              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+          }`}
+        >
+          <span>🏠</span>
+          <span>Home</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('trading')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+            activeTab === 'trading'
+              ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-sm'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+          }`}
+        >
+          <span>⚡</span>
+          <span>Trade</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('simulation')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+            activeTab === 'simulation'
+              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-sm'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+          }`}
+        >
+          <span>⏳</span>
+          <span>Sim 2024</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('learning')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+            activeTab === 'learning'
+              ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-sm'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+          }`}
+        >
+          <span>📚</span>
+          <span>Learn</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('portfolio')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+            activeTab === 'portfolio'
+              ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-sm'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+          }`}
+        >
+          <span>📊</span>
+          <span>Portfolio</span>
+        </button>
+        <div className="w-[1px] h-4 bg-slate-800 mx-1 shrink-0" />
+        <button
+          type="button"
+          onClick={() => setIsAuraModalOpen(true)}
+          aria-label="Open Aura Hub"
+          className="aura-glow-btn px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-purple-500 via-pink-500 to-amber-400 text-slate-950 shadow-md flex items-center gap-1.5 cursor-pointer ring-1 ring-white/30 whitespace-nowrap shrink-0"
+        >
+          <span>🔥</span>
+          <span>Farm Aura</span>
+        </button>
+      </div>
+
       {/* Modern Footer */}
       <footer className="border-t border-slate-200/80 bg-white/70 backdrop-blur-xs py-6 mt-12 relative z-10 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -449,6 +554,17 @@ function AppContent() {
         isOpen={isOverviewModalOpen}
         onClose={() => setIsOverviewModalOpen(false)}
         onNavigateTab={(tab) => setActiveTab(tab)}
+      />
+
+      <AuraHubModal
+        isOpen={isAuraModalOpen}
+        onClose={() => setIsAuraModalOpen(false)}
+        auraState={auraState}
+        onUpdateAura={handleUpdateAura}
+        onNavigateTab={(tab) => {
+          setActiveTab(tab);
+          setIsAuraModalOpen(false);
+        }}
       />
     </div>
   );

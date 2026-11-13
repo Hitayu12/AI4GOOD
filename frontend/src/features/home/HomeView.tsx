@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { HowItWorksModal } from './HowItWorksModal';
 import { TabOverviewModal } from '../../components/common/TabOverviewModal';
+import { AuraState } from '../aura/auraTypes';
 
 export interface HomeViewProps {
   onNavigateTab: (
@@ -8,12 +9,16 @@ export interface HomeViewProps {
   ) => void;
   cashDollars?: number;
   totalEquityDollars?: number;
+  auraState?: AuraState;
+  onOpenAuraHub?: () => void;
 }
 
 export function HomeView({
   onNavigateTab,
   cashDollars = 10000,
   totalEquityDollars = 10000,
+  auraState,
+  onOpenAuraHub,
 }: HomeViewProps) {
   // Modal State for How It Works & Tab Overview
   const [isHowItWorksOpen, setIsHowItWorksOpen] = useState(false);
@@ -131,51 +136,64 @@ export function HomeView({
         <div className="absolute bottom-0 left-0 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20" />
         <div className="absolute top-1/2 left-1/3 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Gen Z Gamer / Youth Investor Level Bar */}
+        {/* Gen Z Gamer / Youth Investor Level & Aura Farming Bar */}
         <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 text-xs text-white">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-400 to-orange-500 text-slate-950 font-black flex items-center justify-center text-sm shadow-sm">
-              ⭐
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-400 via-orange-500 to-pink-500 text-slate-950 font-black flex items-center justify-center text-base shadow-sm ring-2 ring-amber-300/30">
+              ⚡
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-black text-white text-xs sm:text-sm">Rookie Trader</span>
-                <span className="px-2 py-0.2 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-400/20 text-emerald-300 border border-emerald-400/40">
-                  LEVEL 1
+                <span className="font-black text-white text-xs sm:text-sm">
+                  {auraState ? auraState.tier : 'Market Rizzler ✨'}
+                </span>
+                <span className="px-2 py-0.2 rounded-full text-[9px] font-black uppercase tracking-wider bg-purple-400/20 text-purple-300 border border-purple-400/40">
+                  LEVEL {auraState ? auraState.level : 3} • AURA FARMER
                 </span>
               </div>
-              <span className="text-[10px] text-slate-300">Practice account funded with $10,000 virtual cash</span>
+              <span className="text-[10px] text-slate-300">
+                +{auraState ? auraState.points.toLocaleString() : '3,450'} Aura Points • $10,000 practice bankroll
+              </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 text-[11px] font-semibold text-slate-200">
-            <div className="flex items-center gap-1.5">
-              <span className="text-amber-400 text-sm">🔥</span>
-              <span>1-Day Streak</span>
+          <div className="flex items-center gap-3 text-[11px] font-semibold text-slate-200">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/20 border border-amber-400/30 text-amber-300 font-bold">
+              <span>🔥</span>
+              <span>{auraState ? auraState.streakDays : 3}-Day Streak</span>
             </div>
-            <div className="hidden sm:flex items-center gap-1.5">
-              <span className="text-purple-300 text-sm">🏆</span>
-              <span>5 Badges to Unlock</span>
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-purple-500/20 border border-purple-400/30 text-purple-200">
+              <span>👑</span>
+              <span>5 Badges</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-emerald-400 text-sm">💵</span>
-              <span className="font-mono text-emerald-300 font-bold">$10,000.00</span>
-            </div>
+            {onOpenAuraHub && (
+              <button
+                type="button"
+                onClick={onOpenAuraHub}
+                className="aura-glow-btn px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-500 via-pink-500 to-amber-400 text-slate-950 font-black text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer ring-1 ring-white/30"
+              >
+                <span>⚡</span>
+                <span>Farm Aura</span>
+              </button>
+            )}
           </div>
         </div>
 
         <div className="relative z-10 space-y-6">
           {/* Top Pill Badges */}
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-blue-500/20 text-blue-300 border border-blue-400/30 uppercase tracking-wider flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-              Youth FinTech Sandbox
+            <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-purple-500/20 text-purple-300 border border-purple-400/30 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+              ⚡ Aura Farming Active
             </span>
             <span className="px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1">
               <span>🛡️</span> 100% Zero Capital Risk
             </span>
-            <span className="px-3 py-1 rounded-full text-[11px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center gap-1">
+            <span className="px-3 py-1 rounded-full text-[11px] font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 flex items-center gap-1">
               <span>⚡</span> Live Yahoo Day Trading
+            </span>
+            <span className="px-3 py-1 rounded-full text-[11px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-400/30 flex items-center gap-1">
+              <span>🔥</span> 1.5x Streak Multiplier
             </span>
           </div>
 
@@ -183,8 +201,8 @@ export function HomeView({
           <div className="max-w-3xl space-y-3">
             <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white leading-tight">
               Level Up Your Financial Game. <br />
-              <span className="bg-gradient-to-r from-emerald-300 via-teal-300 to-cyan-300 bg-clip-text text-transparent">
-                Zero Risk. Real Market Power.
+              <span className="bg-gradient-to-r from-cyan-300 via-teal-300 to-emerald-300 bg-clip-text text-transparent">
+                Zero Risk. Infinite Aura.
               </span>
             </h1>
             <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-2xl">
@@ -205,6 +223,17 @@ export function HomeView({
                 START HERE
               </span>
             </button>
+
+            {onOpenAuraHub && (
+              <button
+                type="button"
+                onClick={onOpenAuraHub}
+                className="aura-glow-btn px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-white font-black text-xs sm:text-sm shadow-lg shadow-purple-600/30 transition-all flex items-center gap-2 ring-1 ring-white/20"
+              >
+                <span>⚡</span>
+                <span>Aura Hub (+250 Drop)</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -232,6 +261,15 @@ export function HomeView({
             >
               <span>⚡</span>
               <span>Live Trading</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onNavigateTab('simulation')}
+              className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 font-bold text-xs sm:text-sm transition-all flex items-center gap-2"
+            >
+              <span>⏳</span>
+              <span>Sim 2024</span>
             </button>
 
             <button
