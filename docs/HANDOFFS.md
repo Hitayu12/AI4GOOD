@@ -124,3 +124,53 @@ ignored/local, not a shipped dataset. Kiran can integrate the owned routes and
 label synthetic demos via dataset metadata; browser acceptance is not claimed.
 Next phase adds pending orders/fills within the existing atomic advancement.
 This note has not been sent to teammates.
+
+## Phase 8 curriculum ingestion — Siddh — 2026-11-14
+
+Consumed Kiran Handoff 002 from the remote kiran branch via connected GitHub.
+Actual LESSONS, QUIZZES and SERVER_ANSWER_KEYS are converted without editorial
+changes into backend/data/curriculum/kiran-v1.json; blob hashes and artifact hash
+are recorded beside it. Five lesson IDs and quiz IDs match his client exactly.
+All remain draft. No server scoring keys are exposed through public quiz routes.
+Use /api/v1/lessons, /lessons/{id}, /quizzes/{id}, /quizzes/{id}/attempts and
+/progress with bearer auth; attempts also require Idempotency-Key.
+29 focused learning/database tests passed. Browser integration is pending merge.
+
+## Phases 6–10 backend handoff — Siddh — 2026-11-14
+
+Current reproducible setup, v2 financial/learning schemas, exact checks and merge
+findings are consolidated in `docs/BACKEND_MERGE_HANDOFF.md`. Head is
+0005_learning; use requirements.lock. Order submission increments version, then
+advance fills/rejects with atomic receipts. Portfolio/performance and actual
+Kiran curriculum/progress routes are provided. Fixtures match real synthetic
+API responses. ALLOWED_ORIGINS explicitly enables the frontend origin.
+
+The final 264-test suite passed. The user subsequently reported PASS for real
+Uvicorn HTTP synthetic core acceptance on 2026-11-14; shared-app historical rights
+and the permitted historical HTTP run remain pending. In-process synthetic and local-research historical acceptance
+cover complete API/database flows and app restarts. Kiran's tutor needs real
+backend auth/ownership wiring before mounting, and his Docker packaging needs
+the migration/content/lock files. His branch was only read; no external message,
+merge, push, browser integration or deployed acceptance was performed.
+
+## Five-symbol yfinance adapter — Siddh — 2026-11-14
+
+User-selected symbols: AAPL, MSFT, NVDA, TSLA, AMZN. Download/validation script and
+optional separate data dependencies are prepared; backend README/checkpoint have
+copyable commands. Use `verify_backend.py --all-symbols` after download to trade
+and restart-test each symbol. 26 offline tests passed, with synthetic data only.
+Real download remains unexecuted because optional packages cannot be resolved
+in this session. No database was modified, no Yahoo data was added to Git, and
+runtime requirements.lock remains unchanged. Record real user-terminal results
+before claiming historical five-symbol acceptance.
+
+### Historical acceptance update — all five symbols
+
+The user reported PASS for real Uvicorn HTTP acceptance (`--all-symbols`) on
+AAPL, AMZN, MSFT, NVDA and TSLA. The agent validated the generated local snapshot:
+20 bars across Jan 13–16 2025, checksum matches, provider evidence present.
+This supersedes earlier pending-download/historical-HTTP notes. Manifest retrieval
+date is 2026-11-15 UTC. Source-use limitations remain unchanged. Acceptance used
+fresh temporary databases; explicitly migrate/import into the intended persistent
+app database to make this dataset available to the frontend. See the current
+checkpoint and merge handoff for evidence and remaining integration work.

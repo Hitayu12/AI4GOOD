@@ -384,3 +384,121 @@ sockets required escalation in the coding sandbox. Syntax checks also passed.
 Phase 5 backend acceptance is complete. Shared-app historical-data rights from
 Phase 4 and later browser integration remain pending. Next is Phase 6 orders
 and accounting; no new dependencies were added in this phase.
+
+## Phase 6 — orders and accounting
+
+Migration head is `0004_trading`. After `python -m alembic upgrade head`, use the
+owned simulation `/orders` POST/GET and `/transactions` GET routes. A submitted
+order is pending; use its returned simulation.version in the next advance.
+Advance fills at the next open or rejects a cash gap atomically. Prices and
+cash remain fixed-point integers internally. OpenAPI documents exact schemas.
+Verification: `.venv-local/bin/python -m pytest -q tests/test_trading.py tests/test_database.py tests/test_simulations.py`
+passed 84 tests on 2026-11-14. Portfolio/performance arrive in Phase 7.
+
+## Phases 7–10 — portfolio, learning, hardening and acceptance
+
+Portfolio/performance and actual Kiran lesson/quiz/progress APIs are implemented.
+Migration head is now **0005_learning**; all earlier head references above are
+historical records. Use the existing hashed lock; no dependencies were added.
+`ALLOWED_ORIGINS` is a comma-separated list of explicit frontend origins, empty
+by default; no automatic .env loading. Example: `http://localhost:5173`.
+
+The authoritative current setup, contract details, merge dependencies and exact
+verification commands are in `../docs/BACKEND_MERGE_HANDOFF.md`. Response examples
+are in `../docs/fixtures`. Private curriculum scoring keys in `data/curriculum`
+must be packaged with the server and excluded from browser/static assets.
+
+```sh
+.venv-local/bin/python -m pytest -q
+.venv-local/bin/python scripts/verify_backend.py
+# Restricted-session fallback, explicitly not real-socket HTTP acceptance:
+.venv-local/bin/python scripts/verify_backend.py --transport asgi
+```
+
+The smoke script uses fresh temporary storage and generated users; it migrates,
+imports opt-in data, checks actual curriculum/progress, buys/sells/P&L, two-user
+ownership, no-future-data, replay and persistence across server/app restarts.
+Pass `--csv PATH --manifest PATH` for a sourced historical window of at least
+three sessions. `--write-fixtures DIR` exports synthetic response examples only.
+
+Current acceptance limitations: localhost bind is denied in this coding session;
+the full in-process API/database acceptance passes. Existing local IBM input is
+personal research only, so shared-app historical rights remain a release gate.
+See the checkpoint for exact per-phase commands/results and current status.
+
+### Phase 10 acceptance update — 2026-11-14
+
+The user ran `.venv-local/bin/python scripts/verify_backend.py` from their
+terminal and reported PASS for real Uvicorn HTTP, fresh migrations/import, actual
+curriculum/scoring/progress, buy/sell/P&L, ownership/no-future data, receipts and
+restart persistence on the synthetic accounting reference. This clears the
+synthetic socket-acceptance blocker above. Shared-app historical data rights and
+the corresponding real historical HTTP run remain pending.
+
+## User-selected yfinance dataset — AAPL, MSFT, NVDA, TSLA, AMZN
+
+`download_yfinance.py` explicitly downloads these five symbols, sorted only for
+canonical storage (not ranked by market cap). Initial window: January 13–16,
+2025; the yfinance end argument is January 17, exclusive. It requires the complete
+common exchange calendar, USD/New York metadata, all OHLCV bars, zero reported
+dividends/splits and no reported capital gains. Missing data/actions fail rather
+than silently shrinking the symbol universe or dates.
+
+Use a separate optional data environment to preserve the locked server environment.
+From `repo/backend`:
+
+```sh
+python3.12 -m venv .venv-data
+.venv-data/bin/python -m pip install --require-hashes -r requirements.lock
+.venv-data/bin/python -m pip install -r requirements-data.in
+.venv-data/bin/python scripts/download_yfinance.py
+.venv-local/bin/python scripts/verify_backend.py --all-symbols \
+  --csv data/local/yfinance-five-20250113-v1/prices.csv \
+  --manifest data/local/yfinance-five-20250113-v1/manifest.json
+```
+
+The last command repeats the full real HTTP/database/restart acceptance flow for
+**each** selected symbol. Generated data, manifest, provider values, request flags
+and dependency versions are under ignored `data/local/yfinance-five-20250113-v1/`.
+The downloader validates against the existing backend importer and publishes the
+snapshot only after complete validation; existing snapshots are never overwritten.
+It does not modify any application database. After acceptance, explicitly import
+into your chosen migrated local database to make the dataset visible to the app:
+
+```sh
+.venv-local/bin/python -m alembic upgrade head
+.venv-local/bin/python -m app.datasets \
+  --csv data/local/yfinance-five-20250113-v1/prices.csv \
+  --manifest data/local/yfinance-five-20250113-v1/manifest.json
+```
+
+The optional downloader requests `auto_adjust=False`, `back_adjust=False`,
+`repair=False`, `rounding=False`, `actions=True`. Yahoo float32 representation
+noise is converted to an exact cent only within half a float32 ULP; genuine
+fractional cents and precision too coarse to distinguish cents are rejected.
+Original values and conversion policy are preserved. The server CSV validator
+still requires exact whole cents without rounding. Yahoo historical OHLC can
+already incorporate split adjustments; no stronger exchange-original-price claim
+is made by setting auto_adjust=False.
+
+Source references: [yfinance history options](https://ranaroussi.github.io/yfinance/reference/yfinance.price_history.html),
+[yfinance usage notice](https://github.com/ranaroussi/yfinance),
+[Yahoo terms](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html).
+The manifest records that downloading via yfinance does not establish shared-app
+redistribution rights. This local educational research integration does not by
+itself close that separate release dependency.
+
+Latest verification after adding the adapter: **290 tests passed** (47.83s),
+one existing TestClient deprecation warning; compilation passed. The actual
+yfinance download is pending execution in the user terminal.
+
+### Historical acceptance update — all five symbols
+
+The user reported PASS for real Uvicorn HTTP acceptance (`--all-symbols`) on
+AAPL, AMZN, MSFT, NVDA and TSLA. The agent validated the generated local snapshot:
+20 bars across Jan 13–16 2025, checksum matches, provider evidence present.
+This supersedes earlier pending-download/historical-HTTP notes. Manifest retrieval
+date is 2026-11-15 UTC. Source-use limitations remain unchanged. Acceptance used
+fresh temporary databases; explicitly migrate/import into the intended persistent
+app database to make this dataset available to the frontend. See the current
+checkpoint and merge handoff for evidence and remaining integration work.

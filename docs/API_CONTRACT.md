@@ -240,3 +240,42 @@ and included in the hashed lockfile.
   Phase 6 adds fills/accounting; Phase 7 publishes portfolio/performance.
   The Phase 4 shared-app real-data rights dependency remains open until resolved
   before final integration, no later than Phase 10.
+
+### Phase 6 orders/accounting implementation (2026-11-14)
+
+Order submission/listing and transaction listing now implement the v2 shapes.
+All writes require a valid Idempotency-Key and expected_version. Accepted order
+submission increments the version and returns 201; advance must use that new
+version. One pending order per simulation is enforced in both API and database.
+Submission domain failures are 422 unknown_symbol, insufficient_cash, or
+insufficient_holdings; pending_order_exists and simulation_completed are 409.
+Gap rejection is returned in advance order_results with status rejected,
+rejection_code insufficient_cash, and null execution fields; no ledger entry
+or cash/holding mutation occurs. Filled executed_at is the next session open.
+Lists are chronological (ID breaks timestamp ties), protected and no-store.
+
+### Phase 7 portfolio/performance implementation (2026-11-14)
+
+Portfolio and performance now implement v2. Positions omit zero holdings and are
+symbol-sorted. Marking uses only the cursor session close available by its UTC
+time. Realized P&L is cumulative filled sell proceeds minus allocated pooled
+basis; final liquidation allocates all remaining basis. Returns are percentages
+rounded half-up to two places. Equity curves contain visited sessions only.
+Both routes enforce ownership and return Cache-Control: no-store.
+
+### Phase 8 learning implementation (2026-11-14)
+
+All five learning routes now implement v2 with Kiran's actual draft curriculum.
+Lesson/quiz IDs are 1–64 lowercase ASCII letters/digits/underscores/hyphens.
+Versions are strict integers 1–1000000. Attempts contain 1–100 answers with
+bounded IDs; unknown fields, client scores and incomplete/duplicate/unknown
+answers are rejected. Quiz submission returns 200 with an atomic scoped receipt.
+Public quiz responses contain questions/options only. Scoring data is backend
+only; explanation feedback is returned after a valid submission. Pass decisions
+compare the exact correct/total ratio to 80%, independently of rounded display.
+Progress includes all active lessons (zero scores/count for untouched lessons),
+count/best/latest for the current quiz version only, in lesson-ID order.
+Attempts from prior versions remain persisted but cannot complete a new version.
+A previously attempted definition changed without a version bump returns 503
+curriculum_unavailable on scoring/progress. Curriculum JSON is validated before
+app startup. Source provenance and artifact hash are in data/curriculum.

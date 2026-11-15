@@ -36,4 +36,9 @@ def session_factory(engine: Engine) -> sessionmaker[Session]:
 def get_session(request: Request) -> Iterator[Session]:
     # Routes explicitly commit successful mutations; exceptions roll back on close.
     with request.app.state.sessions() as session:
+        # sqlite3's legacy transaction mode does not BEGIN on SELECT. GET routes
+        # need one snapshot across auth/cursor/holdings/ledger reads, otherwise an
+        # intervening advance could mix states. Writes use their existing lock.
+        if request.method in {"GET", "HEAD"}:
+            session.connection().exec_driver_sql("BEGIN")
         yield session

@@ -1,0 +1,29 @@
+{
+  "attempt_id": "f2190d03-489f-4b2d-8b0a-57d31155c32d",
+  "correct": 4,
+  "feedback": [
+    {
+      "correct": true,
+      "explanation": "A Certificate of Deposit (CD) is a promissory time deposit issued by a bank or credit union. The saver commits a fixed principal sum for an agreed duration (term) in return for a locked, guaranteed Annual Percentage Yield (APY).",
+      "question_id": "q1"
+    },
+    {
+      "correct": true,
+      "explanation": "Standard CDs at FDIC-insured depository institutions are backed by the full faith and credit of the U.S. government up to $250,000 per depositor, per insured institution, for each qualifying account ownership category (with identical coverage provided by NCUA for credit unions).",
+      "question_id": "q2"
+    },
+    {
+      "correct": true,
+      "explanation": "Because a CD relies on committed capital for the entire term, premature liquidations trigger an Early Withdrawal Penalty (EWP). This penalty commonly equals several months of earned interest, directly reducing the account yield.",
+      "question_id": "q3"
+    },
+    {
+      "correct": true,
+      "explanation": "Fixed-rate CDs expose investors to interest rate and inflation risks. If market rates or inflation surge after locking in your CD, your locked yield remains static, causing your purchasing power to lag behind current market opportunities.",
+      "question_id": "q4"
+    }
+  ],
+  "passed": true,
+  "score_pct": "100.00",
+  "total": 4
+}

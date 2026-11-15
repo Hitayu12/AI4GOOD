@@ -237,10 +237,14 @@ def test_visible_filters_unknown_symbol_and_unimplemented_routes(rig):
     assert [bar["session_date"] for bar in rig.market(sim["id"], **{"to": "2026-01-05"}).json()["items"]] == ["2026-01-05"]
     assert rig.market(sim["id"], **{"from": "2026-01-06", "to": "2026-01-05"}).status_code == 422
     assert rig.client.get(f'/api/v1/simulations/{sim["id"]}/market-data/UNKNOWN', headers=rig.first).status_code == 404
-    for path in ["/api/v1/market-data/TEST", f'/api/v1/datasets/{sim["dataset_id"]}/bars',
-                 f'/api/v1/simulations/{sim["id"]}/portfolio', f'/api/v1/simulations/{sim["id"]}/performance']:
+    for path in ["/api/v1/market-data/TEST", f'/api/v1/datasets/{sim["dataset_id"]}/bars']:
         response = rig.client.get(path, headers=rig.first)
         assert response.status_code == 404
+    # Phase 7 adds these scoped routes; unscoped full-history routes stay absent.
+    for route in ["portfolio", "performance"]:
+        response = rig.client.get(f'/api/v1/simulations/{sim["id"]}/{route}', headers=rig.first)
+        assert response.status_code == 200
+        assert "2026-01-07" not in response.text and "2026-01-08" not in response.text
         assert "120.000000" not in response.text
 
 

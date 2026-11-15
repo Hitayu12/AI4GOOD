@@ -1,6 +1,7 @@
 """Environment configuration; no secrets or external services are needed yet."""
 import os
 from dataclasses import dataclass
+from urllib.parse import urlsplit
 
 
 @dataclass(frozen=True)
@@ -10,8 +11,18 @@ class Settings:
     auth_token_ttl_seconds: int = 3600
     login_max_attempts: int = 10
     login_window_seconds: int = 60
+    allowed_origins: tuple[str, ...] = ()
 
     def __post_init__(self):
+        if not isinstance(self.allowed_origins, tuple) or len(self.allowed_origins) > 20:
+            raise ValueError("allowed_origins must be a tuple of at most 20 explicit origins.")
+        for origin in self.allowed_origins:
+            parsed = urlsplit(origin)
+            if (parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password
+                or parsed.path or parsed.query or parsed.fragment or "*" in origin or origin != origin.strip()):
+                raise ValueError("Each allowed origin must be an explicit HTTP(S) origin without a path.")
+            # Accessing port validates its format and range.
+            parsed.port
         bounds = {
             "auth_token_ttl_seconds": (60, 86400),
             "login_max_attempts": (1, 1000),
@@ -33,5 +44,6 @@ def load_settings() -> Settings:
         auth_token_ttl_seconds=int(os.environ.get("AUTH_TOKEN_TTL_SECONDS", "3600")),
         login_max_attempts=int(os.environ.get("LOGIN_MAX_ATTEMPTS", "10")),
         login_window_seconds=int(os.environ.get("LOGIN_WINDOW_SECONDS", "60")),
+        allowed_origins=tuple(value.strip() for value in os.environ.get("ALLOWED_ORIGINS", "").split(",") if value.strip()),
     )
 

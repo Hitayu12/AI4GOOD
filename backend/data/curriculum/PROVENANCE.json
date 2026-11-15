@@ -1,0 +1,16 @@
+{
+  "owner": "Kiran",
+  "retrieved_on": "2026-11-14",
+  "source_branch": "kiran",
+  "source_revision": "9d939127c704b31986d491913179d1ff68737827",
+  "source_repository": "https://github.com/Hitayu12/AI4GOOD",
+  "handoff": "docs/content/LESSONS_AND_QUIZZES.md (Handoff 002)",
+  "source_blobs": {
+    "lessonDefinitions.ts": "a7f337ec736f3af5356756df3b71f5b44a91673a",
+    "quizDefinitions.ts": "754490e2846ab6aa23cc656af880e063f121b779",
+    "serverAnswerKeys.ts": "1aa7747974f4935493c0df779e36074ec6210aa4"
+  },
+  "artifact_sha256": "e9ebde2d1ffad56026d145cf4852918656c7dc1f2e61588db02689ea671c59b5",
+  "conversion": "Extracted literal LESSONS, QUIZZES and SERVER_ANSWER_KEYS objects into backend-only JSON. No content edits. Source blob hashes verified after removing transport-added terminal newline.",
+  "review_status": "draft; copied from author, no human review claimed"
+}

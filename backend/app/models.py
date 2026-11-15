@@ -1,7 +1,7 @@
 """Authentication storage and immutable versioned historical market datasets."""
 from uuid import uuid4
 
-from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, ForeignKeyConstraint, Integer, String, Text
+from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, ForeignKeyConstraint, Index, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -153,3 +153,78 @@ class IdempotencyReceipt(Base):
     request_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     http_status: Mapped[int] = mapped_column(Integer, nullable=False)
     response_json: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class Order(Base):
+    __tablename__ = "orders"
+    __table_args__ = (
+        CheckConstraint("side IN ('buy', 'sell')", name="ck_orders_side"),
+        CheckConstraint("typeof(quantity) = 'integer' AND quantity BETWEEN 1 AND 1000000", name="ck_orders_quantity"),
+        CheckConstraint("status IN ('pending', 'filled', 'rejected')", name="ck_orders_status"),
+        CheckConstraint("(status = 'filled' AND executed_at IS NOT NULL AND execution_price_scaled IS NOT NULL AND rejection_code IS NULL) OR (status = 'pending' AND executed_at IS NULL AND execution_price_scaled IS NULL AND rejection_code IS NULL) OR (status = 'rejected' AND executed_at IS NULL AND execution_price_scaled IS NULL AND rejection_code IS NOT NULL)", name="ck_orders_result"),
+        Index("uq_orders_pending", "simulation_id", unique=True, sqlite_where=text("status = 'pending'")),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    simulation_id: Mapped[str] = mapped_column(ForeignKey("simulations.id", ondelete="CASCADE"), nullable=False, index=True)
+    symbol: Mapped[str] = mapped_column(String(12), nullable=False)
+    side: Mapped[str] = mapped_column(String(4), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(8), nullable=False)
+    submitted_at: Mapped[str] = mapped_column(String(20), nullable=False)
+    executed_at: Mapped[str | None] = mapped_column(String(20))
+    execution_price_scaled: Mapped[int | None] = mapped_column(BigInteger)
+    rejection_code: Mapped[str | None] = mapped_column(String(40))
+
+
+class Position(Base):
+    __tablename__ = "positions"
+    __table_args__ = (
+        CheckConstraint("typeof(quantity) = 'integer' AND quantity >= 0", name="ck_positions_quantity"),
+        CheckConstraint("typeof(cost_basis_cents) = 'integer' AND cost_basis_cents >= 0 AND (quantity > 0 OR cost_basis_cents = 0)", name="ck_positions_cost"),
+    )
+    simulation_id: Mapped[str] = mapped_column(ForeignKey("simulations.id", ondelete="CASCADE"), primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(12), primary_key=True)
+    quantity: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    cost_basis_cents: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+
+class Transaction(Base):
+    __tablename__ = "transactions"
+    __table_args__ = (
+        CheckConstraint("side IN ('buy', 'sell')", name="ck_transactions_side"),
+        CheckConstraint("typeof(quantity) = 'integer' AND quantity BETWEEN 1 AND 1000000", name="ck_transactions_quantity"),
+        CheckConstraint("typeof(price_scaled) = 'integer' AND price_scaled BETWEEN 10000 AND 1000000000000", name="ck_transactions_price"),
+        CheckConstraint("typeof(gross_cents) = 'integer' AND gross_cents > 0", name="ck_transactions_gross"),
+        CheckConstraint("typeof(allocated_cost_cents) = 'integer' AND allocated_cost_cents >= 0", name="ck_transactions_cost"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    simulation_id: Mapped[str] = mapped_column(ForeignKey("simulations.id", ondelete="CASCADE"), nullable=False, index=True)
+    order_id: Mapped[str] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, unique=True)
+    symbol: Mapped[str] = mapped_column(String(12), nullable=False)
+    side: Mapped[str] = mapped_column(String(4), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    price_scaled: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    gross_cents: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    allocated_cost_cents: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    session_date: Mapped[str] = mapped_column(String(10), nullable=False)
+    executed_at: Mapped[str] = mapped_column(String(20), nullable=False)
+
+
+class QuizAttempt(Base):
+    __tablename__ = "quiz_attempts"
+    __table_args__ = (
+        CheckConstraint("quiz_version BETWEEN 1 AND 1000000", name="ck_attempts_version"),
+        CheckConstraint("total BETWEEN 1 AND 100 AND correct BETWEEN 0 AND total", name="ck_attempts_score"),
+        CheckConstraint("score_bp BETWEEN 0 AND 10000", name="ck_attempts_percent"),
+        CheckConstraint("length(definition_sha256) = 64", name="ck_attempts_definition"),
+    )
+    sequence: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(36), nullable=False, unique=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    quiz_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    lesson_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    quiz_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    definition_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    correct: Mapped[int] = mapped_column(Integer, nullable=False)
+    total: Mapped[int] = mapped_column(Integer, nullable=False)
+    score_bp: Mapped[int] = mapped_column(Integer, nullable=False)

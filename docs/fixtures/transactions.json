@@ -1,0 +1,37 @@
+{
+  "items": [
+    {
+      "id": "310d3b1b-c09d-4f1d-b795-9d39a2bf9175",
+      "order_id": "12d0e6d7-f8e2-404b-a950-8bc9c2fee957",
+      "symbol": "TEST",
+      "side": "buy",
+      "quantity": 2,
+      "price": "100.000000",
+      "gross_amount": "200.00",
+      "session_date": "2026-01-06",
+      "executed_at": "2026-01-06T14:30:00Z"
+    },
+    {
+      "id": "a9003d05-cfd2-4472-b16e-3cefca4a5b48",
+      "order_id": "959419db-ac48-40c2-8ed5-3537ad2b59d3",
+      "symbol": "TEST",
+      "side": "sell",
+      "quantity": 1,
+      "price": "120.000000",
+      "gross_amount": "120.00",
+      "session_date": "2026-01-07",
+      "executed_at": "2026-01-07T14:30:00Z"
+    },
+    {
+      "id": "baf4f93c-39ec-4e51-9931-c0c81bca378f",
+      "order_id": "8a7383d3-94bd-4cab-9528-e5c8bcac2a69",
+      "symbol": "TEST",
+      "side": "sell",
+      "quantity": 1,
+      "price": "95.000000",
+      "gross_amount": "95.00",
+      "session_date": "2026-01-08",
+      "executed_at": "2026-01-08T14:30:00Z"
+    }
+  ]
+}

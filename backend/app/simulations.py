@@ -1,7 +1,7 @@
 """Owned after-close cursors; every market read is bounded by a captured cursor."""
 from contextlib import contextmanager
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from hashlib import sha256
 import json
 from typing import Annotated, Literal
@@ -16,7 +16,7 @@ from app.auth import DatabaseSession, get_current_user
 from app.datasets import DatasetID, Symbol
 from app.errors import APIError, ErrorResponse
 from app.models import (Dataset, DatasetSession, EquitySnapshot, IdempotencyReceipt,
-                        MarketBar, Simulation, User)
+                        MarketBar, Order, Position, Simulation, Transaction, User)
 
 MAX_SIMULATIONS_PER_USER = 100
 
@@ -78,7 +78,6 @@ class SimulationList(StrictModel):
 
 
 class OrderResponse(StrictModel):
-    """Contract shape only; order submission/execution is introduced in Phase 6."""
     id: str
     symbol: Symbol
     side: Literal["buy", "sell"]
@@ -88,6 +87,66 @@ class OrderResponse(StrictModel):
     executed_at: Timestamp | None
     execution_price: Price | None
     rejection_code: str | None
+
+
+class CreateOrder(AdvanceSimulation):
+    symbol: Symbol
+    side: Literal["buy", "sell"]
+    quantity: int = Field(strict=True, ge=1, le=1000000)
+
+
+class CreateOrderResponse(StrictModel):
+    order: OrderResponse
+    simulation: SimulationResponse
+
+
+class OrderList(StrictModel):
+    items: list[OrderResponse]
+
+
+class TransactionResponse(StrictModel):
+    id: str
+    order_id: str
+    symbol: Symbol
+    side: Literal["buy", "sell"]
+    quantity: int
+    price: Price
+    gross_amount: Money
+    session_date: SessionDate
+    executed_at: Timestamp
+
+
+class TransactionList(StrictModel):
+    items: list[TransactionResponse]
+
+
+class PositionResponse(StrictModel):
+    symbol: Symbol
+    quantity: int = Field(ge=1)
+    cost_basis: Money
+    market_price: Price
+    market_value: Money
+    unrealized_pnl: Money
+
+
+class PortfolioResponse(StrictModel):
+    as_of_session: SessionDate
+    cash: Money
+    positions: list[PositionResponse]
+    realized_pnl: Money
+    unrealized_pnl: Money
+    total_equity: Money
+
+
+class EquityPoint(StrictModel):
+    session_date: SessionDate
+    total_equity: Money
+
+
+class PerformanceResponse(StrictModel):
+    initial_cash: Money
+    total_return_pct: Money
+    equity_curve: list[EquityPoint]
 
 
 class AdvanceResponse(StrictModel):
@@ -121,6 +180,73 @@ def money_string(cents: int) -> str:
 
 def price_string(scaled: int) -> str:
     return f"{scaled // 1000000}.{scaled % 1000000:06d}"
+
+
+def round_cents(value: Decimal) -> int:
+    return int(value.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def trade_cents(price: int, quantity: int) -> int:
+    return round_cents(Decimal(price) * quantity / 10000)
+
+
+def serialize_order(order: Order) -> OrderResponse:
+    return OrderResponse(id=order.id, symbol=order.symbol, side=order.side, quantity=order.quantity,
+        status=order.status, submitted_at=order.submitted_at, executed_at=order.executed_at,
+        execution_price=price_string(order.execution_price_scaled) if order.execution_price_scaled is not None else None,
+        rejection_code=order.rejection_code)
+
+
+def visible_close(session: Session, sim: Simulation, symbol: str) -> int:
+    value = session.scalar(select(MarketBar.close_scaled).join(DatasetSession,
+        (DatasetSession.dataset_id == MarketBar.dataset_id) & (DatasetSession.session_date == MarketBar.session_date)).where(
+        MarketBar.dataset_id == sim.dataset_id, MarketBar.symbol == symbol,
+        MarketBar.session_date == sim.current_session, DatasetSession.close_at <= sim.current_time))
+    if value is None:
+        raise unavailable()
+    return value
+
+
+def marked_equity(session: Session, sim: Simulation) -> int:
+    return sim.cash_cents + sum(trade_cents(visible_close(session, sim, p.symbol), p.quantity)
+        for p in session.scalars(select(Position).where(Position.simulation_id == sim.id, Position.quantity > 0)))
+
+
+def execute_pending(session: Session, sim: Simulation, destination: dict) -> list[OrderResponse]:
+    order = session.scalar(select(Order).where(Order.simulation_id == sim.id, Order.status == "pending"))
+    if order is None:
+        return []
+    bar = session.get(MarketBar, (sim.dataset_id, order.symbol, destination["session_date"]))
+    if bar is None:
+        raise unavailable()
+    gross = trade_cents(bar.open_scaled, order.quantity)
+    position = session.get(Position, (sim.id, order.symbol))
+    if order.side == "buy" and gross > sim.cash_cents:
+        order.status, order.rejection_code = "rejected", "insufficient_cash"
+    elif order.side == "sell" and (position is None or position.quantity < order.quantity):
+        order.status, order.rejection_code = "rejected", "insufficient_holdings"
+    else:
+        allocated = 0
+        if order.side == "buy":
+            if position is None:
+                position = Position(simulation_id=sim.id, symbol=order.symbol, quantity=0, cost_basis_cents=0)
+                session.add(position)
+            position.quantity += order.quantity
+            position.cost_basis_cents += gross
+            sim.cash_cents -= gross
+        else:
+            allocated = (position.cost_basis_cents if order.quantity == position.quantity else
+                         round_cents(Decimal(position.cost_basis_cents) * order.quantity / position.quantity))
+            position.quantity -= order.quantity
+            position.cost_basis_cents -= allocated
+            sim.cash_cents += gross
+        order.status, order.executed_at = "filled", destination["open_at"]
+        order.execution_price_scaled = bar.open_scaled
+        session.add(Transaction(simulation_id=sim.id, order_id=order.id, symbol=order.symbol,
+            side=order.side, quantity=order.quantity, price_scaled=bar.open_scaled, gross_cents=gross,
+            allocated_cost_cents=allocated, session_date=destination["session_date"], executed_at=destination["open_at"]))
+    session.flush()
+    return [serialize_order(order)]
 
 
 def unavailable() -> APIError:
@@ -278,13 +404,102 @@ def advance_simulation(simulation_id: SimulationID, body: AdvanceSimulation, req
             raise unavailable()
         destination = definitions[index + 1]
         check_session_grid(session, sim.dataset_id, destination, [i["symbol"] for i in manifest["instruments"]])
+        results = execute_pending(session, sim, destination)
         sim.current_session = destination["session_date"]
         sim.current_time = destination["close_at"]
         sim.version += 1
         sim.status = "completed" if sim.current_session == sim.end_session else "active"
-        session.add(EquitySnapshot(simulation_id=sim.id, session_date=sim.current_session, total_equity_cents=sim.cash_cents))
-        body_out = AdvanceResponse(simulation=serialize_simulation(sim, manifest), order_results=[])
+        session.add(EquitySnapshot(simulation_id=sim.id, session_date=sim.current_session, total_equity_cents=marked_equity(session, sim)))
+        body_out = AdvanceResponse(simulation=serialize_simulation(sim, manifest), order_results=results)
         return save_receipt(session, user.id, "simulations.advance", simulation_id, key, fingerprint, body_out, 200)
+
+
+@router.post("/{simulation_id}/orders", status_code=201, response_model=CreateOrderResponse)
+def create_order(simulation_id: SimulationID, body: CreateOrder, request: Request, user: CurrentUser, key: IdempotencyKey):
+    fingerprint = request_fingerprint(body)
+    with simulation_write(request) as session:
+        sim = owned_simulation(session, user.id, simulation_id)
+        cached = replay(session, user.id, "simulations.orders", simulation_id, key, fingerprint)
+        if cached is not None:
+            return cached
+        if body.expected_version != sim.version:
+            raise APIError(409, "stale_version", "Simulation version is stale. Reload its current state.", "expected_version")
+        if sim.status == "completed":
+            raise APIError(409, "simulation_completed", "Simulation is already completed.")
+        manifest = pinned_manifest(session, sim)
+        if body.symbol not in [i["symbol"] for i in manifest["instruments"]]:
+            raise APIError(422, "unknown_symbol", "Choose a symbol in this simulation.", "symbol")
+        if session.scalar(select(Order.id).where(Order.simulation_id == sim.id, Order.status == "pending")):
+            raise APIError(409, "pending_order_exists", "Advance the simulation before submitting another order.")
+        close = visible_close(session, sim, body.symbol)
+        position = session.get(Position, (sim.id, body.symbol))
+        if body.side == "buy" and trade_cents(close, body.quantity) > sim.cash_cents:
+            raise APIError(422, "insufficient_cash", "Not enough virtual cash.", "quantity")
+        if body.side == "sell" and (position is None or body.quantity > position.quantity):
+            raise APIError(422, "insufficient_holdings", "Not enough shares.", "quantity")
+        order = Order(simulation_id=sim.id, symbol=body.symbol, side=body.side, quantity=body.quantity,
+                      status="pending", submitted_at=sim.current_time)
+        session.add(order)
+        sim.version += 1
+        session.flush()
+        return save_receipt(session, user.id, "simulations.orders", simulation_id, key, fingerprint,
+            CreateOrderResponse(order=serialize_order(order), simulation=serialize_simulation(sim, manifest)), 201)
+
+
+@router.get("/{simulation_id}/orders", response_model=OrderList)
+def list_orders(simulation_id: SimulationID, user: CurrentUser, session: DatabaseSession, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    owned_simulation(session, user.id, simulation_id)
+    return OrderList(items=[serialize_order(order) for order in session.scalars(select(Order).where(
+        Order.simulation_id == simulation_id).order_by(Order.submitted_at, Order.id))])
+
+
+@router.get("/{simulation_id}/transactions", response_model=TransactionList)
+def list_transactions(simulation_id: SimulationID, user: CurrentUser, session: DatabaseSession, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    owned_simulation(session, user.id, simulation_id)
+    return TransactionList(items=[TransactionResponse(id=t.id, order_id=t.order_id, symbol=t.symbol,
+        side=t.side, quantity=t.quantity, price=price_string(t.price_scaled), gross_amount=money_string(t.gross_cents),
+        session_date=t.session_date, executed_at=t.executed_at) for t in session.scalars(select(Transaction).where(
+            Transaction.simulation_id == simulation_id).order_by(Transaction.executed_at, Transaction.id))])
+
+
+@router.get("/{simulation_id}/portfolio", response_model=PortfolioResponse)
+def portfolio(simulation_id: SimulationID, user: CurrentUser, session: DatabaseSession, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    sim = owned_simulation(session, user.id, simulation_id)
+    pinned_manifest(session, sim)
+    positions = []
+    unrealized, market_total = 0, 0
+    for p in session.scalars(select(Position).where(Position.simulation_id == sim.id, Position.quantity > 0).order_by(Position.symbol)):
+        price = visible_close(session, sim, p.symbol)
+        value = trade_cents(price, p.quantity)
+        gain = value - p.cost_basis_cents
+        unrealized += gain
+        market_total += value
+        positions.append(PositionResponse(symbol=p.symbol, quantity=p.quantity,
+            cost_basis=money_string(p.cost_basis_cents), market_price=price_string(price),
+            market_value=money_string(value), unrealized_pnl=money_string(gain)))
+    realized = session.scalar(select(func.coalesce(func.sum(Transaction.gross_cents - Transaction.allocated_cost_cents), 0)).where(
+        Transaction.simulation_id == sim.id, Transaction.side == "sell", Transaction.executed_at <= sim.current_time))
+    return PortfolioResponse(as_of_session=sim.current_session, cash=money_string(sim.cash_cents), positions=positions,
+        realized_pnl=money_string(realized), unrealized_pnl=money_string(unrealized), total_equity=money_string(sim.cash_cents + market_total))
+
+
+@router.get("/{simulation_id}/performance", response_model=PerformanceResponse)
+def performance(simulation_id: SimulationID, user: CurrentUser, session: DatabaseSession, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    sim = owned_simulation(session, user.id, simulation_id)
+    pinned_manifest(session, sim)
+    snapshots = list(session.scalars(select(EquitySnapshot).where(EquitySnapshot.simulation_id == sim.id,
+        EquitySnapshot.session_date <= sim.current_session).order_by(EquitySnapshot.session_date)))
+    if not snapshots or snapshots[-1].session_date != sim.current_session:
+        raise unavailable()
+    # Cents cancel in the ratio. Formatting uses half-up, including negative returns.
+    percent = (Decimal(snapshots[-1].total_equity_cents - sim.initial_cash_cents) * 100 / sim.initial_cash_cents).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return PerformanceResponse(initial_cash=money_string(sim.initial_cash_cents), total_return_pct=f"{percent:.2f}",
+        equity_curve=[EquityPoint(session_date=s.session_date, total_equity=money_string(s.total_equity_cents)) for s in snapshots])
 
 
 @router.get("/{simulation_id}/market-data/{symbol}", response_model=MarketDataResponse)

@@ -37,7 +37,7 @@ def main():
             return result.stdout.strip()
         run("alembic", "upgrade", "head")
         run("alembic", "upgrade", "head")
-        check("0003_simulations" in run("alembic", "current"), "Wrong migration head.")
+        check("0005_learning" in run("alembic", "current"), "Wrong migration head.")
         check("No new upgrade operations" in run("alembic", "check"), "Schema drift.")
         run("app.datasets", "--csv", str(csv_path), "--manifest", str(manifest_path))
         password = secrets.token_urlsafe(24)
