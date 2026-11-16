@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { HowItWorksModal } from './HowItWorksModal';
 import { TabOverviewModal } from '../../components/common/TabOverviewModal';
 import { AuraState } from '../aura/auraTypes';
+import { MarketSentimentArena } from '../community/MarketSentimentArena';
 
 export interface HomeViewProps {
   onNavigateTab: (
@@ -11,6 +12,9 @@ export interface HomeViewProps {
   totalEquityDollars?: number;
   auraState?: AuraState;
   onOpenAuraHub?: () => void;
+  onOpenDailyDrop?: () => void;
+  onOpenLeaderboard?: () => void;
+  onVoteAura?: (earnedAura: number) => void;
 }
 
 export function HomeView({
@@ -19,6 +23,9 @@ export function HomeView({
   totalEquityDollars = 10000,
   auraState,
   onOpenAuraHub,
+  onOpenDailyDrop,
+  onOpenLeaderboard,
+  onVoteAura,
 }: HomeViewProps) {
   // Modal State for How It Works & Tab Overview
   const [isHowItWorksOpen, setIsHowItWorksOpen] = useState(false);
@@ -232,6 +239,28 @@ export function HomeView({
               >
                 <span>⚡</span>
                 <span>Aura Hub (+250 Drop)</span>
+              </button>
+            )}
+
+            {onOpenDailyDrop && (
+              <button
+                type="button"
+                onClick={onOpenDailyDrop}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-pink-500 hover:from-amber-400 hover:to-pink-400 text-slate-950 font-black text-xs sm:text-sm shadow-lg shadow-amber-500/25 transition-all flex items-center gap-2 ring-2 ring-amber-300/40 transform hover:-translate-y-0.5"
+              >
+                <span>🎁</span>
+                <span>3-Card Lucky Drop</span>
+              </button>
+            )}
+
+            {onOpenLeaderboard && (
+              <button
+                type="button"
+                onClick={onOpenLeaderboard}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 via-indigo-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-black text-xs sm:text-sm shadow-lg shadow-cyan-600/30 transition-all flex items-center gap-2 ring-1 ring-cyan-400/40 transform hover:-translate-y-0.5"
+              >
+                <span>💎</span>
+                <span>Diamond League</span>
               </button>
             )}
 
@@ -564,6 +593,9 @@ export function HomeView({
           ))}
         </div>
       </section>
+
+      {/* Live Bulls vs Bears Market Sentiment Arena */}
+      <MarketSentimentArena onVoteAura={onVoteAura} />
 
       {/* Interactive Daily Instinct Challenge & US vs EU Banner */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">

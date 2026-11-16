@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { formatUSD } from './tradingService';
+import { soundFx } from '../gamification/soundFxService';
+import { triggerConfetti } from '../../components/common/CelebrationConfetti';
 
 export interface ExecutedTradeReceipt {
   symbol: string;
@@ -21,9 +23,13 @@ export interface TradeConfirmationModalProps {
 }
 
 export function TradeConfirmationModal({ receipt, onClose }: TradeConfirmationModalProps) {
-  // Close on Escape key
+  // Close on Escape key and trigger sound & confetti celebration
   useEffect(() => {
     if (!receipt) return;
+
+    soundFx.playCoinPing();
+    triggerConfetti({ particleCount: 70 });
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();

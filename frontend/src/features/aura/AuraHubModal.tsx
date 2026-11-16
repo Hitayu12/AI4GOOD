@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { AuraBadge, AuraQuest, AuraState } from './auraTypes';
 import { computeTier, saveAuraState } from './auraService';
+import { soundFx } from '../gamification/soundFxService';
+import { triggerConfetti } from '../../components/common/CelebrationConfetti';
 
 export interface AuraHubModalProps {
   isOpen: boolean;
@@ -10,6 +12,8 @@ export interface AuraHubModalProps {
   onNavigateTab: (
     tab: 'home' | 'portfolio' | 'trading' | 'simulation' | 'learning' | 'calculator' | 'tutor' | 'status'
   ) => void;
+  onOpenDailyDrop?: () => void;
+  onOpenLeaderboard?: () => void;
 }
 
 export function AuraHubModal({
@@ -18,6 +22,8 @@ export function AuraHubModal({
   auraState,
   onUpdateAura,
   onNavigateTab,
+  onOpenDailyDrop,
+  onOpenLeaderboard,
 }: AuraHubModalProps) {
   const [claimCelebration, setClaimCelebration] = useState<string | null>(null);
 
@@ -54,6 +60,8 @@ export function AuraHubModal({
     };
     onUpdateAura(updated);
     saveAuraState(updated);
+    soundFx.playCoinPing();
+    triggerConfetti({ particleCount: 75 });
     setClaimCelebration(`+${bonus} AURA FARMED! 🔥 Streak increased to ${newStreak} days!`);
     setTimeout(() => setClaimCelebration(null), 3500);
   };
@@ -199,6 +207,55 @@ export function AuraHubModal({
 
         {/* Modal Scrollable Content */}
         <div className="p-6 space-y-6 overflow-y-auto">
+          {/* Quick Gamified Access Actions */}
+          {(onOpenDailyDrop || onOpenLeaderboard) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {onOpenDailyDrop && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenDailyDrop();
+                  }}
+                  className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/20 via-purple-600/10 to-pink-500/20 hover:from-amber-500/30 hover:to-pink-500/30 border border-amber-400/40 text-left transition-all group cursor-pointer shadow-md"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl group-hover:scale-115 transition-transform">🎁</span>
+                    <div>
+                      <span className="text-xs font-black text-amber-300 block">3-Card Lucky Drop</span>
+                      <span className="text-[10px] text-purple-300">Daily Mystery Loot</span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-2">
+                    Pick a mystery card to win up to +2,500 Aura or Legendary multipliers!
+                  </p>
+                </button>
+              )}
+
+              {onOpenLeaderboard && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenLeaderboard();
+                  }}
+                  className="p-3.5 rounded-2xl bg-gradient-to-r from-cyan-500/20 via-indigo-600/10 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 border border-cyan-400/40 text-left transition-all group cursor-pointer shadow-md"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl group-hover:scale-115 transition-transform">💎</span>
+                    <div>
+                      <span className="text-xs font-black text-cyan-300 block">Diamond Trader League</span>
+                      <span className="text-[10px] text-cyan-400">Live Weekly Leaderboard</span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-2">
+                    Climb the tiers and challenge rival teen traders for weekly bragging rights!
+                  </p>
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Daily Aura Quests */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">

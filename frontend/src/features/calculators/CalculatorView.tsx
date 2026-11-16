@@ -3,6 +3,7 @@ import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { TabOverviewModal } from '../../components/common/TabOverviewModal';
+import { questTracker } from '../gamification/questTrackerService';
 import {
   calculateGrowth,
   validateCalculatorInputs,
@@ -58,6 +59,7 @@ export function CalculatorView() {
     setMonthlyContributionStr(monthly.toString());
     setAnnualRateStr(rate.toString());
     setHorizonStr(months.toString());
+    questTracker.recordCalculatorUsed();
   };
 
   return (

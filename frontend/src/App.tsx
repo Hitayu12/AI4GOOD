@@ -13,7 +13,16 @@ import { TutorView } from './features/tutor';
 import { NotificationProvider, NotificationCenter, useNotifications } from './features/notifications';
 import { AuthModal } from './components/auth/AuthModal';
 import { TabOverviewModal, TAB_OVERVIEWS } from './components/common/TabOverviewModal';
-import { AuraHubModal, AuraState, loadAuraState, saveAuraState } from './features/aura';
+import { AuraHubModal, AuraState, loadAuraState, saveAuraState, addAuraPoints } from './features/aura';
+import { DailyDropModal } from './features/aura/DailyDropModal';
+import { RivalLeaderboardModal } from './features/leaderboard/RivalLeaderboardModal';
+import { CelebrationConfetti } from './components/common/CelebrationConfetti';
+import { soundFx } from './features/gamification/soundFxService';
+import {
+  QUEST_COMPLETED_EVENT,
+  BADGE_UNLOCKED_EVENT,
+  LEVEL_UP_EVENT,
+} from './features/gamification/questTrackerService';
 import { User } from './api/types';
 
 function AppContent() {
@@ -26,12 +35,94 @@ function AppContent() {
   const [isOverviewModalOpen, setIsOverviewModalOpen] = useState(false);
   const [auraState, setAuraState] = useState<AuraState>(() => loadAuraState());
   const [isAuraModalOpen, setIsAuraModalOpen] = useState(false);
+  const [isDailyDropOpen, setIsDailyDropOpen] = useState(false);
+  const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
+  const [isSoundMuted, setIsSoundMuted] = useState<boolean>(() => soundFx.isMuted());
   const { notify } = useNotifications();
 
   const handleUpdateAura = (newState: AuraState) => {
     setAuraState(newState);
     saveAuraState(newState);
   };
+
+  const handleToggleSound = () => {
+    const nextMute = !isSoundMuted;
+    soundFx.setMuted(nextMute);
+    setIsSoundMuted(nextMute);
+    notify({
+      type: 'info',
+      title: nextMute ? 'Sound FX Muted 🔇' : 'Sound FX Active 🔊',
+      message: nextMute
+        ? 'Procedural trading audio effects disabled.'
+        : 'Procedural chimes, clicks, and coin sounds active!',
+      autoDismiss: true,
+      dismissDuration: 2000,
+      dedupeKey: 'sound_fx_toggle',
+    });
+  };
+
+  // Event listeners for gamification celebrations
+  useEffect(() => {
+    const handleQuestCompleted = (e: Event) => {
+      const customEvent = e as CustomEvent<{ questId: string; questTitle: string; earnedAura: number }>;
+      setAuraState(loadAuraState());
+      if (customEvent.detail) {
+        notify({
+          type: 'success',
+          title: '🎯 Quest Completed!',
+          message: `You completed "${customEvent.detail.questTitle}" and farmed +${customEvent.detail.earnedAura} Aura!`,
+          autoDismiss: true,
+          dismissDuration: 4000,
+        });
+      }
+    };
+
+    const handleBadgeUnlocked = (e: Event) => {
+      const customEvent = e as CustomEvent<{ badgeId: string; badgeTitle: string; earnedBonus: number }>;
+      setAuraState(loadAuraState());
+      if (customEvent.detail) {
+        notify({
+          type: 'success',
+          title: '🏆 Prestige Badge Unlocked!',
+          message: `${customEvent.detail.badgeTitle} (+${customEvent.detail.earnedBonus} Aura farmed)`,
+          autoDismiss: true,
+          dismissDuration: 5000,
+        });
+      }
+    };
+
+    const handleLevelUp = (e: Event) => {
+      const customEvent = e as CustomEvent<{ newTier: string; newLevel: number }>;
+      setAuraState(loadAuraState());
+      if (customEvent.detail) {
+        notify({
+          type: 'success',
+          title: '✨ PRESTIGE LEVEL UP!',
+          message: `Promoted to Level ${customEvent.detail.newLevel}: ${customEvent.detail.newTier}!`,
+          autoDismiss: true,
+          dismissDuration: 5000,
+        });
+      }
+    };
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'ai4good_aura_state_v1') {
+        setAuraState(loadAuraState());
+      }
+    };
+
+    window.addEventListener(QUEST_COMPLETED_EVENT, handleQuestCompleted);
+    window.addEventListener(BADGE_UNLOCKED_EVENT, handleBadgeUnlocked);
+    window.addEventListener(LEVEL_UP_EVENT, handleLevelUp);
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener(QUEST_COMPLETED_EVENT, handleQuestCompleted);
+      window.removeEventListener(BADGE_UNLOCKED_EVENT, handleBadgeUnlocked);
+      window.removeEventListener(LEVEL_UP_EVENT, handleLevelUp);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [notify]);
 
   useEffect(() => {
     checkHealth();
@@ -269,6 +360,22 @@ function AppContent() {
                 </span>
               </button>
 
+              {/* Sound FX Audio Toggle */}
+              <button
+                type="button"
+                onClick={handleToggleSound}
+                aria-label={isSoundMuted ? 'Unmute Sound Effects' : 'Mute Sound Effects'}
+                title={isSoundMuted ? 'Sound FX: Off (Click to unmute)' : 'Sound FX: Active (Click to mute)'}
+                className={`px-2.5 py-1.5 text-xs font-bold rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer ${
+                  isSoundMuted
+                    ? 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+                    : 'bg-purple-950/70 text-purple-200 border-purple-500/40 hover:bg-purple-900/60 shadow-xs'
+                }`}
+              >
+                <span>{isSoundMuted ? '🔇' : '🔊'}</span>
+                <span className="hidden md:inline">{isSoundMuted ? 'Muted' : 'Sound'}</span>
+              </button>
+
               <button
                 type="button"
                 onClick={toggleFixtureMode}
@@ -366,6 +473,9 @@ function AppContent() {
             onNavigateTab={(tab) => setActiveTab(tab)}
             auraState={auraState}
             onOpenAuraHub={() => setIsAuraModalOpen(true)}
+            onOpenDailyDrop={() => setIsDailyDropOpen(true)}
+            onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
+            onVoteAura={(pts) => handleUpdateAura(addAuraPoints(auraState, pts))}
           />
         ) : activeTab === 'portfolio' ? (
           <PortfolioView />
@@ -510,6 +620,33 @@ function AppContent() {
         <div className="w-[1px] h-4 bg-slate-800 mx-1 shrink-0" />
         <button
           type="button"
+          onClick={() => setIsDailyDropOpen(true)}
+          aria-label="Open 3-Card Lucky Drop"
+          className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-400/40 hover:bg-amber-500/30 transition-all flex items-center gap-1 shrink-0 cursor-pointer"
+        >
+          <span>🎁</span>
+          <span className="hidden sm:inline">Drop</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setIsLeaderboardOpen(true)}
+          aria-label="Open Diamond Leaderboard"
+          className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 hover:bg-cyan-500/30 transition-all flex items-center gap-1 shrink-0 cursor-pointer"
+        >
+          <span>💎</span>
+          <span className="hidden sm:inline">Ranks</span>
+        </button>
+        <button
+          type="button"
+          onClick={handleToggleSound}
+          aria-label={isSoundMuted ? 'Unmute Sound Effects' : 'Mute Sound Effects'}
+          className="p-1.5 rounded-xl text-xs text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent hover:border-slate-800 transition-all shrink-0 cursor-pointer"
+        >
+          <span>{isSoundMuted ? '🔇' : '🔊'}</span>
+        </button>
+        <div className="w-[1px] h-4 bg-slate-800 mx-1 shrink-0" />
+        <button
+          type="button"
           onClick={() => setIsAuraModalOpen(true)}
           aria-label="Open Aura Hub"
           className="aura-glow-btn px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-purple-500 via-pink-500 to-amber-400 text-slate-950 shadow-md flex items-center gap-1.5 cursor-pointer ring-1 ring-white/30 whitespace-nowrap shrink-0"
@@ -566,7 +703,30 @@ function AppContent() {
           setActiveTab(tab);
           setIsAuraModalOpen(false);
         }}
+        onOpenDailyDrop={() => {
+          setIsAuraModalOpen(false);
+          setIsDailyDropOpen(true);
+        }}
+        onOpenLeaderboard={() => {
+          setIsAuraModalOpen(false);
+          setIsLeaderboardOpen(true);
+        }}
       />
+
+      <DailyDropModal
+        isOpen={isDailyDropOpen}
+        onClose={() => setIsDailyDropOpen(false)}
+        auraState={auraState}
+        onUpdateAura={handleUpdateAura}
+      />
+
+      <RivalLeaderboardModal
+        isOpen={isLeaderboardOpen}
+        onClose={() => setIsLeaderboardOpen(false)}
+        auraState={auraState}
+      />
+
+      <CelebrationConfetti />
     </div>
   );
 }

@@ -30,6 +30,7 @@ import {
 } from './yahooFinanceService';
 import { TradeConfirmationModal, ExecutedTradeReceipt } from './TradeConfirmationModal';
 import { TabOverviewModal } from '../../components/common/TabOverviewModal';
+import { questTracker } from '../gamification/questTrackerService';
 
 export interface TradingViewProps {
   initialSimulation?: Simulation;
@@ -436,6 +437,7 @@ export function TradingView({
             sessionDate: transaction.session_date,
             timestamp: new Date().toLocaleTimeString(),
           });
+          questTracker.recordTrade();
         }
 
         if (rejMsg) {
@@ -691,6 +693,7 @@ export function TradingView({
         timestamp: new Date().toLocaleTimeString(),
       });
       onOrderPlaced?.(liveOrder);
+      questTracker.recordTrade();
       return;
     }
 

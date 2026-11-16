@@ -14,6 +14,7 @@ import {
   InteractiveWhatIfTool,
   InteractiveGoalMatcher,
 } from './components/InteractiveConceptWidgets';
+import { questTracker } from '../gamification/questTrackerService';
 
 export interface LearningViewProps {
   apiClient?: ApiClient;
@@ -956,6 +957,11 @@ export function LearningView({
 
         const nextMap = { ...prev, [selectedTopicId]: updated };
         onProgressUpdate?.(nextMap);
+
+        if (response.passed) {
+          questTracker.recordQuiz(newScoreNum);
+        }
+
         return nextMap;
       });
     } catch (err: unknown) {

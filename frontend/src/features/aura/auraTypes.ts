@@ -30,6 +30,7 @@ export interface AuraState {
   points: number;
   streakDays: number;
   lastClaimDate: string | null;
+  lastLuckyDropDate?: string | null;
   multiplier: number;
   tier: AuraTier;
   level: number;

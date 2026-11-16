@@ -127,6 +127,7 @@ export function loadAuraState(): AuraState {
         points: parsed.points ?? 3450,
         streakDays: parsed.streakDays ?? 3,
         lastClaimDate: parsed.lastClaimDate ?? null,
+        lastLuckyDropDate: parsed.lastLuckyDropDate ?? null,
         multiplier: parsed.multiplier ?? 1.5,
         tier: tierInfo.tier,
         level: tierInfo.level,
@@ -145,6 +146,7 @@ export function loadAuraState(): AuraState {
     points: defaultPoints,
     streakDays: 3,
     lastClaimDate: null,
+    lastLuckyDropDate: null,
     multiplier: 1.5,
     tier: tierInfo.tier,
     level: tierInfo.level,
@@ -162,4 +164,64 @@ export function saveAuraState(state: AuraState): void {
   } catch {
     // ignore
   }
+}
+
+export function addAuraPoints(state: AuraState, amount: number): AuraState {
+  const newPoints = state.points + Math.max(0, Math.round(amount));
+  const tierInfo = computeTier(newPoints);
+  const updated: AuraState = {
+    ...state,
+    points: newPoints,
+    tier: tierInfo.tier,
+    level: tierInfo.level,
+    nextTierPoints: tierInfo.nextTierPoints,
+  };
+  saveAuraState(updated);
+  return updated;
+}
+
+export function completeQuest(state: AuraState, questId: string): { updatedState: AuraState; earnedAura: number } {
+  const quest = state.quests.find((q) => q.id === questId);
+  if (!quest || quest.completed) {
+    return { updatedState: state, earnedAura: 0 };
+  }
+
+  const earnedAura = Math.round(quest.rewardAura * state.multiplier);
+  const newQuests = state.quests.map((q) => (q.id === questId ? { ...q, completed: true } : q));
+  const newPoints = state.points + earnedAura;
+  const tierInfo = computeTier(newPoints);
+
+  const updated: AuraState = {
+    ...state,
+    points: newPoints,
+    tier: tierInfo.tier,
+    level: tierInfo.level,
+    nextTierPoints: tierInfo.nextTierPoints,
+    quests: newQuests,
+  };
+  saveAuraState(updated);
+  return { updatedState: updated, earnedAura };
+}
+
+export function unlockBadge(state: AuraState, badgeId: string): { updatedState: AuraState; earnedBonus: number } {
+  const badge = state.badges.find((b) => b.id === badgeId);
+  if (!badge || badge.unlocked) {
+    return { updatedState: state, earnedBonus: 0 };
+  }
+
+  const earnedBonus = badge.auraBonus;
+  const newBadges = state.badges.map((b) => (b.id === badgeId ? { ...b, unlocked: true } : b));
+  const newPoints = state.points + earnedBonus;
+  const tierInfo = computeTier(newPoints);
+
+  const updated: AuraState = {
+    ...state,
+    points: newPoints,
+    tier: tierInfo.tier,
+    level: tierInfo.level,
+    nextTierPoints: tierInfo.nextTierPoints,
+    badges: newBadges,
+  };
+  saveAuraState(updated);
+  return { updatedState: updated, earnedBonus };
 }

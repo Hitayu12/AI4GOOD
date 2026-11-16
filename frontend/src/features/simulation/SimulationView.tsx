@@ -22,6 +22,7 @@ import { TradeConfirmationModal, ExecutedTradeReceipt } from '../trading/TradeCo
 import { Position, Transaction } from '../trading/tradingTypes';
 import { LossGainBadge } from '../portfolio/PortfolioView';
 import { SYMBOL_NAMES, SYMBOL_SECTORS } from '../trading/TradingView';
+import { questTracker } from '../gamification/questTrackerService';
 
 export interface SimulationViewProps {
   service?: SimulationService;
@@ -217,6 +218,8 @@ export function SimulationView({
       if (onSimulationChange) {
         onSimulationChange(updated);
       }
+
+      questTracker.recordSimulationAdvance();
 
       setAnnouncement(
         `Simulation advanced to ${updated.current_session} (Version ${updated.version}, Status: ${updated.status}).`
@@ -469,6 +472,8 @@ export function SimulationView({
         timestamp: new Date().toLocaleTimeString(),
       });
 
+      questTracker.recordTrade();
+
       setTradeSuccessNotice(
         `Bought ${qty} share(s) of ${selectedSymbol} at $${price.toFixed(
           2
@@ -543,6 +548,8 @@ export function SimulationView({
         sessionDate: activeSimulation.current_session,
         timestamp: new Date().toLocaleTimeString(),
       });
+
+      questTracker.recordTrade();
 
       setTradeSuccessNotice(
         `Sold ${qty} share(s) of ${selectedSymbol} at $${price.toFixed(
