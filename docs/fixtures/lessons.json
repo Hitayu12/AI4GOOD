@@ -1,0 +1,34 @@
+{
+  "items": [
+    {
+      "id": "cd-basics",
+      "version": 1,
+      "title": "Certificates of Deposit (CDs)",
+      "topic": "Savings"
+    },
+    {
+      "id": "etf-basics",
+      "version": 1,
+      "title": "Exchange-Traded Funds (ETFs)",
+      "topic": "Equities"
+    },
+    {
+      "id": "hysa-basics",
+      "version": 1,
+      "title": "High-Yield Savings Accounts (HYSAs)",
+      "topic": "Savings"
+    },
+    {
+      "id": "options-intro",
+      "version": 1,
+      "title": "Options Primer (Educational Only)",
+      "topic": "Derivatives"
+    },
+    {
+      "id": "stock-basics",
+      "version": 1,
+      "title": "Introduction to Stocks",
+      "topic": "Equities"
+    }
+  ]
+}

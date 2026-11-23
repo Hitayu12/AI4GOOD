@@ -1,0 +1,44 @@
+{
+  "items": [
+    {
+      "lesson_id": "cd-basics",
+      "quiz_version": 1,
+      "attempt_count": 1,
+      "best_score_pct": "100.00",
+      "latest_score_pct": "100.00",
+      "completed": true
+    },
+    {
+      "lesson_id": "etf-basics",
+      "quiz_version": 1,
+      "attempt_count": 0,
+      "best_score_pct": "0.00",
+      "latest_score_pct": "0.00",
+      "completed": false
+    },
+    {
+      "lesson_id": "hysa-basics",
+      "quiz_version": 1,
+      "attempt_count": 0,
+      "best_score_pct": "0.00",
+      "latest_score_pct": "0.00",
+      "completed": false
+    },
+    {
+      "lesson_id": "options-intro",
+      "quiz_version": 1,
+      "attempt_count": 0,
+      "best_score_pct": "0.00",
+      "latest_score_pct": "0.00",
+      "completed": false
+    },
+    {
+      "lesson_id": "stock-basics",
+      "quiz_version": 1,
+      "attempt_count": 0,
+      "best_score_pct": "0.00",
+      "latest_score_pct": "0.00",
+      "completed": false
+    }
+  ]
+}

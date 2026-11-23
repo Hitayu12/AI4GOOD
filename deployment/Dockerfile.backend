@@ -1,0 +1,42 @@
+# syntax=docker/dockerfile:1
+# Rutgers AI4Good 2026 — Backend Production Dockerfile (Phase 10)
+# Python 3.11-slim with durable volume mount for SQLite database persistence
+
+FROM python:3.11-slim AS runner
+
+# Environment configuration
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    DATABASE_URL=sqlite:////data/ai4good.db
+
+WORKDIR /app
+
+# Install system dependencies (curl for healthcheck)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python requirements
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Create durable data directory for persistent SQLite database
+RUN mkdir -p /data && chmod 777 /data
+
+# Copy backend application code
+COPY backend/app ./app
+
+# Create non-root user for principle of least privilege
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app /data
+USER appuser
+
+# Expose FastAPI port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=15s --timeout=5s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8000/api/v1/health || exit 1
+
+# Start Uvicorn production server
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

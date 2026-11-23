@@ -1,0 +1,49 @@
+# Python environments and caches
+.venv/
+.venv-local/
+.venv-data/
+venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*$py.class
+
+# Environment and local configs
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.local
+
+# Databases and local datasets
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+backend/data/local/
+
+# Node & Frontend dependencies
+node_modules/
+dist/
+dist-ssr/
+coverage/
+
+# Local screenshots, planning output, and audit snapshots
+/output/
+/outputs/
+/work/audit-baseline/
+/work/audit_guides.mjs
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea
