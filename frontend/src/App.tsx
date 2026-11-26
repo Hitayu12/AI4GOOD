@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { ApiClient, defaultApiClient } from './api/client';
-import { EquityPoint, Position, type SchoolAffiliation, User } from './api/types';
+import { ApiError, EquityPoint, Position, type SchoolAffiliation, User } from './api/types';
 import { CelebrationConfetti } from './components/common/CelebrationConfetti';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { AuraHubModal, addAuraPoints, loadAuraState, saveAuraState } from './features/aura';
@@ -48,7 +48,10 @@ function readPage(): Page {
 }
 
 function readBoardScope(): BoardScope {
-  return new URLSearchParams(window.location.search).get('view') === 'my-school' ? 'my-school' : 'all';
+  const view = new URLSearchParams(window.location.search).get('view');
+  if (view === 'my-school') return 'my-school';
+  if (view === 'schools') return 'schools';
+  return 'all';
 }
 
 type SavedTradeLab = { replay?: TradeReplay; equity: EquityPoint[] };
@@ -113,16 +116,6 @@ function AppContent() {
   const [preset, setPreset] = useState<CalculatorPreset>();
   const [portfolioExample, setPortfolioExample] = useState<Position[]>();
   const [boardScope, setBoardScope] = useState(readBoardScope);
-  const [progress, setProgress] = useState(loadCampaign);
-  const [checkpoint, setCheckpoint] = useState(loadCheckpoint);
-  const [profile, setProfile] = useState(loadProfile);
-  const [now, setNow] = useState(Date.now);
-  const [practiceDay, setPracticeDay] = useState(() => localPracticeDay(Date.now()));
-  const [toolsOpen, setToolsOpen] = useState(false);
-  const [extras, setExtras] = useState<Extra>(null);
-  const [aura, setAura] = useState(loadAuraState);
-  const [muted, setMuted] = useState(() => soundFx.isMuted());
-
   const AUTH_STORAGE_KEY = 'futureworth_auth_session_v1';
 
   const [savedSession] = useState(() => {
@@ -134,12 +127,28 @@ function AppContent() {
       if (parsed?.user && parsed?.expiresAt && Date.parse(parsed.expiresAt) > Date.now()) {
         return parsed as { user: User; token: string; expiresAt: string; affiliation?: SchoolAffiliation };
       }
-    } catch {}
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    } catch {
+      try { localStorage.removeItem(AUTH_STORAGE_KEY); } catch {}
+    }
     return null;
   });
 
   const [user, setUser] = useState<User | null>(() => savedSession?.user ?? null);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(() => !savedSession?.user);
+  const initialOwner = savedSession?.user?.id;
+  const [progress, setProgress] = useState(() => loadCampaign(initialOwner));
+  const [checkpoint, setCheckpoint] = useState(() => loadCheckpoint(initialOwner));
+  const [profile, setProfile] = useState(() => {
+    const loaded = loadProfile(initialOwner);
+    return savedSession?.affiliation ? saveProfile(withAffiliation(loaded, savedSession.affiliation), initialOwner) : loaded;
+  });
+  const [aura, setAura] = useState(() => loadAuraState(initialOwner));
+  const [now, setNow] = useState(Date.now);
+  const [practiceDay, setPracticeDay] = useState(() => localPracticeDay(Date.now()));
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [extras, setExtras] = useState<Extra>(null);
+  const [muted, setMuted] = useState(() => soundFx.isMuted());
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(() => !savedSession?.user && readPage() === 'home');
   const practiceOwner = user?.id ?? 'guest';
   const tradeKey = `trade-lab:${practiceOwner}`;
   const [{ replay, equity: equityHistory }, setTradeLab] = useStoredPractice(tradeKey, () => (
@@ -181,6 +190,7 @@ function AppContent() {
   useEffect(() => {
     if (sessionExpiry === undefined) return;
     const timer = window.setTimeout(() => {
+      try { localStorage.removeItem(AUTH_STORAGE_KEY); } catch {}
       accountApiClient.setToken(null);
       defaultApiClient.setToken(null);
       setUser(null);
@@ -290,7 +300,8 @@ function AppContent() {
     return () => window.removeEventListener('popstate', restorePage);
   }, [showPage]);
   function navigate(target: Page, scope: BoardScope = 'all', replace = false) {
-    const path = pagePaths[target] + (target === 'leaderboards' && scope === 'my-school' ? '?view=my-school' : '');
+    const search = target === 'leaderboards' && scope !== 'all' ? `?view=${scope}` : '';
+    const path = pagePaths[target] + search;
     if (path !== window.location.pathname + window.location.search) {
       if (replace) window.history.replaceState(null, '', path);
       else window.history.pushState(null, '', path);
@@ -365,7 +376,15 @@ function AppContent() {
       return;
     }
     const sessionToken = accountApiClient.getToken();
-    const affiliation = await accountApiClient.setSchoolAffiliation(toAffiliation(next));
+    let affiliation: SchoolAffiliation;
+    try {
+      affiliation = await accountApiClient.setSchoolAffiliation(toAffiliation(next));
+    } catch (err) {
+      if (err instanceof ApiError && [401, 403].includes(err.status)) {
+        throw err;
+      }
+      affiliation = toAffiliation(next);
+    }
     const saved = saveProfile(withAffiliation(next, affiliation), user.id);
     if (sessionToken === accountApiClient.getToken()) setProfile(saved);
   }

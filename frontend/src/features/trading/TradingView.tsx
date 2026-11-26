@@ -301,7 +301,7 @@ export function TradingView({
       : latestCloseNum;
 
   // Parsed quantity
-  const parsedQuantity = parseInt(quantityInput, 10);
+  const parsedQuantity = Number(quantityInput);
   const isQuantityValid =
     !isNaN(parsedQuantity) &&
     Number.isInteger(parsedQuantity) &&
@@ -323,15 +323,21 @@ export function TradingView({
     setRejectionNotice(null);
     setSuccessNotice(null);
 
-    const qty = parseInt(val, 10);
-    if (!val || isNaN(qty) || qty < 1) {
+    const num = Number(val);
+    if (!val || isNaN(num) || num < 1) {
       setValidationError('Quantity must be at least 1 whole share.');
       return;
     }
-    if (qty > 1_000_000) {
+    if (!Number.isInteger(num)) {
+      setValidationError('Quantity must be a whole number between 1 and 1,000,000 shares (no fractional shares).');
+      return;
+    }
+    if (num > 1_000_000) {
       setValidationError('Quantity cannot exceed 1,000,000 shares.');
       return;
     }
+
+    const qty = num;
 
     if (orderSide === 'sell') {
       if (currentHeldShares === 0) {
@@ -499,7 +505,8 @@ export function TradingView({
 
   const cancelPendingOrder = () => {
     if (!pendingOrder) return;
-    setReplayOrders((current) => current.filter((order) => order.id !== pendingOrder.id));
+    tradingService.cancelOrder(simulation.id, pendingOrder.id);
+    setOrders((current) => current.filter((order) => order.id !== pendingOrder.id));
     setRejectionNotice(null);
     setSuccessNotice('Practice order cancelled.');
   };

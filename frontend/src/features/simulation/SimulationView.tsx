@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useId, useRef, useMemo } from 'react';
 import { Card } from '../../components/common/Card';
-import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import {
   AdvanceSimulationResponse,
@@ -25,6 +24,9 @@ import { LossGainBadge } from '../portfolio/PortfolioView';
 import { SYMBOL_NAMES, SYMBOL_SECTORS } from '../trading/TradingView';
 import { questTracker } from '../gamification/questTrackerService';
 import { isRecord, readPractice, writePractice } from '../practiceStorage';
+import { Tuck } from '../home/Tuck';
+import paydayCover from '../home/payday-cover.jpg';
+import '../home/campaign.css';
 
 export interface SimulationViewProps {
   service?: SimulationService;
@@ -40,8 +42,20 @@ export const MIN_STARTING_CASH_USD = 1_000;
 export const MAX_STARTING_CASH_USD = 1_000_000_000;
 export const DEFAULT_STARTING_CASH_USD = 10_000;
 
+const FW_THEME_VARS = {
+  '--fw-bg': '#f8f7fc',
+  '--fw-ink': '#222038',
+  '--fw-muted': '#615d76',
+  '--fw-line': '#e8e4f1',
+  '--fw-purple': '#5637ca',
+  '--fw-deep': '#242042',
+  '--fw-lime': '#dbfb84',
+  '--fw-cover': `url(${paydayCover})`,
+} as React.CSSProperties;
+
 type ReplayWallet = { cashCents: number; positions: Position[]; transactions: Transaction[] };
 type SavedReplay = { simulations: Simulation[]; activeSimulationId: string; selectedSymbol: string; wallets: Record<string, ReplayWallet> };
+type PredictionOutcome = 'match' | 'miss' | 'neutral' | null;
 
 function isSavedReplay(value: unknown): value is SavedReplay {
   return isRecord(value) && typeof value.selectedSymbol === 'string'
@@ -70,6 +84,317 @@ export function formatVolume(volume: number): string {
   return volume.toLocaleString('en-US');
 }
 
+function getTuckPickReaction(prediction: -1 | 0 | 1, symbol: string): string {
+  if (prediction === 1) {
+    return `Tuck perks up! Bullish energy on ${symbol} — hit Advance Session when you're ready to see the tape!`;
+  }
+  if (prediction === 0) {
+    return `Tuck nods calmly. Calling a flat pause for ${symbol} — advance the session to see if buyers and sellers tie!`;
+  }
+  return `Tuck raises an eyebrow! Spotting a pullback on ${symbol}? Advance the session to test your read!`;
+}
+
+/**
+ * FutureWorth Midnight Royal Purple SVG Financial Chart
+ * Provides clean candlestick or line view of historical bars up to the current session cursor.
+ */
+function MarketReplayChart({
+  bars,
+  selectedSymbol,
+  activeSession,
+  mode,
+}: {
+  bars: MarketDataBar[];
+  selectedSymbol: string;
+  activeSession: string;
+  mode: 'candles' | 'line';
+}) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const chartId = useId().replace(/:/g, '');
+  const areaGradId = `fw-area-${chartId}`;
+
+  if (bars.length === 0) {
+    return (
+      <div className="h-64 flex items-center justify-center rounded-[22px] bg-[#272047] border border-[#4f32a9]/60 text-[#d8cbf8] text-xs font-mono">
+        Awaiting market data feed...
+      </div>
+    );
+  }
+
+  const svgWidth = 720;
+  const svgHeight = 264;
+  const padLeft = 48;
+  const padRight = 68;
+  const padTop = 26;
+  const padBottom = 40;
+  const chartW = svgWidth - padLeft - padRight;
+  const chartH = svgHeight - padTop - padBottom;
+
+  const lows = bars.map((b) => parseFloat(b.low));
+  const highs = bars.map((b) => parseFloat(b.high));
+  const minLow = Math.min(...lows);
+  const maxHigh = Math.max(...highs);
+  const spread = maxHigh - minLow || 1;
+  const yMin = Math.max(0, minLow - spread * 0.08);
+  const yMax = maxHigh + spread * 0.08;
+  const yRange = yMax - yMin || 1;
+
+  const getY = (val: number) => padTop + (1 - (val - yMin) / yRange) * chartH;
+  const getX = (idx: number) =>
+    bars.length === 1 ? padLeft + chartW / 2 : padLeft + (idx / (bars.length - 1)) * chartW;
+
+  const candleW =
+    bars.length === 1
+      ? 36
+      : Math.min(32, Math.max(6, chartW / (bars.length * 1.9)));
+
+  const hitBandW =
+    bars.length === 1 ? chartW : Math.max(12, chartW / Math.max(1, bars.length - 1));
+
+  const maxVol = Math.max(...bars.map((b) => b.volume), 1);
+  const getVolH = (vol: number) => Math.min(36, (vol / maxVol) * 36);
+
+  const linePoints = bars
+    .map((b, i) => `${getX(i).toFixed(1)},${getY(parseFloat(b.close)).toFixed(1)}`)
+    .join(' ');
+  const areaPoints = `${getX(0).toFixed(1)},${(padTop + chartH).toFixed(1)} ${linePoints} ${getX(
+    bars.length - 1
+  ).toFixed(1)},${(padTop + chartH).toFixed(1)}`;
+
+  const gridSteps = 4;
+  const gridValues = Array.from({ length: gridSteps + 1 }, (_, i) => yMin + (i / gridSteps) * yRange);
+  const labelStep = bars.length > 10 ? Math.ceil(bars.length / 8) : 1;
+
+  const activeBar = hoveredIdx !== null && bars[hoveredIdx] ? bars[hoveredIdx] : bars[bars.length - 1];
+
+  return (
+    <div className="relative rounded-[22px] bg-[#272047] border border-[#4f32a9]/60 p-4 sm:p-5 shadow-xl overflow-hidden text-white">
+      {/* Chart Top Sub-bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/10 text-xs">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="font-mono font-black text-xs px-2 py-0.5 rounded-md bg-[#dbfb84] text-[#272047]">
+            {selectedSymbol}
+          </span>
+          <span className="text-[#d8cbf8] font-mono text-[11px]">
+            {activeBar ? activeBar.session_date : activeSession}
+          </span>
+          {activeBar && (
+            <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
+              <span className="text-[#c7b9f0]">
+                O: <strong className="text-white">${parseFloat(activeBar.open).toFixed(2)}</strong>
+              </span>
+              <span className="text-[#c7b9f0]">
+                H: <strong className="text-[#a7f37a]">${parseFloat(activeBar.high).toFixed(2)}</strong>
+              </span>
+              <span className="text-[#c7b9f0]">
+                L: <strong className="text-[#ffb499]">${parseFloat(activeBar.low).toFixed(2)}</strong>
+              </span>
+              <span className="text-[#c7b9f0]">
+                C: <strong className="text-[#dbfb84]">${parseFloat(activeBar.close).toFixed(2)}</strong>
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="text-[11px] font-mono text-[#e8dcff] flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-[#dbfb84] animate-pulse" />
+          <span>Zero-Lookahead Terminal Feed</span>
+        </div>
+      </div>
+
+      {/* SVG Canvas */}
+      <div className="w-full overflow-x-auto pt-2">
+        <svg
+          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+          className="w-full h-auto min-w-[580px] select-none"
+          onMouseLeave={() => setHoveredIdx(null)}
+        >
+          <defs>
+            <linearGradient id={areaGradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#dbfb84" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="#5637ca" stopOpacity="0.0" />
+            </linearGradient>
+          </defs>
+
+          {/* Grid lines */}
+          {gridValues.map((val, idx) => {
+            const y = getY(val);
+            return (
+              <g key={idx}>
+                <line
+                  x1={padLeft}
+                  y1={y}
+                  x2={svgWidth - padRight}
+                  y2={y}
+                  stroke="#5637ca"
+                  strokeWidth="1"
+                  strokeDasharray="4 4"
+                  strokeOpacity="0.45"
+                />
+                <text
+                  x={svgWidth - padRight + 8}
+                  y={y + 3}
+                  fill="#c7b9f0"
+                  fontSize="10"
+                  fontFamily="monospace"
+                  textAnchor="start"
+                >
+                  ${val.toFixed(2)}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Volume histogram bars */}
+          {bars.map((bar, i) => {
+            const x = getX(i);
+            const isUp = parseFloat(bar.close) >= parseFloat(bar.open);
+            const volH = getVolH(bar.volume);
+            return (
+              <rect
+                key={`vol-${bar.session_date}`}
+                x={x - candleW / 2}
+                y={padTop + chartH - volH}
+                width={candleW}
+                height={volH}
+                fill={isUp ? '#7be495' : '#ff9b85'}
+                fillOpacity="0.22"
+                rx="1.5"
+              />
+            );
+          })}
+
+          {/* Line or Candle Visuals */}
+          {mode === 'line' ? (
+            <>
+              <polygon points={areaPoints} fill={`url(#${areaGradId})`} />
+              <polyline
+                fill="none"
+                stroke="#dbfb84"
+                strokeWidth="2.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                points={linePoints}
+              />
+              {bars.map((bar, i) => {
+                const x = getX(i);
+                const y = getY(parseFloat(bar.close));
+                const isCur = bar.session_date === activeSession;
+                return (
+                  <g
+                    key={`dot-${bar.session_date}`}
+                    onMouseEnter={() => setHoveredIdx(i)}
+                    className="cursor-pointer"
+                  >
+                    <rect
+                      x={x - hitBandW / 2}
+                      y={padTop}
+                      width={hitBandW}
+                      height={chartH}
+                      fill="transparent"
+                    />
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r={isCur ? 5 : hoveredIdx === i ? 4.5 : 3}
+                      fill={isCur ? '#dbfb84' : '#a7f37a'}
+                      stroke="#272047"
+                      strokeWidth="1.75"
+                    />
+                  </g>
+                );
+              })}
+            </>
+          ) : (
+            bars.map((bar, i) => {
+              const o = parseFloat(bar.open);
+              const c = parseFloat(bar.close);
+              const h = parseFloat(bar.high);
+              const l = parseFloat(bar.low);
+              const isUp = c >= o;
+              const x = getX(i);
+              const yHigh = getY(h);
+              const yLow = getY(l);
+              const yOpen = getY(o);
+              const yClose = getY(c);
+              const top = Math.min(yOpen, yClose);
+              const height = Math.max(2, Math.abs(yClose - yOpen));
+              const color = isUp ? '#7be495' : '#ff9b85';
+              const isCur = bar.session_date === activeSession;
+
+              return (
+                <g
+                  key={`candle-${bar.session_date}`}
+                  onMouseEnter={() => setHoveredIdx(i)}
+                  className="cursor-pointer"
+                >
+                  <rect
+                    x={x - hitBandW / 2}
+                    y={padTop}
+                    width={hitBandW}
+                    height={chartH}
+                    fill="transparent"
+                  />
+                  {/* High/Low Wick */}
+                  <line
+                    x1={x}
+                    y1={yHigh}
+                    x2={x}
+                    y2={yLow}
+                    stroke={color}
+                    strokeWidth={isCur ? '2.2' : '1.5'}
+                  />
+                  {/* Candle Body */}
+                  <rect
+                    x={x - candleW / 2}
+                    y={top}
+                    width={candleW}
+                    height={height}
+                    fill={color}
+                    rx="2"
+                  />
+                  {/* Current Session Marker */}
+                  {isCur && (
+                    <circle
+                      cx={x}
+                      cy={Math.max(8, top - 7)}
+                      r="3"
+                      fill="#dbfb84"
+                    />
+                  )}
+                </g>
+              );
+            })
+          )}
+
+          {/* Date Axis along the bottom */}
+          {bars.map((bar, i) => {
+            const isCur = bar.session_date === activeSession;
+            const shouldShow =
+              i === 0 || i === bars.length - 1 || isCur || i % labelStep === 0;
+            if (!shouldShow) return null;
+            const x = getX(i);
+            return (
+              <g key={`axis-${bar.session_date}`}>
+                <text
+                  x={x}
+                  y={svgHeight - 12}
+                  fill={isCur ? '#dbfb84' : '#b7a9e6'}
+                  fontSize="10"
+                  fontFamily="monospace"
+                  fontWeight={isCur ? 'bold' : 'normal'}
+                  textAnchor="middle"
+                >
+                  {bar.session_date.slice(5)}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 export function SimulationView({
   service,
   initialSimulations,
@@ -80,10 +405,11 @@ export function SimulationView({
   onAdvance,
 }: SimulationViewProps) {
   const storageKey = storageScope && `market-replay:${storageScope}`;
-  const [saved] = useState(() => storageKey ? readPractice(storageKey, isSavedReplay) : undefined);
+  const [saved] = useState(() => (storageKey ? readPractice(storageKey, isSavedReplay) : undefined));
   const wallets = useRef(saved?.wallets ?? {});
   const seeds = saved?.simulations ?? initialSimulations;
-  // Independent simulation service instance per view component if not explicitly injected
+
+  // Simulation service instance
   const [simService] = useState<SimulationService>(
     () => service ?? new SimulationService(seeds)
   );
@@ -100,10 +426,15 @@ export function SimulationView({
     return [{ ...INITIAL_SIMULATION_FIXTURE }];
   });
 
-  const [activeSimulationId, setActiveSimulationId] = useState(() => saved?.activeSimulationId ?? simulations[0].id);
+  const [activeSimulationId, setActiveSimulationId] = useState(
+    () => saved?.activeSimulationId ?? simulations[0].id
+  );
 
   // Active Symbol in Market Data view
   const [selectedSymbol, setSelectedSymbol] = useState(() => saved?.selectedSymbol ?? defaultSymbol);
+
+  // Chart view mode
+  const [chartMode, setChartMode] = useState<'candles' | 'line'>('candles');
 
   // Active simulation object
   const activeSimulation: Simulation =
@@ -112,8 +443,11 @@ export function SimulationView({
   // Active dataset
   const activeDataset: DatasetMetadata =
     datasets.find((d) => d.id === activeSimulation.dataset_id) || defaultDataset;
-  const sessionDates = useMemo(() => getReplaySessionDates(activeDataset.session_dates, activeSimulation.start_session, activeSimulation.end_session),
-    [activeDataset, activeSimulation.start_session, activeSimulation.end_session]);
+
+  const sessionDates = useMemo(
+    () => getReplaySessionDates(activeDataset.session_dates, activeSimulation.start_session, activeSimulation.end_session),
+    [activeDataset, activeSimulation.start_session, activeSimulation.end_session]
+  );
   const historicalEnd = activeDataset.session_dates[activeDataset.session_dates.length - 1];
 
   // Market data bars visible to cursor — derived with strict zero-lookahead filter
@@ -122,15 +456,18 @@ export function SimulationView({
     activeSimulation.current_session
   );
 
-  // Advance state
+  // Advance & Tuck Prediction state
   const [isAdvancing, setIsAdvancing] = useState<boolean>(false);
   const [advanceError, setAdvanceError] = useState<{ code?: string; message: string } | null>(null);
   const [prediction, setPrediction] = useState<-1 | 0 | 1>();
   const [predictionResult, setPredictionResult] = useState('');
+  const [predictionOutcome, setPredictionOutcome] = useState<PredictionOutcome>(null);
   const [predictions, setPredictions] = useState(0);
+
   useEffect(() => {
     setPrediction(undefined);
     setPredictionResult('');
+    setPredictionOutcome(null);
   }, [activeSimulationId, selectedSymbol]);
 
   // Create Simulation Form State
@@ -141,13 +478,28 @@ export function SimulationView({
   const [isOverviewOpen, setIsOverviewOpen] = useState<boolean>(false);
 
   // Simulation Paper Trading & Portfolio State
-  const [cashCents, setCashCents] = useState(() => saved?.wallets[activeSimulationId]?.cashCents ?? activeSimulation.initial_cash);
-  const [positions, setPositions] = useState<Position[]>(() => saved?.wallets[activeSimulationId]?.positions ?? []);
-  const [transactions, setTransactions] = useState<Transaction[]>(() => saved?.wallets[activeSimulationId]?.transactions ?? []);
+  const [cashCents, setCashCents] = useState(
+    () => saved?.wallets[activeSimulationId]?.cashCents ?? activeSimulation.initial_cash
+  );
+  const [positions, setPositions] = useState<Position[]>(
+    () => saved?.wallets[activeSimulationId]?.positions ?? []
+  );
+  const [transactions, setTransactions] = useState<Transaction[]>(
+    () => saved?.wallets[activeSimulationId]?.transactions ?? []
+  );
+
   useEffect(() => {
     wallets.current[activeSimulationId] = { cashCents, positions, transactions };
-    if (storageKey) writePractice(storageKey, { simulations, activeSimulationId, selectedSymbol, wallets: wallets.current });
+    if (storageKey) {
+      writePractice(storageKey, {
+        simulations,
+        activeSimulationId,
+        selectedSymbol,
+        wallets: wallets.current,
+      });
+    }
   }, [activeSimulationId, cashCents, positions, selectedSymbol, simulations, storageKey, transactions]);
+
   const [orderSide, setOrderSide] = useState<'buy' | 'sell'>('buy');
   const [tradeQtyInput, setTradeQtyInput] = useState<string>('10');
   const [tradeValidationError, setTradeValidationError] = useState<string | null>(null);
@@ -158,7 +510,6 @@ export function SimulationView({
   const liveAnnounceId = useId();
   const [announcement, setAnnouncement] = useState<string>('');
 
-
   // Locked future sessions
   const lockedSessionDates: string[] = sessionDates.filter(
     (d) => d > activeSimulation.current_session
@@ -166,6 +517,7 @@ export function SimulationView({
 
   // Calendar progress
   const currentSessionIndex = sessionDates.indexOf(activeSimulation.current_session);
+  const activeSessionIndex = Math.max(0, currentSessionIndex);
   const totalCalendarSessions = sessionDates.length;
   const calendarProgressPct =
     totalCalendarSessions > 0
@@ -183,6 +535,7 @@ export function SimulationView({
       setPositions(wallet?.positions ?? []);
       setTransactions(wallet?.transactions ?? []);
       setPredictions(0);
+      setPredictionOutcome(null);
       setTradeValidationError(null);
       setTradeSuccessNotice(null);
       if (onSimulationChange) {
@@ -196,8 +549,8 @@ export function SimulationView({
   const handleAdvanceSession = async () => {
     setAdvanceError(null);
     setPredictionResult('');
+    setPredictionOutcome(null);
 
-    // Guard: already completed
     if (activeSimulation.status === 'completed') {
       const err = {
         code: 'simulation_completed',
@@ -224,16 +577,24 @@ export function SimulationView({
         if (before && after && before.session_date !== after.session_date) {
           const change = Number(after.close) - Number(before.close);
           const direction = change > 0 ? 'rose' : change < 0 ? 'fell' : 'stayed flat';
-          const comparison = Math.sign(change) === prediction ? 'That matched your prediction.' : 'That differed from your prediction.';
-          setPredictionResult(`${selectedSymbol} ${direction} from ${formatUSD(Number(before.close))} to ${formatUSD(Number(after.close))}. ${comparison} One session is too little evidence to judge a strategy.`);
+          const isMatch = Math.sign(change) === prediction;
+          const comparison = isMatch
+            ? 'That matched your prediction.'
+            : 'That differed from your prediction.';
+          setPredictionOutcome(isMatch ? 'match' : 'miss');
+          setPredictionResult(
+            `${selectedSymbol} ${direction} from ${formatUSD(Number(before.close))} to ${formatUSD(
+              Number(after.close)
+            )}. ${comparison} One session is too little evidence to judge a strategy.`
+          );
           setPredictions((count) => count + 1);
         } else {
+          setPredictionOutcome('neutral');
           setPredictionResult('There is no new closing price for this symbol in this session.');
         }
         setPrediction(undefined);
       }
 
-      // Update in simulation list
       setSimulations((prev) =>
         prev.map((s) => (s.id === updated.id ? { ...updated } : s))
       );
@@ -284,7 +645,7 @@ export function SimulationView({
     }
   };
 
-  // Extend Calendar Handler (allows trading more sessions as much as desired)
+  // Extend Calendar Handler (+30 continuous sessions beyond Day 5)
   const handleExtendSessions = async (additionalDays: number = 30) => {
     setIsAdvancing(true);
     setAdvanceError(null);
@@ -319,6 +680,7 @@ export function SimulationView({
       setTransactions([]);
       setPrediction(undefined);
       setPredictionResult('');
+      setPredictionOutcome(null);
       setPredictions(0);
       setTradeValidationError(null);
       setTradeSuccessNotice('Reset simulation to Day 1 with fresh virtual cash. Ready to trade again!');
@@ -394,14 +756,11 @@ export function SimulationView({
   };
 
   const latestVisibleBar: MarketDataBar | undefined = visibleMarketData[visibleMarketData.length - 1];
-
-  // Current session market price of selected symbol
   const activeSessionPrice = latestVisibleBar ? parseFloat(latestVisibleBar.close) : 150.0;
-
-  // Active held shares for currently selected symbol
+  const latestClose = latestVisibleBar ? parseFloat(latestVisibleBar.close).toFixed(2) : activeSessionPrice.toFixed(2);
   const currentHeldShares = positions.find((p) => p.symbol === selectedSymbol)?.quantity ?? 0;
 
-  // Total portfolio market value and equity
+  // Portfolio aggregates
   const totalMarketValueDollars = positions.reduce(
     (sum, pos) => sum + parseFloat(pos.market_value),
     0
@@ -412,7 +771,7 @@ export function SimulationView({
   const totalReturnPct =
     initialCashDollars > 0 ? (totalReturnDollars / initialCashDollars) * 100 : 0;
 
-  // Execute trade order directly in simulation
+  // Execute trade order
   const handleExecuteTrade = () => {
     setTradeValidationError(null);
     setTradeSuccessNotice(null);
@@ -521,7 +880,6 @@ export function SimulationView({
         )} on session ${activeSimulation.current_session}!`
       );
     } else {
-      // SELL
       const existing = positions.find((p) => p.symbol === selectedSymbol);
       const held = existing?.quantity ?? 0;
 
@@ -600,7 +958,7 @@ export function SimulationView({
     }
   };
 
-  // Quick Sell Helper from Holdings Row
+  // Quick Sell Helper
   const handleQuickSell = (sym: string, qty: number) => {
     setSelectedSymbol(sym);
     setOrderSide('sell');
@@ -610,14 +968,14 @@ export function SimulationView({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Trade Confirmation Pop-up Modal */}
+    <div className="space-y-6 max-w-7xl mx-auto text-[#222038]" style={FW_THEME_VARS}>
+      {/* Trade Confirmation Modal */}
       <TradeConfirmationModal
         receipt={tradeReceipt}
         onClose={() => setTradeReceipt(null)}
       />
 
-      {/* Simulation Tab Overview Popup */}
+      {/* Tab Overview Modal */}
       <TabOverviewModal
         tab="simulation"
         isOpen={isOverviewOpen}
@@ -629,72 +987,295 @@ export function SimulationView({
         {announcement}
       </div>
 
-      {/* Header & Subtitle */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900">
-            Historical Market Simulation
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Curriculum-paced historical market environment with strict zero-lookahead price isolation
-          </p>
+      {/* Trading Floor Hero Banner with Girl Character Artwork */}
+      <section
+        role="region"
+        aria-label="Curriculum Time Cursor Banner"
+        data-testid="time-cursor-banner"
+        className="fw-hero shadow-xl"
+      >
+        <div className="fw-hero-art" aria-hidden="true" />
+        <div className="relative z-10 w-full p-6 sm:p-8 lg:p-10">
+          <div className="lg:max-w-[66%] space-y-5">
+            {/* Hero Kicker & Telemetry Pills */}
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="fw-hero-tag">
+                <span aria-hidden="true">✦</span> FUTUREWORTH TRADING FLOOR
+              </p>
+              <span className="text-[10px] uppercase tracking-wider font-extrabold text-[#eee6ff] bg-white/10 px-2.5 py-1 rounded-full border border-white/20">
+                Curriculum Time Cursor
+              </span>
+              {activeSimulation.status === 'completed' ? (
+                <span
+                  data-testid="simulation-status-badge"
+                  className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-[#ffe9da] text-[#7b402a]"
+                >
+                  Completed
+                </span>
+              ) : (
+                <span
+                  data-testid="simulation-status-badge"
+                  className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-[#dbfb84] text-[#272047]"
+                >
+                  Active
+                </span>
+              )}
+              <span
+                data-testid="simulation-version"
+                className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-white/10 text-[#eee6ff] border border-white/20"
+              >
+                v{activeSimulation.version}
+              </span>
+            </div>
+
+            {/* Hero Headline & Copy */}
+            <div className="space-y-2">
+              <h2 className="!m-0 font-black tracking-tight text-white">
+                Read the tape. Make your move.
+              </h2>
+              <p className="text-sm sm:text-base text-[#eee6ff]/90 max-w-xl leading-relaxed">
+                Step session by session with strict zero-lookahead isolation — read the close, back Tuck&apos;s call, and trade with virtual cash.
+              </p>
+            </div>
+
+            {/* Session Status & Progress Strip */}
+            <div className="rounded-2xl bg-[#242042]/80 backdrop-blur-md border border-white/15 p-4 space-y-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div className="flex items-baseline gap-3 flex-wrap">
+                  <span
+                    data-testid="cursor-current-session"
+                    className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-[#dbfb84]"
+                  >
+                    {activeSimulation.current_session}
+                  </span>
+                  <span className="text-xs font-mono text-[#eee6ff]/85">
+                    UTC Close: <span data-testid="cursor-current-time">{activeSimulation.current_time}</span>
+                  </span>
+                </div>
+                <span className="text-xs font-bold text-[#e3f3d9] bg-white/10 px-2.5 py-1 rounded-full font-mono">
+                  Day {activeSessionIndex + 1} of {totalCalendarSessions} ({calendarProgressPct}%)
+                </span>
+              </div>
+
+              <div className="text-xs text-[#e8dcff]/85 flex items-center gap-2 flex-wrap font-mono">
+                <span>
+                  Session {activeSessionIndex + 1} of {totalCalendarSessions} ({calendarProgressPct}%)
+                </span>
+                <span>•</span>
+                <span>
+                  Range: {activeSimulation.start_session} → {activeSimulation.end_session}
+                </span>
+                <span>•</span>
+                <span>
+                  Initial Cash: {formatCashCents(activeSimulation.initial_cash)}
+                </span>
+              </div>
+
+              {activeSimulation.end_session > historicalEnd && (
+                <p className="text-xs font-medium text-[#dbfb84]">
+                  {activeSimulation.current_session > historicalEnd
+                    ? 'Generated practice prices for this session.'
+                    : `Historical prices end ${historicalEnd}. Later prices are generated for practice.`}
+                </p>
+              )}
+
+              {/* Electric Lime Timeline Progress Bar */}
+              <div className="w-full bg-white/15 rounded-full h-2 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    activeSimulation.status === 'completed' ? 'bg-[#ffe9da]' : 'bg-[#dbfb84]'
+                  }`}
+                  style={{ width: `${calendarProgressPct}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Hero Primary & Secondary Actions */}
+            <div className="flex flex-wrap items-center gap-2.5 pt-1">
+              <button
+                type="button"
+                data-testid="advance-session-btn"
+                onClick={handleAdvanceSession}
+                disabled={isAdvancing || activeSimulation.status === 'completed'}
+                aria-disabled={isAdvancing || activeSimulation.status === 'completed'}
+                className={
+                  activeSimulation.status === 'completed'
+                    ? 'fw-button !mt-0 !bg-white/15 !text-[#eee6ff]/70 border border-white/20 !cursor-not-allowed'
+                    : 'fw-button fw-button-lime !mt-0 shadow-md cursor-pointer'
+                }
+              >
+                {isAdvancing ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="animate-spin h-4 w-4 text-[#272047]" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                    Advancing...
+                  </span>
+                ) : activeSimulation.status === 'completed' ? (
+                  'Simulation Completed'
+                ) : (
+                  'Advance Session →'
+                )}
+              </button>
+
+              {activeSimulation.status === 'completed' ? (
+                <>
+                  <button
+                    type="button"
+                    data-testid="extend-calendar-btn"
+                    onClick={() => handleExtendSessions(30)}
+                    disabled={isAdvancing}
+                    className="fw-button fw-button-lime !mt-0 text-xs shadow-md cursor-pointer"
+                  >
+                    <span aria-hidden="true">⚡</span>
+                    <span>Add 30 practice sessions</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="replay-sim-btn"
+                    onClick={handleResetSimulation}
+                    disabled={isAdvancing}
+                    className="fw-quiet !bg-white/10 hover:!bg-white/20 !text-white !border-white/25 text-xs cursor-pointer"
+                  >
+                    <span aria-hidden="true">🔁</span>
+                    <span>Reset to Day 1</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleExtendSessions(30)}
+                    disabled={isAdvancing}
+                    title="Add 30 generated practice sessions to the calendar"
+                    className="fw-quiet !bg-white/10 hover:!bg-white/20 !text-[#eee6ff] !border-white/25 text-xs cursor-pointer"
+                  >
+                    <span aria-hidden="true">⚡</span>
+                    <span>+30 practice sessions</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetSimulation}
+                    disabled={isAdvancing}
+                    title="Reset simulation back to Day 1 with fresh cash"
+                    aria-label="Reset Run"
+                    className="fw-quiet !bg-white/10 hover:!bg-white/20 !text-[#eee6ff] !border-white/25 text-xs cursor-pointer"
+                  >
+                    <span aria-hidden="true">🔁</span>
+                    <span className="hidden sm:inline">Reset Run</span>
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Error Alert Display */}
+            {advanceError && (
+              <div
+                role="alert"
+                data-testid="advance-error-alert"
+                className="rounded-xl bg-[#42202d]/95 border border-[#ff9b85]/60 p-3.5 text-xs text-[#ffe9da] flex items-start justify-between gap-2"
+              >
+                <div className="space-y-0.5">
+                  <span className="font-black text-[#dbfb84]">
+                    {advanceError.code === 'stale_version'
+                      ? 'Version Conflict (409):'
+                      : advanceError.code === 'simulation_completed'
+                      ? 'Simulation Completed (409):'
+                      : 'Advance Error:'}
+                  </span>
+                  <p>{advanceError.message}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAdvanceError(null)}
+                  className="text-[#ffe9da] hover:text-white font-bold px-1 cursor-pointer"
+                  aria-label="Dismiss error message"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Run Controls & New Simulation Bar */}
+      <div className="fw-panel p-4 sm:px-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="fw-tile fw-lavender" aria-hidden="true">◷</span>
+          <div>
+            <p className="fw-kicker">Market Replay Lab</p>
+            <h2 className="text-base sm:text-lg font-black tracking-tight text-[#222038]">
+              Historical Market Simulation
+            </h2>
+            <p className="text-xs text-[#615d76]">
+              Curriculum-paced historical market environment with strict zero-lookahead price isolation
+            </p>
+          </div>
         </div>
 
-        {/* Action Controls: Switcher & New Simulation Button */}
         <div className="flex items-center gap-2 flex-wrap">
           {simulations.length > 1 && (
-            <div className="flex w-full min-w-0 items-center gap-1.5 sm:w-auto">
-              <label htmlFor="sim-select" className="text-xs font-semibold text-slate-600">
-                Switch:
+            <div className="flex items-center gap-1.5">
+              <label htmlFor="sim-select" className="text-xs font-bold text-[#615d76]">
+                Run:
               </label>
               <select
                 id="sim-select"
                 data-testid="simulation-select"
                 value={activeSimulationId}
                 onChange={(e) => handleSwitchSimulation(e.target.value)}
-                className="min-w-0 max-w-full flex-1 text-xs font-medium rounded border border-slate-300 bg-white px-2 py-1 text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none"
+                className="text-xs font-bold rounded-xl border border-[#d9d0e9] bg-[#fbfaff] px-3 py-2 text-[#222038] focus:border-[#5637ca] focus:outline-none"
                 aria-label="Select simulation to switch or resume"
               >
                 {simulations.map((sim, index) => (
                   <option key={sim.id} value={sim.id}>
-                    {sim.id === INITIAL_SIMULATION_FIXTURE.id ? 'Original run' : `Run ${simulations.length - index}`} · {sim.current_session}
+                    {sim.id === INITIAL_SIMULATION_FIXTURE.id
+                      ? 'Original run'
+                      : `Run ${simulations.length - index}`}{' '}
+                    · {sim.current_session}
                   </option>
                 ))}
               </select>
             </div>
           )}
 
-          <Button
-            size="sm"
-            variant="outline"
+          <button
+            type="button"
             onClick={() => setIsOverviewOpen(true)}
             aria-label="What is Simulation Tab?"
-            className="border-indigo-200 bg-indigo-50 text-indigo-800 hover:bg-indigo-100 font-bold"
+            className="fw-quiet !min-h-[40px] !py-1.5 !px-3.5 !bg-[#eee6ff]/70 hover:!bg-[#eee6ff] !border-[#dfd5f8] !text-[#4f32a9] text-xs cursor-pointer"
           >
-            <span>💡 What is Simulation?</span>
-          </Button>
+            <span aria-hidden="true">💡</span>
+            <span>What is Simulation?</span>
+          </button>
 
-          <Button
-            size="sm"
-            variant={showCreateModal ? 'secondary' : 'outline'}
+          <button
+            type="button"
             onClick={() => {
               setShowCreateModal(!showCreateModal);
               setCashValidationError(null);
             }}
             data-testid="toggle-create-sim-btn"
             aria-expanded={showCreateModal}
+            className={
+              showCreateModal
+                ? 'fw-quiet !min-h-[40px] !py-1.5 !px-3.5 text-xs cursor-pointer'
+                : 'fw-button !min-h-[40px] !py-1.5 !px-3.5 text-xs cursor-pointer'
+            }
           >
             {showCreateModal ? 'Cancel' : '+ New Simulation'}
-          </Button>
+          </button>
         </div>
       </div>
 
-      {/* Create Simulation Collapsible Card */}
+      {/* Create Simulation Collapsible Panel */}
       {showCreateModal && (
         <Card
           title="Create New Historical Simulation"
           subtitle="Configure starting cash and dataset calendar"
-          className="bg-blue-50/40 border-blue-200"
+          className="fw-panel bg-[#fbfaff] border-[#dfd5f8]"
           data-testid="create-simulation-panel"
         >
           <form onSubmit={handleCreateSimulation} className="space-y-4">
@@ -702,7 +1283,7 @@ export function SimulationView({
               <div>
                 <label
                   htmlFor="create-dataset-select"
-                  className="block text-xs font-semibold text-slate-700 mb-1"
+                  className="block text-xs font-bold text-[#222038] mb-1"
                 >
                   Historical Dataset
                 </label>
@@ -710,7 +1291,7 @@ export function SimulationView({
                   id="create-dataset-select"
                   value={selectedDatasetId}
                   onChange={(e) => setSelectedDatasetId(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-xl border border-[#d9d0e9] bg-white px-3 py-2.5 text-sm text-[#222038] shadow-xs focus:border-[#5637ca] focus:outline-none"
                 >
                   {datasets.map((d) => (
                     <option key={d.id} value={d.id}>
@@ -735,8 +1316,8 @@ export function SimulationView({
                   error={cashValidationError || undefined}
                   placeholder="10000"
                 />
-                <div className="flex gap-2 mt-2">
-                  <span className="text-xs text-slate-500 self-center">Presets:</span>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  <span className="text-xs text-[#615d76] self-center mr-1">Presets:</span>
                   {[1000, 10000, 50000, 1000000].map((preset) => (
                     <button
                       key={preset}
@@ -745,7 +1326,7 @@ export function SimulationView({
                         setStartingCashInput(preset.toString());
                         setCashValidationError(null);
                       }}
-                      className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
+                      className="px-2 py-0.5 rounded-full text-xs font-bold bg-[#eee6ff] text-[#4f32a9] hover:bg-[#e1d2ff] transition-colors cursor-pointer"
                     >
                       ${preset.toLocaleString('en-US')}
                     </button>
@@ -754,327 +1335,44 @@ export function SimulationView({
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
-              <Button
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#e8e4f1]">
+              <button
                 type="button"
-                variant="outline"
-                size="sm"
                 onClick={() => setShowCreateModal(false)}
+                className="fw-quiet !min-h-[40px] !py-1.5 text-xs cursor-pointer"
               >
                 Cancel
-              </Button>
-              <Button
+              </button>
+              <button
                 type="submit"
-                variant="primary"
-                size="sm"
                 data-testid="submit-create-sim-btn"
                 disabled={isCreating}
+                className="fw-button !min-h-[40px] !py-1.5 text-xs cursor-pointer"
               >
                 {isCreating ? 'Creating...' : 'Initialize Simulation'}
-              </Button>
+              </button>
             </div>
           </form>
         </Card>
       )}
 
-      {/* Dataset Metadata Card & Price-Only Limitation Disclosure */}
-      <Card data-testid="dataset-metadata-card">
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-base font-bold text-slate-900" data-testid="dataset-label">
-                  {activeDataset.label}
-                </h3>
-                {activeDataset.synthetic ? (
-                  <span
-                    data-testid="dataset-type-badge"
-                    className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200"
-                  >
-                    Synthetic Fixture / Demo Data
-                  </span>
-                ) : (
-                  <span
-                    data-testid="dataset-type-badge"
-                    className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200"
-                  >
-                    Verified Real Historical Data (No Corporate Actions)
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
-                <span className="font-semibold text-slate-700">Source:</span>{' '}
-                <span data-testid="dataset-source">{activeDataset.source}</span>
-              </p>
-            </div>
-
-            <div className="text-left sm:text-right">
-              <span className="text-xs text-slate-500 block">Dataset Identifier:</span>
-              <span className="text-xs font-mono font-semibold text-slate-800" data-testid="dataset-id">
-                {activeDataset.id}
-              </span>
-            </div>
-          </div>
-
-          {/* Symbol Universe Badges */}
-          <div className="flex items-center gap-2 flex-wrap text-xs" data-testid="symbol-universe">
-            <span className="font-semibold text-slate-700">Symbol Universe:</span>
-            {activeDataset.symbols.map((sym) => {
-              const instrumentList = FIXTURE_INSTRUMENTS[activeDataset.id] || [];
-              const inst = instrumentList.find((i) => i.symbol === sym);
-              return (
-                <span
-                  key={sym}
-                  data-testid={`symbol-badge-${sym}`}
-                  className="inline-flex items-center px-2.5 py-1 rounded bg-slate-100 text-slate-800 font-mono font-medium border border-slate-200"
-                >
-                  {sym} {inst && <span className="text-slate-400 ml-1">({inst.name})</span>}
-                </span>
-              );
-            })}
-          </div>
-
-          {/* Price-Only Limitation Disclosure Callout */}
-          <div
-            data-testid="limitation-disclosure"
-            className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900 space-y-1"
-          >
-            <div className="flex items-center gap-1.5 font-bold text-amber-950">
-              <svg className="w-4 h-4 text-amber-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  fillRule="evenodd"
-                  d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              <span>Educational Price-Only Model Disclosure (MVP)</span>
-            </div>
-            <p className="leading-relaxed">
-              This simulation executes against unadjusted daily OHLCV prices. Corporate actions,
-              including dividends and stock splits, margin borrowing, short selling, and options execution are strictly
-              excluded in this MVP educational release. Options are educational curriculum concepts only.
-            </p>
-          </div>
-        </div>
-      </Card>
-
-      {/* Prominent Curriculum Time Cursor Banner */}
-      <section
-        role="region"
-        aria-label="Curriculum Time Cursor Banner"
-        data-testid="time-cursor-banner"
-        className="rounded-xl border border-blue-300 bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white p-5 shadow-lg space-y-4"
-      >
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs uppercase tracking-wider font-semibold text-blue-300">
-                Curriculum Time Cursor
-              </span>
-              {activeSimulation.status === 'completed' ? (
-                <span
-                  data-testid="simulation-status-badge"
-                  className="px-2.5 py-0.5 rounded text-xs font-bold bg-amber-400 text-amber-950"
-                >
-                  Completed
-                </span>
-              ) : (
-                <span
-                  data-testid="simulation-status-badge"
-                  className="px-2.5 py-0.5 rounded text-xs font-bold bg-emerald-400 text-emerald-950"
-                >
-                  Active
-                </span>
-              )}
-              <span
-                data-testid="simulation-version"
-                className="px-2 py-0.5 rounded text-xs font-mono bg-blue-900/90 text-blue-200 border border-blue-700"
-              >
-                v{activeSimulation.version}
-              </span>
-            </div>
-
-            <div className="flex items-baseline gap-3 flex-wrap">
-              <div className="text-2xl sm:text-3xl font-extrabold font-mono tracking-tight text-white">
-                <span data-testid="cursor-current-session">{activeSimulation.current_session}</span>
-              </div>
-              <div className="text-xs font-mono text-blue-200">
-                UTC Close: <span data-testid="cursor-current-time">{activeSimulation.current_time}</span>
-              </div>
-            </div>
-
-            <div className="text-xs text-blue-200 flex items-center gap-2 flex-wrap">
-              <span>
-                Session {currentSessionIndex + 1} of {totalCalendarSessions} ({calendarProgressPct}%)
-              </span>
-              <span>•</span>
-              <span>
-                Range: {activeSimulation.start_session} → {activeSimulation.end_session}
-              </span>
-              <span>•</span>
-              <span>
-                Initial Cash: {formatCashCents(activeSimulation.initial_cash)}
-              </span>
-            </div>
-            {activeSimulation.end_session > historicalEnd && <p className="text-xs text-amber-200">
-              {activeSimulation.current_session > historicalEnd ? 'Generated practice prices for this session.' : `Historical prices end ${historicalEnd}. Later prices are generated for practice.`}
-            </p>}
-          </div>
-
-          <div className="rounded-xl border border-violet-300/50 bg-violet-950/30 p-4 text-white">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-bold">Prediction check</h3>
-              {predictions > 0 && <span className="text-sm font-semibold text-violet-200">{predictions} {predictions === 1 ? 'forecast checked' : 'forecasts checked'}</span>}
-            </div>
-            <p className="mt-1 text-sm text-slate-300">Where will {selectedSymbol} close next session? Pick a direction, then advance to find out.</p>
-            <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Predict next session close">
-              {([{ value: 1, label: 'Higher' }, { value: 0, label: 'Flat' }, { value: -1, label: 'Lower' }] as const).map(({ value, label }) => (
-                <button key={value} type="button" aria-pressed={prediction === value} disabled={isAdvancing || activeSimulation.status === 'completed'}
-                  className={`rounded-lg border px-3 py-2 text-sm font-bold disabled:opacity-60 ${prediction === value ? 'border-violet-300 bg-violet-200 text-violet-950' : 'border-slate-500 bg-slate-800 text-white'}`}
-                  onClick={() => { setPrediction(value); setPredictionResult(''); }}>
-                  {label}
-                </button>
-              ))}
-            </div>
-            {predictionResult && <p role="status" className="mt-3 text-sm text-violet-100">{predictionResult}</p>}
-          </div>
-          {/* Interactive Advance Session Button & Quick Horizon Controls */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-wrap">
-            <Button
-              data-testid="advance-session-btn"
-              variant={activeSimulation.status === 'completed' ? 'secondary' : 'primary'}
-              size="lg"
-              onClick={handleAdvanceSession}
-              disabled={isAdvancing || activeSimulation.status === 'completed'}
-              aria-disabled={isAdvancing || activeSimulation.status === 'completed'}
-              className={`${
-                activeSimulation.status === 'completed'
-                  ? 'bg-slate-700 text-slate-400 border border-slate-600 cursor-not-allowed'
-                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md'
-              }`}
-            >
-              {isAdvancing ? (
-                <span className="flex items-center gap-2">
-                  <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                  </svg>
-                  Advancing...
-                </span>
-              ) : activeSimulation.status === 'completed' ? (
-                'Simulation Completed'
-              ) : (
-                'Advance Session →'
-              )}
-            </Button>
-
-            {activeSimulation.status === 'completed' ? (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  data-testid="extend-calendar-btn"
-                  onClick={() => handleExtendSessions(30)}
-                  disabled={isAdvancing}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer ring-1 ring-emerald-300"
-                >
-                  <span>⚡</span>
-                  <span>Add 30 practice sessions</span>
-                </button>
-                <button
-                  type="button"
-                  data-testid="replay-sim-btn"
-                  onClick={handleResetSimulation}
-                  disabled={isAdvancing}
-                  className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <span>🔁</span>
-                  <span>Reset to Day 1</span>
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => handleExtendSessions(30)}
-                  disabled={isAdvancing}
-                  title="Add 30 generated practice sessions to the calendar"
-                  className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
-                >
-                  <span>⚡</span>
-                  <span>+30 practice sessions</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResetSimulation}
-                  disabled={isAdvancing}
-                  title="Reset simulation back to Day 1 with fresh cash"
-                  aria-label="Reset Run"
-                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer"
-                >
-                  <span>🔁</span>
-                  <span className="hidden sm:inline">Reset Run</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Progress Bar */}
-        <div className="w-full bg-blue-950/80 rounded-full h-1.5 overflow-hidden">
-          <div
-            className={`h-full transition-all duration-300 ${
-              activeSimulation.status === 'completed' ? 'bg-amber-400' : 'bg-emerald-400'
-            }`}
-            style={{ width: `${calendarProgressPct}%` }}
-          />
-        </div>
-
-        {/* Error Alert Display */}
-        {advanceError && (
-          <div
-            role="alert"
-            data-testid="advance-error-alert"
-            className="rounded-lg bg-red-900/95 border border-red-500 p-3 text-xs text-red-100 flex items-start justify-between gap-2"
-          >
-            <div className="space-y-0.5">
-              <span className="font-bold text-red-200">
-                {advanceError.code === 'stale_version'
-                  ? 'Version Conflict (409):'
-                  : advanceError.code === 'simulation_completed'
-                  ? 'Simulation Completed (409):'
-                  : 'Advance Error:'}
-              </span>
-              <p>{advanceError.message}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setAdvanceError(null)}
-              className="text-red-300 hover:text-white font-bold px-1"
-              aria-label="Dismiss error message"
-            >
-              ✕
-            </button>
-          </div>
-        )}
-      </section>
-
-      {/* Cycle Completed Celebration & Horizon Extension Card */}
+      {/* Cycle Completed Banner */}
       {activeSimulation.status === 'completed' && (
-        <div className="rounded-2xl border border-emerald-300/80 bg-gradient-to-r from-emerald-950/90 via-slate-900 to-indigo-950/90 p-5 text-white shadow-xl space-y-3 animate-fadeIn">
+        <div className="rounded-[22px] border border-[#5637ca]/50 bg-gradient-to-r from-[#272047] via-[#37296d] to-[#4f32a9] p-5 text-white shadow-lg">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <div className="flex items-center gap-2">
-                <span className="text-xl">🏆</span>
-                <span className="text-xs font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-400/20 text-emerald-300 border border-emerald-400/40">
+                <span className="fw-tile fw-mint !w-9 !h-9 !text-lg" aria-hidden="true">🏆</span>
+                <span className="text-xs font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#dbfb84]/20 text-[#dbfb84] border border-[#dbfb84]/40">
                   CYCLE COMPLETED
                 </span>
               </div>
               <h3 className="text-base sm:text-lg font-black text-white">
                 Historical Cycle Finished! Final Portfolio:{' '}
-                <span className="text-emerald-400">{formatUSD(totalEquityDollars)}</span>
+                <span className="text-[#dbfb84]">{formatUSD(totalEquityDollars)}</span>
               </h3>
-              <p className="text-xs text-slate-300">
-                You navigated through {activeSimulation.end_session}. Don&apos;t stop now—extend the calendar by 30 days to keep your profits and continue trading, or restart to test a new strategy!
+              <p className="text-xs text-[#eee6ff]/85">
+                You navigated through {activeSimulation.end_session}. Extend the calendar by 30 days to continue trading, or restart to test a new strategy!
               </p>
             </div>
 
@@ -1082,17 +1380,17 @@ export function SimulationView({
               <button
                 type="button"
                 onClick={() => handleExtendSessions(30)}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-xs shadow-lg transition-all flex items-center gap-2 ring-2 ring-emerald-300 cursor-pointer"
+                className="fw-button fw-button-lime !min-h-[40px] !py-2 text-xs shadow-md cursor-pointer"
               >
-                <span>⚡</span>
+                <span aria-hidden="true">⚡</span>
                 <span>Keep Trading (+30 Days)</span>
               </button>
               <button
                 type="button"
                 onClick={handleResetSimulation}
-                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 font-bold text-xs shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+                className="fw-quiet !min-h-[40px] !py-2 !bg-white/10 hover:!bg-white/20 !text-white !border-white/25 text-xs cursor-pointer"
               >
-                <span>🔁</span>
+                <span aria-hidden="true">🔁</span>
                 <span>Reset to Day 1</span>
               </button>
             </div>
@@ -1100,39 +1398,448 @@ export function SimulationView({
         </div>
       )}
 
-      {/* Interactive Paper Trading Desk (Direct Buy & Sell Trading on Simulation Tab) */}
+      {/* Tuck's Market Call Desk */}
       <section
-        aria-label="Simulation Paper Trading Desk"
-        className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs space-y-5"
+        aria-label="Tuck's Market Call"
+        className="fw-panel border-[#dfd5f8] bg-[linear-gradient(110deg,#ede4ff,#f7f2ff_62%,#f6fde8)] p-5 sm:p-6 shadow-xs space-y-4"
       >
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-lg">⚡</span>
-              <h3 className="text-base font-black text-slate-900 tracking-tight">
-                Simulation Paper Trading Desk
-              </h3>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
-                Active Session: {activeSimulation.current_session}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          {/* Left: Tuck Mascot + Speech Bubble */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-1 min-w-0">
+            <div className="fw-daily-art p-2.5 shrink-0 border border-[#dfd5f8]">
+              <Tuck className="w-24 h-24 sm:w-28 sm:h-28 object-contain" />
+            </div>
+
+            <div className="space-y-2 flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="fw-kicker">Tuck&apos;s Market Call</p>
+                {predictions > 0 && (
+                  <span className="text-[11px] font-extrabold font-mono px-2.5 py-0.5 rounded-full bg-[#eee6ff] text-[#4f32a9] border border-[#d6c6fa]">
+                    {predictions} {predictions === 1 ? 'forecast checked' : 'forecasts checked'}
+                  </span>
+                )}
+              </div>
+
+              <div className="relative rounded-2xl bg-white border border-[#dfd5f8] px-4 py-3 shadow-2xs">
+                <p className="text-sm sm:text-[15px] font-bold text-[#222038] leading-snug">
+                  {`Day ${activeSessionIndex + 1}: ${selectedSymbol} closed at $${latestClose}. What's your prediction for tomorrow's open?`}
+                </p>
+                {prediction !== undefined && !predictionResult && (
+                  <p role="status" className="mt-1.5 text-xs font-semibold text-[#4f32a9]">
+                    {getTuckPickReaction(prediction, selectedSymbol)}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Higher / Flat / Lower Prediction Controls */}
+          <div
+            className="flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0"
+            role="group"
+            aria-label="Predict next session close"
+          >
+            {(
+              [
+                {
+                  value: 1,
+                  label: 'Higher ▲',
+                  idleClass: 'bg-[#e3f3d9] text-[#285137] border-[#b8dfa4] hover:bg-[#d4ecc5]',
+                  activeClass: 'bg-[#dbfb84] text-[#272047] border-[#5637ca] ring-2 ring-[#5637ca]/30 shadow-sm',
+                },
+                {
+                  value: 0,
+                  label: 'Flat ━',
+                  idleClass: 'bg-[#eee6ff] text-[#4f32a9] border-[#d6c6fa] hover:bg-[#e3d7ff]',
+                  activeClass: 'bg-[#5637ca] text-white border-[#4626ad] ring-2 ring-[#5637ca]/30 shadow-sm',
+                },
+                {
+                  value: -1,
+                  label: 'Lower ▼',
+                  idleClass: 'bg-[#ffe9da] text-[#7b402a] border-[#f4c6a8] hover:bg-[#ffdcc4]',
+                  activeClass: 'bg-[#7b402a] text-[#ffe9da] border-[#5e2f1e] ring-2 ring-[#7b402a]/30 shadow-sm',
+                },
+              ] as const
+            ).map(({ value, label, idleClass, activeClass }) => {
+              const isSelected = prediction === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={isSelected}
+                  disabled={isAdvancing || activeSimulation.status === 'completed'}
+                  className={`min-h-[44px] px-4 py-2 rounded-xl border text-xs sm:text-sm font-extrabold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                    isSelected ? activeClass : idleClass
+                  }`}
+                  onClick={() => {
+                    setPrediction(value);
+                    setPredictionResult('');
+                    setPredictionOutcome(null);
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Dynamic Outcome Feedback from Tuck */}
+        {predictionResult && (
+          <div
+            role="status"
+            className={`fw-feedback !mb-0 flex items-start gap-3 border ${
+              predictionOutcome === 'match'
+                ? 'fw-mint border-[#b8dfa4] text-[#285137]'
+                : predictionOutcome === 'miss'
+                ? 'fw-peach border-[#f4c6a8] text-[#7b402a]'
+                : 'border-[#dfd5f8] text-[#4f32a9]'
+            }`}
+          >
+            <span className="text-base leading-none mt-0.5" aria-hidden="true">
+              {predictionOutcome === 'match' ? '🎉' : predictionOutcome === 'miss' ? '🐾' : '✦'}
+            </span>
+            <p className="text-xs sm:text-sm font-semibold leading-relaxed">
+              <strong className="font-black">
+                {predictionOutcome === 'match'
+                  ? 'Spot-on call! Tuck gives you a high-five — '
+                  : predictionOutcome === 'miss'
+                  ? 'Plot twist on the tape! Tuck says keep learning — '
+                  : 'Tuck notes: '}
+              </strong>
+              {predictionResult}
+            </p>
+          </div>
+        )}
+      </section>
+
+      {/* Dataset Metadata Ribbon & Educational Disclosure */}
+      <Card data-testid="dataset-metadata-card" className="fw-panel py-4 px-5">
+        <div className="space-y-3">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm font-black text-[#222038]" data-testid="dataset-label">
+                  {activeDataset.label}
+                </h3>
+                {activeDataset.synthetic ? (
+                  <span
+                    data-testid="dataset-type-badge"
+                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#ffe9da] text-[#7b402a] border border-[#f4c6a8]"
+                  >
+                    Synthetic Fixture / Demo Data
+                  </span>
+                ) : (
+                  <span
+                    data-testid="dataset-type-badge"
+                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#e3f3d9] text-[#285137] border border-[#b8dfa4]"
+                  >
+                    Verified Real Historical Data (No Corporate Actions)
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-[#615d76]">
+                <span className="font-bold text-[#222038]">Source:</span>{' '}
+                <span data-testid="dataset-source">{activeDataset.source}</span>
+              </p>
+            </div>
+
+            <div className="text-left md:text-right">
+              <span className="text-[11px] text-[#615d76] block uppercase font-mono tracking-wider">Dataset Identifier</span>
+              <span className="text-xs font-mono font-bold text-[#4f32a9]" data-testid="dataset-id">
+                {activeDataset.id}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Buy and sell any stock on the current session without lookahead bias. Advance the day to see overnight returns!
-            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-[#e8e4f1]">
+            {/* Symbol Universe Badges */}
+            <div className="flex items-center gap-1.5 flex-wrap text-xs" data-testid="symbol-universe">
+              <span className="font-bold text-[#615d76] mr-1">Symbols:</span>
+              {activeDataset.symbols.map((sym) => {
+                const instrumentList = FIXTURE_INSTRUMENTS[activeDataset.id] || [];
+                const inst = instrumentList.find((i) => i.symbol === sym);
+                return (
+                  <span
+                    key={sym}
+                    data-testid={`symbol-badge-${sym}`}
+                    className="inline-flex items-center px-2 py-0.5 rounded-lg bg-[#f6f3ff] text-[#4f32a9] font-mono text-[11px] font-semibold border border-[#e8e4f1]"
+                  >
+                    {sym} {inst && <span className="text-[#615d76] font-sans ml-1">({inst.name})</span>}
+                  </span>
+                );
+              })}
+            </div>
+
+            {/* Price-Only Disclosure Banner */}
+            <div
+              data-testid="limitation-disclosure"
+              className="text-[11px] text-[#615d76] rounded-xl bg-[#f8f7fc] border border-[#e8e4f1] px-3 py-2 flex items-center gap-2"
+            >
+              <span className="text-[#4f32a9] font-bold" aria-hidden="true">ℹ️</span>
+              <span>
+                <strong className="text-[#222038]">Educational Price-Only Model Disclosure (MVP):</strong>{' '}
+                This simulation executes against unadjusted daily OHLCV prices. Corporate actions, including
+                dividends and stock splits, margin borrowing, short selling, and options execution are strictly
+                excluded in this MVP educational release. Options are educational curriculum concepts only.
+              </span>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Spacious Candle/Line Chart & Symbol Workspace */}
+      <section data-testid="market-data-view" className="space-y-4">
+        {/* Symbol Universe Tabs & Chart Toggle */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#e8e4f1] pb-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="fw-kicker mr-1.5">Symbols:</span>
+            {activeDataset.symbols.map((sym) => {
+              const isSelected = selectedSymbol === sym;
+              return (
+                <button
+                  key={sym}
+                  type="button"
+                  data-testid={`symbol-picker-${sym}`}
+                  role="tab"
+                  aria-selected={isSelected}
+                  onClick={() => setSelectedSymbol(sym)}
+                  className={`px-3 py-1.5 text-xs font-extrabold rounded-xl transition-all cursor-pointer border ${
+                    isSelected
+                      ? 'bg-[#272047] text-[#dbfb84] border-[#272047] shadow-xs'
+                      : 'bg-white text-[#4f32a9] border-[#e8e4f1] hover:bg-[#f6f3ff] hover:border-[#cfc1fa]'
+                  }`}
+                >
+                  <span className="font-mono">{sym}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-[#615d76]">
+              Viewing Symbol: <strong className="text-[#222038] font-mono">{selectedSymbol}</strong>
+            </div>
+
+            {/* Chart Mode Toggle */}
+            <div className="inline-flex rounded-xl border border-[#dfd5f8] bg-[#eee6ff] p-0.5 text-[11px] font-extrabold">
+              <button
+                type="button"
+                onClick={() => setChartMode('candles')}
+                className={`px-3 py-1 rounded-[10px] transition-colors cursor-pointer ${
+                  chartMode === 'candles'
+                    ? 'bg-[#272047] text-[#dbfb84] shadow-2xs'
+                    : 'text-[#4f32a9] hover:text-[#222038]'
+                }`}
+              >
+                Candles
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartMode('line')}
+                className={`px-3 py-1 rounded-[10px] transition-colors cursor-pointer ${
+                  chartMode === 'line'
+                    ? 'bg-[#272047] text-[#dbfb84] shadow-2xs'
+                    : 'text-[#4f32a9] hover:text-[#222038]'
+                }`}
+              >
+                Line
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* FutureWorth Live Session KPI Bar */}
+        {latestVisibleBar && (
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="fw-panel p-3.5 bg-[#f6f3ff] border-[#dfd5f8]">
+              <span className="fw-kicker text-[10px] block">Latest Close</span>
+              <span className="text-lg font-black font-mono text-[#222038]" data-testid="latest-close-price">
+                ${parseFloat(latestVisibleBar.close).toFixed(2)}
+              </span>
+            </div>
+            <div className="fw-panel p-3.5">
+              <span className="text-[10px] font-extrabold text-[#615d76] uppercase tracking-wider block">Open</span>
+              <span className="text-sm font-black font-mono text-[#222038]">
+                ${parseFloat(latestVisibleBar.open).toFixed(2)}
+              </span>
+            </div>
+            <div className="fw-panel p-3.5 bg-[#e3f3d9]/50 border-[#b8dfa4]">
+              <span className="text-[10px] font-extrabold text-[#285137] uppercase tracking-wider block">High</span>
+              <span className="text-sm font-black font-mono text-[#285137]">
+                ${parseFloat(latestVisibleBar.high).toFixed(2)}
+              </span>
+            </div>
+            <div className="fw-panel p-3.5 bg-[#ffe9da]/55 border-[#f4c6a8]">
+              <span className="text-[10px] font-extrabold text-[#7b402a] uppercase tracking-wider block">Low</span>
+              <span className="text-sm font-black font-mono text-[#7b402a]">
+                ${parseFloat(latestVisibleBar.low).toFixed(2)}
+              </span>
+            </div>
+            <div className="fw-panel p-3.5 col-span-2 sm:col-span-1">
+              <span className="text-[10px] font-extrabold text-[#615d76] uppercase tracking-wider block">Volume</span>
+              <span className="text-sm font-black font-mono text-[#222038]">
+                {formatVolume(latestVisibleBar.volume)}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* The Financial Terminal Chart */}
+        <MarketReplayChart
+          bars={visibleMarketData}
+          selectedSymbol={selectedSymbol}
+          activeSession={activeSimulation.current_session}
+          mode={chartMode}
+        />
+
+        {/* Market Data Records Table */}
+        <Card
+          title={`${selectedSymbol} Market Data Records`}
+          subtitle={`Sessions up to current cursor (${activeSimulation.current_session})`}
+          className="fw-panel"
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs" aria-label="Market Data Table">
+              <thead>
+                <tr className="border-b border-[#e8e4f1] bg-[#f6f3ff] text-[#4f32a9] font-extrabold">
+                  <th className="py-2.5 px-3">Session Date</th>
+                  <th className="py-2.5 px-3">Available At (UTC)</th>
+                  <th className="py-2.5 px-3">Open</th>
+                  <th className="py-2.5 px-3">High</th>
+                  <th className="py-2.5 px-3">Low</th>
+                  <th className="py-2.5 px-3">Close</th>
+                  <th className="py-2.5 px-3">Session Return</th>
+                  <th className="py-2.5 px-3 text-right">Volume</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#e8e4f1] font-mono">
+                {visibleMarketData.map((bar) => {
+                  const openNum = parseFloat(bar.open);
+                  const closeNum = parseFloat(bar.close);
+                  const diff = closeNum - openNum;
+                  const pct = openNum > 0 ? (diff / openNum) * 100 : 0;
+                  const isPositive = diff >= 0;
+
+                  return (
+                    <tr
+                      key={bar.session_date}
+                      data-testid={`market-data-row-${bar.session_date}`}
+                      className="hover:bg-[#fbfaff] transition-colors"
+                    >
+                      <td className="py-2.5 px-3 font-bold text-[#222038]">
+                        {bar.session_date}
+                        {bar.session_date === activeSimulation.current_session && (
+                          <span className="ml-2 text-[10px] font-sans font-extrabold bg-[#eee6ff] text-[#4f32a9] border border-[#d6c6fa] px-2 py-0.5 rounded-full">
+                            CURRENT
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-[#615d76]">{bar.available_at}</td>
+                      <td className="py-2.5 px-3 text-[#222038]">${openNum.toFixed(2)}</td>
+                      <td className="py-2.5 px-3 text-[#222038]">${parseFloat(bar.high).toFixed(2)}</td>
+                      <td className="py-2.5 px-3 text-[#222038]">${parseFloat(bar.low).toFixed(2)}</td>
+                      <td className="py-2.5 px-3 font-bold text-[#222038]">${closeNum.toFixed(2)}</td>
+                      <td
+                        className={`py-2.5 px-3 font-bold ${
+                          isPositive ? 'text-[#285137]' : 'text-[#7b402a]'
+                        }`}
+                      >
+                        {isPositive ? '+' : ''}
+                        {diff.toFixed(2)} ({pct.toFixed(2)}%)
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-[#615d76]">{formatVolume(bar.volume)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
+        {/* Future Sessions Locked Notification */}
+        <div
+          data-testid="future-data-locked-banner"
+          className="rounded-[19px] border border-[#dfd5f8] bg-[#f6f3ff] p-4 sm:p-5 space-y-3"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm" aria-hidden="true">🔒</span>
+            <h4 className="fw-kicker">
+              Future Market Prices Locked
+            </h4>
+          </div>
+
+          <p className="text-xs text-[#615d76] leading-relaxed">
+            Future prices are locked until the session is advanced. Market data beyond{' '}
+            <strong className="text-[#222038]">{activeSimulation.current_session}</strong> is strictly
+            withheld from the interface to prevent lookahead bias and preserve realistic curriculum pacing.
+          </p>
+
+          {lockedSessionDates.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-1">
+              {lockedSessionDates.map((date) => (
+                <div
+                  key={date}
+                  data-testid={`locked-session-${date}`}
+                  className="flex items-center justify-between p-2.5 rounded-xl border border-dashed border-[#cfc1fa] bg-white text-[#615d76] text-xs"
+                >
+                  <span className="font-mono font-semibold">Session {date}</span>
+                  <span className="flex items-center gap-1 text-[11px] font-bold text-[#4f32a9]">
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path
+                        fillRule="evenodd"
+                        d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    Locked
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-xs font-bold text-[#285137] bg-[#e3f3d9] border border-[#b8dfa4] p-3 rounded-xl">
+              All calendar sessions in this historical dataset have been unlocked.
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* FutureWorth Paper Trading Desk */}
+      <section
+        aria-label="Simulation Paper Trading Desk"
+        className="fw-panel p-5 sm:p-6 space-y-5"
+      >
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-[#e8e4f1] pb-4">
+          <div className="flex items-center gap-3">
+            <span className="fw-tile fw-mint" aria-hidden="true">✦</span>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base sm:text-lg font-black tracking-tight text-[#222038]">
+                  Simulation Paper Trading Desk
+                </h3>
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-[#eee6ff] text-[#4f32a9] border border-[#d6c6fa]">
+                  Active Session: {activeSimulation.current_session}
+                </span>
+              </div>
+              <p className="text-xs text-[#615d76] mt-0.5">
+                Buy and sell any stock on the current session without lookahead bias.
+              </p>
+            </div>
           </div>
 
           {/* Quick Portfolio Balance Ribbon */}
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-              <span className="text-slate-500 block text-[10px] uppercase font-bold">Cash Balance</span>
-              <span className="font-mono font-bold text-slate-900">{formatUSD(cashCents / 100)}</span>
+            <div className="px-3 py-2 rounded-xl bg-[#f6f3ff] border border-[#e8e4f1] text-xs">
+              <span className="text-[#615d76] block text-[10px] uppercase font-extrabold">Cash Balance</span>
+              <span className="font-mono font-black text-[#222038]">{formatUSD(cashCents / 100)}</span>
             </div>
-            <div className="px-3 py-1.5 rounded-xl bg-blue-50/80 border border-blue-200 text-xs">
-              <span className="text-blue-700 block text-[10px] uppercase font-bold">Total Portfolio</span>
-              <span className="font-mono font-bold text-blue-950">{formatUSD(totalEquityDollars)}</span>
+            <div className="px-3 py-2 rounded-xl bg-[#f6f3ff] border border-[#e8e4f1] text-xs">
+              <span className="text-[#615d76] block text-[10px] uppercase font-extrabold">Total Portfolio</span>
+              <span className="font-mono font-black text-[#222038]">{formatUSD(totalEquityDollars)}</span>
             </div>
-            <div className="px-3 py-1.5 rounded-xl bg-emerald-50/80 border border-emerald-200 text-xs">
-              <span className="text-emerald-700 block text-[10px] uppercase font-bold">Overall Return</span>
+            <div className="px-3 py-2 rounded-xl bg-[#f6f3ff] border border-[#e8e4f1] text-xs">
+              <span className="text-[#615d76] block text-[10px] uppercase font-extrabold mb-0.5">Overall Return</span>
               <LossGainBadge
                 dollarValue={totalReturnDollars}
                 percentValue={totalReturnPct}
@@ -1142,34 +1849,34 @@ export function SimulationView({
           </div>
         </div>
 
-        {/* Order Ticket & Execution Form */}
+        {/* Order Ticket & Holdings Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          <div className="lg:col-span-5 p-4 rounded-xl bg-slate-50/80 border border-slate-200/90 space-y-4">
+          {/* Order Ticket (5 cols) */}
+          <div className="lg:col-span-5 p-4 sm:p-5 rounded-2xl bg-[#fbfaff] border border-[#e8e4f1] space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+              <span className="fw-kicker">
                 Place Simulation Order
               </span>
-              <span className="text-xs font-mono font-bold text-slate-900">
+              <span className="text-xs font-mono font-black px-2 py-0.5 rounded-lg bg-[#272047] text-[#dbfb84]">
                 {selectedSymbol}: ${activeSessionPrice.toFixed(2)}
               </span>
             </div>
 
             {/* Buy / Sell Toggle */}
-            <div className="grid grid-cols-2 gap-2 bg-slate-200/80 p-1 rounded-xl">
+            <div className="grid grid-cols-2 gap-1.5 bg-[#eee6ff] p-1 rounded-xl border border-[#dfd5f8]">
               <button
                 type="button"
                 onClick={() => {
                   setOrderSide('buy');
                   setTradeValidationError(null);
                 }}
-                className={`py-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`py-2 rounded-[10px] text-xs font-extrabold transition-all cursor-pointer ${
                   orderSide === 'buy'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'text-slate-700 hover:text-slate-950'
+                    ? 'bg-[#dbfb84] text-[#272047] shadow-2xs'
+                    : 'text-[#4f32a9] hover:text-[#222038]'
                 }`}
               >
-                <span>🛒</span>
-                <span>Buy Shares</span>
+                Buy Shares
               </button>
               <button
                 type="button"
@@ -1177,36 +1884,35 @@ export function SimulationView({
                   setOrderSide('sell');
                   setTradeValidationError(null);
                 }}
-                className={`py-2 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`py-2 rounded-[10px] text-xs font-extrabold transition-all cursor-pointer ${
                   orderSide === 'sell'
-                    ? 'bg-rose-600 text-white shadow-xs'
-                    : 'text-slate-700 hover:text-slate-950'
+                    ? 'bg-white text-[#7b402a] border border-[#f4c6a8] shadow-2xs'
+                    : 'text-[#4f32a9] hover:text-[#222038]'
                 }`}
               >
-                <span>💰</span>
-                <span>Sell Shares</span>
+                Sell Shares
               </button>
             </div>
 
-            {/* Selected Symbol Info & Relatable Tag */}
-            <div className="p-3 rounded-lg bg-white border border-slate-200 text-xs space-y-1">
+            {/* Selected Stock Info */}
+            <div className="p-3 rounded-xl bg-white border border-[#e8e4f1] text-xs space-y-1">
               <div className="flex items-center justify-between">
-                <span className="font-bold text-slate-900">
+                <span className="font-extrabold text-[#222038]">
                   {selectedSymbol} • {SYMBOL_NAMES[selectedSymbol] || selectedSymbol}
                 </span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#eee6ff] text-[#4f32a9]">
                   Held: {currentHeldShares} shs
                 </span>
               </div>
-              <div className="flex items-center justify-between text-slate-500 text-[11px]">
+              <div className="flex items-center justify-between text-[#615d76] text-[11px]">
                 <span>Session Close Price:</span>
-                <span className="font-mono font-bold text-slate-900">${activeSessionPrice.toFixed(2)}</span>
+                <span className="font-mono font-bold text-[#222038]">${activeSessionPrice.toFixed(2)}</span>
               </div>
             </div>
 
-            {/* Quantity Input + Quick Chips */}
+            {/* Quantity Input + Chips */}
             <div className="space-y-1.5">
-              <label htmlFor="sim-trade-qty" className="block text-xs font-semibold text-slate-700">
+              <label htmlFor="sim-trade-qty" className="block text-xs font-bold text-[#222038]">
                 Shares to {orderSide === 'buy' ? 'Buy' : 'Sell'}:
               </label>
               <Input
@@ -1221,10 +1927,10 @@ export function SimulationView({
                   setTradeSuccessNotice(null);
                 }}
                 placeholder="10"
-                className="w-full"
+                className="w-full !rounded-xl !border-[#d9d0e9]"
               />
               <div className="flex items-center gap-1.5 pt-1 flex-wrap">
-                <span className="text-[10px] font-semibold text-slate-400">Quick:</span>
+                <span className="text-[10px] font-bold text-[#615d76]">Quick:</span>
                 {[1, 5, 10, 25, 50].map((preset) => (
                   <button
                     key={preset}
@@ -1233,7 +1939,7 @@ export function SimulationView({
                       setTradeQtyInput(preset.toString());
                       setTradeValidationError(null);
                     }}
-                    className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white border border-slate-200 hover:border-blue-400 text-slate-700 transition-colors cursor-pointer"
+                    className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-white border border-[#e8e4f1] hover:border-[#5637ca] hover:bg-[#f6f3ff] text-[#4f32a9] transition-colors cursor-pointer"
                   >
                     +{preset}
                   </button>
@@ -1246,7 +1952,7 @@ export function SimulationView({
                       setTradeQtyInput(maxShares.toString());
                       setTradeValidationError(null);
                     }}
-                    className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
+                    className="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-[#e3f3d9] text-[#285137] border border-[#b8dfa4] hover:bg-[#d4ecc5] transition-colors cursor-pointer"
                   >
                     Max Buy
                   </button>
@@ -1258,7 +1964,7 @@ export function SimulationView({
                       setTradeQtyInput(currentHeldShares.toString());
                       setTradeValidationError(null);
                     }}
-                    className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100 transition-colors cursor-pointer"
+                    className="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-[#ffe9da] text-[#7b402a] border border-[#f4c6a8] hover:bg-[#ffdcc4] transition-colors cursor-pointer"
                   >
                     Sell All ({currentHeldShares})
                   </button>
@@ -1267,36 +1973,35 @@ export function SimulationView({
             </div>
 
             {/* Estimated Total */}
-            <div className="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between text-xs">
-              <span className="text-slate-600 font-medium">Estimated Gross Total:</span>
-              <span className="font-mono font-extrabold text-sm text-slate-900">
+            <div className="p-3 rounded-xl bg-white border border-[#e8e4f1] flex items-center justify-between text-xs">
+              <span className="text-[#615d76] font-semibold">Estimated Gross Total:</span>
+              <span className="font-mono font-black text-sm text-[#222038]">
                 {formatUSD((parseInt(tradeQtyInput, 10) || 0) * activeSessionPrice)}
               </span>
             </div>
 
             {/* Error & Success Messages */}
             {tradeValidationError && (
-              <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
+              <div className="p-3 rounded-xl bg-[#ffe9da] border border-[#f4c6a8] text-xs font-semibold text-[#7b402a]">
                 {tradeValidationError}
               </div>
             )}
             {tradeSuccessNotice && (
-              <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800">
+              <div className="p-3 rounded-xl bg-[#e3f3d9] border border-[#b8dfa4] text-xs font-bold text-[#285137]">
                 {tradeSuccessNotice}
               </div>
             )}
 
-            {/* Submit Trade Button */}
+            {/* Submit Trade Button: Electric Lime for Buy, Sleek Quiet for Sell */}
             <button
               type="button"
               onClick={handleExecuteTrade}
-              className={`w-full py-3 rounded-xl font-black text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              className={
                 orderSide === 'buy'
-                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-500/20'
-                  : 'bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white shadow-rose-500/20'
-              }`}
+                  ? 'fw-button fw-button-lime w-full shadow-xs cursor-pointer'
+                  : 'fw-quiet w-full !border-[#cfc1fa] hover:!bg-[#ffe9da]/70 !text-[#7b402a] shadow-2xs cursor-pointer'
+              }
             >
-              <span>{orderSide === 'buy' ? '🚀' : '💰'}</span>
               <span>
                 {orderSide === 'buy' ? 'Buy' : 'Sell'}{' '}
                 {parseInt(tradeQtyInput, 10) || 1} {selectedSymbol} ({formatUSD((parseInt(tradeQtyInput, 10) || 1) * activeSessionPrice)})
@@ -1304,26 +2009,26 @@ export function SimulationView({
             </button>
           </div>
 
-          {/* Active Simulation Holdings & Recent Orders */}
+          {/* Holdings & Recent Orders (7 cols) */}
           <div className="lg:col-span-7 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <div className="flex items-center justify-between border-b border-[#e8e4f1] pb-2">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                <span className="fw-kicker">
                   Active Simulation Holdings
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[#eee6ff] text-[#4f32a9]">
                   {positions.length} Positions
                 </span>
               </div>
-              <span className="text-[11px] text-slate-400">
+              <span className="text-[11px] text-[#615d76]">
                 Priced at {activeSimulation.current_session} Close
               </span>
             </div>
 
             {positions.length > 0 ? (
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <div className="overflow-x-auto rounded-2xl border border-[#e8e4f1]">
                 <table className="w-full text-left text-xs" aria-label="Simulation Holdings Table">
-                  <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                  <thead className="bg-[#f6f3ff] text-[#4f32a9] font-extrabold border-b border-[#e8e4f1]">
                     <tr>
                       <th className="py-2.5 px-3">Asset</th>
                       <th className="py-2.5 px-3">Shares</th>
@@ -1333,7 +2038,7 @@ export function SimulationView({
                       <th className="py-2.5 px-3 text-right">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 font-mono">
+                  <tbody className="divide-y divide-[#e8e4f1] font-mono">
                     {positions.map((pos) => {
                       const costNum = parseFloat(pos.cost_basis);
                       const priceNum = parseFloat(pos.market_price);
@@ -1341,38 +2046,38 @@ export function SimulationView({
                       const pnlPct = costNum > 0 ? ((priceNum - costNum) / costNum) * 100 : 0;
 
                       return (
-                        <tr key={pos.symbol} className="hover:bg-slate-50 transition-colors">
-                          <td className="py-2 px-3">
+                        <tr key={pos.symbol} className="hover:bg-[#fbfaff] transition-colors">
+                          <td className="py-2.5 px-3">
                             <button
                               type="button"
                               onClick={() => setSelectedSymbol(pos.symbol)}
-                              className="font-bold text-blue-700 hover:underline text-left font-sans"
+                              className="font-extrabold text-[#5637ca] hover:underline text-left font-sans cursor-pointer"
                             >
                               {pos.symbol}
                             </button>
                           </td>
-                          <td className="py-2 px-3 font-bold text-slate-900">{pos.quantity}</td>
-                          <td className="py-2 px-3 text-slate-600">${costNum.toFixed(2)}</td>
-                          <td className="py-2 px-3 font-bold text-slate-900">${parseFloat(pos.market_value).toFixed(2)}</td>
-                          <td className="py-2 px-3">
+                          <td className="py-2.5 px-3 font-bold text-[#222038]">{pos.quantity}</td>
+                          <td className="py-2.5 px-3 text-[#615d76]">${costNum.toFixed(2)}</td>
+                          <td className="py-2.5 px-3 font-bold text-[#222038]">${parseFloat(pos.market_value).toFixed(2)}</td>
+                          <td className="py-2.5 px-3">
                             <LossGainBadge
                               dollarValue={pnlNum}
                               percentValue={pnlPct}
                               size="sm"
                             />
                           </td>
-                          <td className="py-2 px-3 text-right space-x-1 font-sans">
+                          <td className="py-2.5 px-3 text-right space-x-1 font-sans">
                             <button
                               type="button"
                               onClick={() => handleQuickSell(pos.symbol, 1)}
-                              className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 cursor-pointer"
+                              className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold bg-white text-[#7b402a] border border-[#f4c6a8] hover:bg-[#ffe9da] transition-colors cursor-pointer"
                             >
                               Sell 1
                             </button>
                             <button
                               type="button"
                               onClick={() => handleQuickSell(pos.symbol, pos.quantity)}
-                              className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-600 text-white hover:bg-rose-500 cursor-pointer"
+                              className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold bg-[#ffe9da] text-[#7b402a] border border-[#f4c6a8] hover:bg-[#ffdcc4] transition-colors cursor-pointer"
                             >
                               All
                             </button>
@@ -1384,225 +2089,49 @@ export function SimulationView({
                 </table>
               </div>
             ) : (
-              <div className="p-6 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 text-center space-y-2">
-                <span className="text-3xl block">💼</span>
-                <h4 className="text-sm font-bold text-slate-800">No stocks owned in this simulation yet</h4>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              <div className="p-6 rounded-2xl border border-dashed border-[#cfc1fa] bg-[#f8f7fc] text-center space-y-2">
+                <span className="fw-tile fw-lavender mx-auto" aria-hidden="true">💼</span>
+                <h4 className="text-sm font-black text-[#222038]">No stocks owned in this simulation yet</h4>
+                <p className="text-xs text-[#615d76] max-w-sm mx-auto">
                   Pick a stock on the left, enter how many shares you want, and click <strong>Buy Shares</strong> to start building your portfolio!
                 </p>
               </div>
             )}
 
-            {/* Quick Audit Log */}
+            {/* Recent Orders Audit Feed */}
             {transactions.length > 0 && (
               <div className="space-y-1.5 pt-2">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                <span className="fw-kicker text-[11px] block">
                   Recent Orders This Run ({transactions.length})
                 </span>
-                <div className="max-h-36 overflow-y-auto space-y-1 pr-1 font-mono text-[11px]">
+                <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1 font-mono text-[11px]">
                   {transactions.slice(0, 6).map((txn) => (
                     <div
                       key={txn.id}
-                      className="p-2 rounded-lg bg-slate-50 border border-slate-200/80 flex items-center justify-between"
+                      className="p-2.5 rounded-xl bg-[#fbfaff] border border-[#e8e4f1] flex items-center justify-between"
                     >
                       <div className="flex items-center gap-2">
                         <span
-                          className={`px-1.5 py-0.2 rounded font-sans text-[9px] font-bold uppercase ${
+                          className={`px-2 py-0.5 rounded-full font-sans text-[9px] font-extrabold uppercase ${
                             txn.side === 'buy'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-rose-100 text-rose-800'
+                              ? 'bg-[#e3f3d9] text-[#285137]'
+                              : 'bg-[#ffe9da] text-[#7b402a]'
                           }`}
                         >
                           {txn.side}
                         </span>
-                        <span className="font-bold text-slate-900">{txn.quantity} {txn.symbol}</span>
-                        <span className="text-slate-500">@ ${parseFloat(txn.price).toFixed(2)}</span>
+                        <span className="font-bold text-[#222038]">
+                          {txn.quantity} {txn.symbol}
+                        </span>
+                        <span className="text-[#615d76]">@ ${parseFloat(txn.price).toFixed(2)}</span>
                       </div>
-                      <span className="text-slate-400 font-sans text-[10px]">{txn.session_date}</span>
+                      <span className="text-[#615d76] font-sans text-[10px]">{txn.session_date}</span>
                     </div>
                   ))}
                 </div>
               </div>
             )}
           </div>
-        </div>
-      </section>
-
-      {/* Market Data View */}
-      <section data-testid="market-data-view" className="space-y-4">
-        {/* Symbol Picker Tabs */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs font-bold text-slate-700 mr-1.5">Universe:</span>
-            {activeDataset.symbols.map((sym) => {
-              const isSelected = selectedSymbol === sym;
-              return (
-                <button
-                  key={sym}
-                  type="button"
-                  data-testid={`symbol-picker-${sym}`}
-                  role="tab"
-                  aria-selected={isSelected}
-                  onClick={() => setSelectedSymbol(sym)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                    isSelected
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <span className="font-mono">{sym}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="text-xs text-slate-500 font-medium">
-            Viewing Symbol: <span className="font-bold text-slate-800">{selectedSymbol}</span>
-          </div>
-        </div>
-
-        {/* Latest Visible Closing Price Quick Glance */}
-        {latestVisibleBar && (
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-              <span className="text-[10px] font-semibold text-slate-500 uppercase block">Latest Close</span>
-              <span className="text-lg font-bold font-mono text-slate-900" data-testid="latest-close-price">
-                ${parseFloat(latestVisibleBar.close).toFixed(2)}
-              </span>
-            </div>
-            <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-              <span className="text-[10px] font-semibold text-slate-500 uppercase block">Open</span>
-              <span className="text-sm font-semibold font-mono text-slate-800">
-                ${parseFloat(latestVisibleBar.open).toFixed(2)}
-              </span>
-            </div>
-            <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-              <span className="text-[10px] font-semibold text-slate-500 uppercase block">High</span>
-              <span className="text-sm font-semibold font-mono text-slate-800">
-                ${parseFloat(latestVisibleBar.high).toFixed(2)}
-              </span>
-            </div>
-            <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-              <span className="text-[10px] font-semibold text-slate-500 uppercase block">Low</span>
-              <span className="text-sm font-semibold font-mono text-slate-800">
-                ${parseFloat(latestVisibleBar.low).toFixed(2)}
-              </span>
-            </div>
-            <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm col-span-2 sm:col-span-1">
-              <span className="text-[10px] font-semibold text-slate-500 uppercase block">Volume</span>
-              <span className="text-sm font-semibold font-mono text-slate-800">
-                {formatVolume(latestVisibleBar.volume)}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Market Data Table (Sessions strictly up to current cursor) */}
-        <Card
-          title={`${selectedSymbol} Market Data Records`}
-          subtitle={`Sessions up to current cursor (${activeSimulation.current_session})`}
-        >
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs" aria-label="Market Data Table">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold">
-                  <th className="py-2.5 px-3">Session Date</th>
-                  <th className="py-2.5 px-3">Available At (UTC)</th>
-                  <th className="py-2.5 px-3">Open</th>
-                  <th className="py-2.5 px-3">High</th>
-                  <th className="py-2.5 px-3">Low</th>
-                  <th className="py-2.5 px-3">Close</th>
-                  <th className="py-2.5 px-3">Session Return</th>
-                  <th className="py-2.5 px-3 text-right">Volume</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-mono">
-                {visibleMarketData.map((bar) => {
-                  const openNum = parseFloat(bar.open);
-                  const closeNum = parseFloat(bar.close);
-                  const diff = closeNum - openNum;
-                  const pct = openNum > 0 ? (diff / openNum) * 100 : 0;
-                  const isPositive = diff >= 0;
-
-                  return (
-                    <tr
-                      key={bar.session_date}
-                      data-testid={`market-data-row-${bar.session_date}`}
-                      className="hover:bg-slate-50 transition-colors"
-                    >
-                      <td className="py-2 px-3 font-semibold text-slate-900">
-                        {bar.session_date}
-                        {bar.session_date === activeSimulation.current_session && (
-                          <span className="ml-2 text-[10px] font-sans font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">
-                            CURRENT
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2 px-3 text-slate-500">{bar.available_at}</td>
-                      <td className="py-2 px-3 text-slate-700">${openNum.toFixed(2)}</td>
-                      <td className="py-2 px-3 text-slate-700">${parseFloat(bar.high).toFixed(2)}</td>
-                      <td className="py-2 px-3 text-slate-700">${parseFloat(bar.low).toFixed(2)}</td>
-                      <td className="py-2 px-3 font-bold text-slate-900">${closeNum.toFixed(2)}</td>
-                      <td className={`py-2 px-3 font-semibold ${isPositive ? 'text-emerald-700' : 'text-red-700'}`}>
-                        {isPositive ? '+' : ''}
-                        {diff.toFixed(2)} ({pct.toFixed(2)}%)
-                      </td>
-                      <td className="py-2 px-3 text-right text-slate-700">{formatVolume(bar.volume)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-
-        {/* Future Sessions Locked Notification & Placeholders */}
-        <div
-          data-testid="future-data-locked-banner"
-          className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3"
-        >
-          <div className="flex items-center gap-2">
-            <span className="text-base" role="img" aria-label="Locked">
-              🔒
-            </span>
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              Future Market Prices Locked
-            </h4>
-          </div>
-
-          <p className="text-xs text-slate-600 leading-relaxed">
-            Future prices are locked until the session is advanced. Market data beyond{' '}
-            <strong className="text-slate-900">{activeSimulation.current_session}</strong> is strictly
-            withheld from the interface to prevent lookahead bias and preserve realistic curriculum pacing.
-          </p>
-
-          {lockedSessionDates.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-1">
-              {lockedSessionDates.map((date) => (
-                <div
-                  key={date}
-                  data-testid={`locked-session-${date}`}
-                  className="flex items-center justify-between p-2 rounded border border-dashed border-slate-300 bg-white text-slate-400 text-xs"
-                >
-                  <span className="font-mono font-medium">Session {date}</span>
-                  <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-500">
-                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                      <path
-                        fillRule="evenodd"
-                        d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                    Locked
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 p-2 rounded">
-              All calendar sessions in this historical dataset have been unlocked.
-            </div>
-          )}
         </div>
       </section>
     </div>

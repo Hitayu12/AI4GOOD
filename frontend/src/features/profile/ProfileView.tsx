@@ -128,7 +128,7 @@ export function ProfileView({ profile, aura, progress, email, onSave, onAccount,
           <section className="fw-panel fw-profile-panel">
             <h2>Account</h2>
             <p className="fw-meta">{email ? `Signed in as ${email}` : 'You can play and save local progress without an account.'}</p>
-            {email && <p className="fw-meta">Sign in again after a refresh to reopen your account’s practice record in this browser.</p>}
+            {email && <p className="fw-meta">Your account session is saved on this device. Sign out anytime to clear your saved session.</p>}
             <div className="fw-player-actions"><button className="fw-quiet" type="button" onClick={onAccount}>{email ? 'Sign out' : 'Sign in'}</button></div>
           </section>
         </div>

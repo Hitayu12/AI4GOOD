@@ -51,4 +51,99 @@ describe('DailyDropModal Component', () => {
     expect(screen.getByTestId('lucky-card-0')).toBeDisabled();
     expect(screen.getByText(/Already claimed today!/i)).toBeInTheDocument();
   });
+
+  it('correctly handles all roll probability tiers (Legendary, Epic, Rare, Common)', () => {
+    // 1. Legendary roll: 0.01 -> 1% (< 3%)
+    vi.spyOn(Math, 'random').mockReturnValue(0.01);
+    const state = loadAuraState();
+    let updatedState: ReturnType<typeof loadAuraState> | undefined;
+
+    const { unmount } = render(
+      <DailyDropModal
+        isOpen={true}
+        onClose={vi.fn()}
+        auraState={state}
+        onAuraStateChange={(s) => {
+          updatedState = s;
+        }}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('lucky-card-0'));
+    expect(updatedState?.points).toBe(state.points + 2500);
+    expect(updatedState?.multiplier).toBe(2.0);
+    unmount();
+
+    // 2. Epic roll: 0.08 -> 8% (< 15%)
+    vi.spyOn(Math, 'random').mockReturnValue(0.08);
+    const { unmount: unmountEpic } = render(
+      <DailyDropModal
+        isOpen={true}
+        onClose={vi.fn()}
+        auraState={state}
+        onAuraStateChange={(s) => {
+          updatedState = s;
+        }}
+      />
+    );
+    fireEvent.click(screen.getByTestId('lucky-card-1'));
+    expect(updatedState?.points).toBe(state.points + 1000);
+    unmountEpic();
+
+    // 3. Rare roll: 0.25 -> 25% (< 40%)
+    vi.spyOn(Math, 'random').mockReturnValue(0.25);
+    const { unmount: unmountRare } = render(
+      <DailyDropModal
+        isOpen={true}
+        onClose={vi.fn()}
+        auraState={state}
+        onAuraStateChange={(s) => {
+          updatedState = s;
+        }}
+      />
+    );
+    fireEvent.click(screen.getByTestId('lucky-card-2'));
+    expect(updatedState?.points).toBe(state.points + 500);
+    expect(updatedState?.multiplier).toBe(1.75);
+    unmountRare();
+
+    // 4. Common roll: 0.75 -> 75% (>= 40%)
+    vi.spyOn(Math, 'random').mockReturnValue(0.75);
+    const { unmount: unmountCommon } = render(
+      <DailyDropModal
+        isOpen={true}
+        onClose={vi.fn()}
+        auraState={state}
+        onAuraStateChange={(s) => {
+          updatedState = s;
+        }}
+      />
+    );
+    fireEvent.click(screen.getByTestId('lucky-card-0'));
+    expect(updatedState?.points).toBe(state.points + 250);
+    unmountCommon();
+  });
+
+  it('prevents multiple picks on rapid clicks', () => {
+    const state = loadAuraState();
+    const handleChange = vi.fn();
+    render(
+      <DailyDropModal
+        isOpen={true}
+        onClose={vi.fn()}
+        auraState={state}
+        onAuraStateChange={handleChange}
+      />
+    );
+
+    const card0 = screen.getByTestId('lucky-card-0');
+    const card1 = screen.getByTestId('lucky-card-1');
+
+    fireEvent.click(card0);
+    fireEvent.click(card1);
+    fireEvent.click(card0);
+
+    // Only one pick should have been registered
+    expect(handleChange).toHaveBeenCalledTimes(1);
+  });
 });

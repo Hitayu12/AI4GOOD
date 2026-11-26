@@ -35,4 +35,31 @@ describe('SoundFxService', () => {
       soundFx.playFailureBuzzer();
     }).not.toThrow();
   });
+
+  it('strictly respects mute state and never creates audio nodes when muted', () => {
+    soundFx.setMuted(true);
+    expect(soundFx.isMuted()).toBe(true);
+
+    const mockCreateOscillator = vi.fn();
+    const mockAudioContext = vi.fn().mockImplementation(() => ({
+      createOscillator: mockCreateOscillator,
+      createGain: vi.fn(),
+      currentTime: 0,
+      destination: {},
+    }));
+    const originalAudioContext = (window as unknown as { AudioContext?: unknown }).AudioContext;
+    (window as unknown as { AudioContext?: unknown }).AudioContext = mockAudioContext;
+
+    soundFx.playCoinPing();
+    soundFx.playLevelUpChime();
+    soundFx.playSuccessChord();
+    soundFx.playTactileClick();
+    soundFx.playMysteryCardFlip();
+    soundFx.playFailureBuzzer();
+
+    expect(mockAudioContext).not.toHaveBeenCalled();
+    expect(mockCreateOscillator).not.toHaveBeenCalled();
+
+    (window as unknown as { AudioContext?: unknown }).AudioContext = originalAudioContext;
+  });
 });

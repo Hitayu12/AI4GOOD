@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useModalFocus } from '../common/useModalFocus';
 import type { ApiClient } from '../../api/client';
 import type { SchoolAffiliation, User } from '../../api/types';
 import { SignInPage } from './SignInPage';
@@ -16,14 +16,7 @@ export function SignInModal({
   apiClient,
   onAuthenticated,
 }: SignInModalProps) {
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  const dialogRef = useModalFocus(isOpen, onClose);
 
   if (!isOpen) return null;
 
@@ -36,6 +29,8 @@ export function SignInModal({
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-3xl bg-[#f8f7fc] shadow-2xl border border-purple-300/40 p-4 sm:p-6 text-[#222038]"
         onClick={(e) => e.stopPropagation()}
       >

@@ -332,4 +332,53 @@ describe('PortfolioView Component — Portfolio & Performance View', () => {
     fireEvent.mouseLeave(point);
     expect(screen.queryByTestId('equity-tooltip')).toBeNull();
   });
+
+  // Test 9: Total equity curve point matches realized and unrealized PnL
+  it('9. verifies equity curve matches realized and unrealized PnL identity: Equity = Cash + Position MV', () => {
+    // Initial cash 1,000, buy 2 AAPL @ 100 open, close 110:
+    // Cash = 800.00, Position MV = 220.00, Total Equity = 1020.00
+    // Realized PnL = 0.00, Unrealized PnL = +20.00
+    const positions: Position[] = [
+      {
+        symbol: 'AAPL',
+        quantity: 2,
+        cost_basis: '100.000000',
+        market_price: '110.000000',
+        market_value: '220.00',
+        unrealized_pnl: '20.00',
+      },
+    ];
+
+    const curve = [
+      { session_date: '2024-01-02', total_equity: '1000.00' },
+      { session_date: '2024-01-03', total_equity: '1020.00' },
+    ];
+
+    render(
+      <PortfolioView
+        initialCash={1000}
+        cash="800.00"
+        positions={positions}
+        currentSession="2024-01-03"
+        equityCurve={curve}
+        realizedPnl="0.00"
+        unrealizedPnl="20.00"
+      />
+    );
+
+    // Total Equity must be $1,020.00
+    expect(screen.getByTestId('metric-total-equity')).toHaveTextContent('$1,020.00');
+
+    // Realized PnL must be $0.00
+    expect(screen.getByTestId('metric-realized-pnl')).toHaveTextContent('$0.00');
+
+    // Unrealized PnL must be +$20.00
+    expect(screen.getByTestId('metric-unrealized-pnl')).toHaveTextContent('+$20.00');
+
+    // Return percentage should be +2.00%
+    expect(screen.getByTestId('metric-total-return')).toHaveTextContent('+2.00%');
+
+    // Equity curve point for current session should match $1,020.00
+    expect(screen.getByTestId('equity-point-2024-01-03')).toBeInTheDocument();
+  });
 });

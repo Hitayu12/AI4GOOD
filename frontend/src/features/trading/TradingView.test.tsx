@@ -299,4 +299,60 @@ describe('TradingView Component — Paper Trading Interface', () => {
     expect(txTable).toHaveTextContent('$725.84'); // Gross amount
     expect(txTable).toHaveTextContent('2024-01-03');
   });
+
+  // Test 8: Cancels pending order properly before execution
+  it('8. cancels pending order properly before execution and re-enables order entry', async () => {
+    render(<TradingView initialCash={10_000} />);
+
+    // Submit an order
+    const qtyInput = screen.getByTestId('quantity-input');
+    fireEvent.change(qtyInput, { target: { value: '5' } });
+    fireEvent.click(screen.getByTestId('submit-order-btn'));
+
+    // Pending order card is displayed
+    expect(await screen.findByTestId('pending-order-card')).toBeInTheDocument();
+    expect(screen.getByTestId('submit-order-btn')).toBeDisabled();
+
+    // Click "Cancel practice order"
+    const cancelBtn = screen.getByRole('button', { name: /cancel practice order/i });
+    expect(cancelBtn).toBeInTheDocument();
+    fireEvent.click(cancelBtn);
+
+    // Pending card should be gone and order entry re-enabled
+    expect(screen.queryByTestId('pending-order-card')).not.toBeInTheDocument();
+    expect(screen.getByTestId('submit-order-btn')).not.toBeDisabled();
+    expect(screen.getByText(/practice order cancelled/i)).toBeInTheDocument();
+  });
+
+  // Test 9: Rejects fractional share inputs
+  it('9. rejects fractional share inputs with validation message', () => {
+    render(<TradingView initialCash={10_000} />);
+
+    const qtyInput = screen.getByTestId('quantity-input');
+    fireEvent.change(qtyInput, { target: { value: '2.5' } });
+
+    const errorEl = screen.getByTestId('order-validation-error');
+    expect(errorEl).toBeInTheDocument();
+    expect(errorEl).toHaveTextContent(/no fractional shares/i);
+    expect(screen.getByTestId('submit-order-btn')).toBeDisabled();
+  });
+
+  // Test 10: Extends and advances past 5 days smoothly
+  it('10. extends and advances past 5 days smoothly', async () => {
+    render(<TradingView initialCash={10_000} />);
+
+    // Advance 4 times to reach 2024-01-08 (day 5)
+    for (let i = 0; i < 4; i++) {
+      fireEvent.click(screen.getByTestId('advance-session-btn'));
+    }
+    expect(screen.getByTestId('cursor-current-session')).toHaveTextContent('2024-01-08');
+
+    // Click Add 30 practice sessions
+    const extendBtn = screen.getByTestId('extend-trading-sim-btn');
+    fireEvent.click(extendBtn);
+
+    // Now advance past day 5 into day 6 (2024-01-09)
+    fireEvent.click(screen.getByTestId('advance-session-btn'));
+    expect(screen.getByTestId('cursor-current-session')).toHaveTextContent('2024-01-09');
+  });
 });

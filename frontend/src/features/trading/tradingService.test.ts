@@ -798,4 +798,136 @@ describe('TradingService Paper Trading Engine & Accounting', () => {
       expect(port.realized_pnl).toBe('150.00');
     });
   });
+
+  describe('15. Continuous simulation past 5 days and order cancellation', () => {
+    it('cancels pending order properly before execution and allows new order', async () => {
+      const sim = await service.createSimulation({
+        dataset_id: FIXTURE_DATASET_ID,
+        start_session: '2024-01-02',
+        end_session: '2024-01-08',
+        initial_cash: 1000000,
+      });
+
+      const order = await service.createOrder(sim.id, {
+        symbol: 'AAPL',
+        side: 'buy',
+        quantity: 5,
+        expected_version: 1,
+      });
+
+      let orders = await service.getOrders(sim.id);
+      expect(orders).toHaveLength(1);
+      expect(orders[0].status).toBe('pending');
+
+      const cancelled = service.cancelOrder(sim.id, order.id);
+      expect(cancelled).toBe(true);
+
+      orders = await service.getOrders(sim.id);
+      expect(orders).toHaveLength(0);
+
+      // Now a new order can be placed without 409 pending_order_exists
+      const newOrder = await service.createOrder(sim.id, {
+        symbol: 'MSFT',
+        side: 'buy',
+        quantity: 2,
+        expected_version: 2,
+      });
+      expect(newOrder.order.symbol).toBe('MSFT');
+    });
+
+    it('continues simulation past 5 days smoothly when extended', async () => {
+      const sim = await service.createSimulation({
+        dataset_id: FIXTURE_DATASET_ID,
+        start_session: '2024-01-02',
+        end_session: '2024-01-08',
+        initial_cash: 10000000,
+      });
+
+      // Advance through 5 historical days: 2024-01-02 to 2024-01-08
+      let adv = await service.advanceWithTrading(sim.id, 1);
+      expect(adv.simulation.current_session).toBe('2024-01-03');
+      adv = await service.advanceWithTrading(sim.id, 2);
+      expect(adv.simulation.current_session).toBe('2024-01-04');
+      adv = await service.advanceWithTrading(sim.id, 3);
+      expect(adv.simulation.current_session).toBe('2024-01-05');
+      adv = await service.advanceWithTrading(sim.id, 4);
+      expect(adv.simulation.current_session).toBe('2024-01-08');
+      expect(adv.simulation.status).toBe('completed');
+
+      // Extend simulation by 30 days
+      const extended = await service.extendSimulation(sim.id, 30);
+      expect(extended.status).toBe('active');
+      expect(extended.end_session > '2024-01-08').toBe(true);
+
+      // Advance past day 5 into day 6 (2024-01-09)
+      const adv6 = await service.advanceWithTrading(sim.id, 5);
+      expect(adv6.simulation.current_session).toBe('2024-01-09');
+      expect(adv6.simulation.status).toBe('active');
+
+      // Can place and fill an order on extended days
+      const ord = await service.createOrder(sim.id, {
+        symbol: 'AAPL',
+        side: 'buy',
+        quantity: 10,
+        expected_version: 6,
+      });
+      expect(ord.order.status).toBe('pending');
+
+      const adv7 = await service.advanceWithTrading(sim.id, 7);
+      expect(adv7.simulation.current_session).toBe('2024-01-10');
+      expect(adv7.order_results).toHaveLength(1);
+      expect(adv7.order_results[0].status).toBe('filled');
+      expect(adv7.order_results[0].execution_price).toBeDefined();
+
+      const port = await service.getPortfolio(sim.id);
+      expect(port.positions).toHaveLength(1);
+      expect(port.positions[0].symbol).toBe('AAPL');
+      expect(port.positions[0].quantity).toBe(10);
+      expect(Number(port.positions[0].market_price)).toBeGreaterThan(0);
+    });
+
+    it('executes repeated buys and sells without NaN or negative cash', async () => {
+      const sim = await service.createSimulation({
+        dataset_id: FIXTURE_DATASET_ID,
+        start_session: '2024-01-02',
+        end_session: '2024-01-08',
+        initial_cash: 500000, // $5,000.00
+      });
+
+      // Buy 5 AAPL
+      await service.createOrder(sim.id, {
+        symbol: 'AAPL',
+        side: 'buy',
+        quantity: 5,
+        expected_version: 1,
+      });
+      await service.advanceWithTrading(sim.id, 2);
+
+      // Buy 5 more AAPL
+      await service.createOrder(sim.id, {
+        symbol: 'AAPL',
+        side: 'buy',
+        quantity: 5,
+        expected_version: 3,
+      });
+      await service.advanceWithTrading(sim.id, 4);
+
+      // Sell 3 AAPL
+      await service.createOrder(sim.id, {
+        symbol: 'AAPL',
+        side: 'sell',
+        quantity: 3,
+        expected_version: 5,
+      });
+      await service.advanceWithTrading(sim.id, 6);
+
+      const port = await service.getPortfolio(sim.id);
+      expect(isNaN(Number(port.cash))).toBe(false);
+      expect(Number(port.cash)).toBeGreaterThan(0);
+      expect(port.positions[0].quantity).toBe(7);
+      expect(isNaN(Number(port.positions[0].cost_basis))).toBe(false);
+      expect(isNaN(Number(port.positions[0].market_value))).toBe(false);
+      expect(isNaN(Number(port.total_equity))).toBe(false);
+    });
+  });
 });

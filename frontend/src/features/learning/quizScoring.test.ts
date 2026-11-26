@@ -130,6 +130,48 @@ describe('quizScoring - evaluateQuizAttempt', () => {
     expect(result.passed).toBe(false);
   });
 
+  it('fails with 0% score when 0/5 answers are correct', () => {
+    const attempt: QuizAttemptRequest = {
+      quiz_version: 1,
+      answers: [
+        { question_id: 'q1', option_id: 'opt_1b' },
+        { question_id: 'q2', option_id: 'opt_2b' },
+        { question_id: 'q3', option_id: 'opt_3b' },
+        { question_id: 'q4', option_id: 'opt_4b' },
+        { question_id: 'q5', option_id: 'opt_5b' },
+      ],
+    };
+
+    const result = evaluateQuizAttempt(sampleQuiz, attempt, sampleServerKey);
+    expect(result.correct).toBe(0);
+    expect(result.total).toBe(5);
+    expect(result.score_pct).toBe('0.00');
+    expect(result.passed).toBe(false);
+  });
+
+  it('handles empty questions quiz gracefully with 0.00% and not passed', () => {
+    const emptyQuiz: Quiz = {
+      id: 'empty-quiz',
+      version: 1,
+      lesson_id: 'sample-lesson',
+      questions: [],
+    };
+    const emptyServerKey: ServerQuizKey = {
+      answerKey: {},
+      explanations: {},
+    };
+    const attempt: QuizAttemptRequest = {
+      quiz_version: 1,
+      answers: [],
+    };
+
+    const result = evaluateQuizAttempt(emptyQuiz, attempt, emptyServerKey);
+    expect(result.correct).toBe(0);
+    expect(result.total).toBe(0);
+    expect(result.score_pct).toBe('0.00');
+    expect(result.passed).toBe(false);
+  });
+
   it('rejects attempt when quiz version does not match', () => {
     const attempt: QuizAttemptRequest = {
       quiz_version: 2,

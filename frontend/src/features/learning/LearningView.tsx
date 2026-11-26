@@ -17,6 +17,8 @@ import {
 import { questTracker } from '../gamification/questTrackerService';
 import { isRecord, readPractice, useStoredPractice } from '../practiceStorage';
 import { calculateGrowth } from '../calculators/calculatorMath';
+import { Tuck } from '../home/Tuck';
+import '../home/campaign.css';
 
 export interface LearningViewProps {
   apiClient?: ApiClient;
@@ -36,27 +38,93 @@ interface Scenario {
   tag: string;
 }
 
+function normalizeTopicId(topicId: string): string {
+  if (topicId === 'stocks-basics') return 'stock-basics';
+  if (topicId === 'options-basics') return 'options-intro';
+  return topicId;
+}
+
+const TOPIC_VISUALS: Record<string, { icon: string; tone: 'fw-lavender' | 'fw-mint' | 'fw-peach' }> = {
+  'cd-basics': { icon: '◈', tone: 'fw-lavender' },
+  'hysa-basics': { icon: '✧', tone: 'fw-mint' },
+  'stock-basics': { icon: '↗', tone: 'fw-peach' },
+  'stocks-basics': { icon: '↗', tone: 'fw-peach' },
+  'etf-basics': { icon: '◫', tone: 'fw-lavender' },
+  'options-intro': { icon: '◷', tone: 'fw-peach' },
+  'options-basics': { icon: '◷', tone: 'fw-peach' },
+};
+
+const TUCK_TAKEAWAYS: Record<string, string> = {
+  'cd-basics':
+    "Tuck's Takeaway: Lock in the 5% APY for planned tuition, but always keep your emergency cash liquid!",
+  'hysa-basics':
+    "Tuck's Takeaway: Old banks pay 0.01% pennies. High-yield accounts pay 4.5%+ dollars, liquid anytime.",
+  'stock-basics':
+    "Tuck's Takeaway: You're an equity owner now. Ignore daily noise; focus on corporate earnings and 5+ year horizons.",
+  'stocks-basics':
+    "Tuck's Takeaway: You're an equity owner now. Ignore daily noise; focus on corporate earnings and 5+ year horizons.",
+  'etf-basics':
+    "Tuck's Takeaway: Don't look for the needle in the haystack. Own the whole haystack with index ETFs.",
+  'options-intro':
+    "Tuck's Takeaway: Leverage cuts both ways. Time decay is real—learn defined risk before trading.",
+  'options-basics':
+    "Tuck's Takeaway: Leverage cuts both ways. Time decay is real—learn defined risk before trading.",
+};
+
+const STOCK_SCENARIOS: Scenario[] = [
+  {
+    name: 'Carlos S.',
+    role: 'First-Generation Investor',
+    situation: 'Purchased 2 shares of an enterprise software company for $150.',
+    takeaway:
+      'Understands he is an equity co-owner. Price fluctuates day-to-day, but he participates in long-term corporate earnings and dividends.',
+    tag: 'Equity Ownership',
+  },
+  {
+    name: 'Amina T.',
+    role: 'Market Volatility Awareness',
+    situation: 'Experienced a 10% temporary dip during market earnings season.',
+    takeaway:
+      'Learned why stocks are suited for multi-year horizons rather than money needed next semester.',
+    tag: 'Market Risk',
+  },
+];
+
+const OPTIONS_SCENARIOS: Scenario[] = [
+  {
+    name: 'Kai P.',
+    role: 'Educational Hedger',
+    situation: 'Simulates buying a Put option contract to learn portfolio hedging during volatility.',
+    takeaway:
+      'Options have fixed expiration dates. Leverage means 100% loss of paid premium is common; never risk essential cash.',
+    tag: 'Educational Safety',
+  },
+];
+
 const TOPIC_SCENARIOS: Record<string, Scenario[]> = {
   'cd-basics': [
     {
       name: 'Elena R.',
       role: 'Tuition Deadline Saver',
       situation: 'Has $3,000 saved for college tuition due in exactly 12 months.',
-      takeaway: 'She chooses a 1-year CD at 5.0% APY. Her return is locked at $150 guaranteed with 0% market risk.',
+      takeaway:
+        'She chooses a 1-year CD at 5.0% APY. Her return is locked at $150 guaranteed with 0% market risk.',
       tag: 'Targeted Goal',
     },
     {
       name: 'Jamal M.',
       role: 'Emergency Cash Lesson',
       situation: 'Locked all his $800 savings into a 2-year CD. Two months later his laptop motherboard died.',
-      takeaway: 'Breaking the CD early triggered a 90-day early withdrawal penalty. Lesson: Keep emergency funds liquid!',
+      takeaway:
+        'Breaking the CD early triggered a 90-day early withdrawal penalty. Lesson: Keep emergency funds liquid!',
       tag: 'Liquidity Caution',
     },
     {
       name: 'Marcus & Sophia',
       role: 'CD Ladder Strategists',
       situation: 'Split $8,000 into 4 separate CDs maturing every 6 months (6, 12, 18, 24 mo).',
-      takeaway: 'Gets higher locked yields while ensuring fresh cash becomes accessible every 6 months.',
+      takeaway:
+        'Gets higher locked yields while ensuring fresh cash becomes accessible every 6 months.',
       tag: 'CD Ladder',
     },
   ],
@@ -65,58 +133,42 @@ const TOPIC_SCENARIOS: Record<string, Scenario[]> = {
       name: 'Maya K.',
       role: 'Working Student',
       situation: 'Keeps a $1,200 emergency fund in a digital bank paying 4.5% APY.',
-      takeaway: 'Earns $54/year in interest instead of $0.12 at her old brick-and-mortar bank, and can withdraw anytime via ACH.',
+      takeaway:
+        'Earns $54/year in interest instead of $0.12 at her old brick-and-mortar bank, and can withdraw anytime via ACH.',
       tag: 'Emergency Cushion',
     },
     {
       name: 'David L.',
       role: 'Rate-Watch Saver',
-      situation: 'Noticed his HYSA yield moved from 4.75% to 4.25% after the Federal Reserve cut benchmark interest rates.',
-      takeaway: 'Recognized that unlike fixed CDs, HYSA yields are variable and float with macroeconomic conditions.',
+      situation:
+        'Noticed his HYSA yield moved from 4.75% to 4.25% after the Federal Reserve cut benchmark interest rates.',
+      takeaway:
+        'Recognized that unlike fixed CDs, HYSA yields are variable and float with macroeconomic conditions.',
       tag: 'Variable Yield',
     },
   ],
-  'stocks-basics': [
-    {
-      name: 'Carlos S.',
-      role: 'First-Generation Investor',
-      situation: 'Purchased 2 shares of an enterprise software company for $150.',
-      takeaway: 'Understands he is an equity co-owner. Price fluctuates day-to-day, but he participates in long-term corporate earnings and dividends.',
-      tag: 'Equity Ownership',
-    },
-    {
-      name: 'Amina T.',
-      role: 'Market Volatility Awareness',
-      situation: 'Experienced a 10% temporary dip during market earnings season.',
-      takeaway: 'Learned why stocks are suited for multi-year horizons rather than money needed next semester.',
-      tag: 'Market Risk',
-    },
-  ],
+  'stock-basics': STOCK_SCENARIOS,
+  'stocks-basics': STOCK_SCENARIOS,
   'etf-basics': [
     {
       name: 'Jordan W.',
       role: 'Index Fund Saver',
       situation: 'Invests $100/month into an S&P 500 index ETF (SPY/VOO) with a 0.03% expense ratio.',
-      takeaway: 'Owns 500 top companies with one trade. The annual fee is only 30 cents per $1,000 invested.',
+      takeaway:
+        'Owns 500 top companies with one trade. The annual fee is only 30 cents per $1,000 invested.',
       tag: 'Instant Diversification',
     },
     {
       name: 'Chloe P.',
       role: 'Single Stock vs ETF Test',
       situation: 'Compared owning 1 retail stock vs a broad-market ETF when that retail chain slumped.',
-      takeaway: 'Broad diversification cushioned the impact; the index stayed resilient even as one company dropped.',
+      takeaway:
+        'Broad diversification cushioned the impact; the index stayed resilient even as one company dropped.',
       tag: 'Risk Reduction',
     },
   ],
-  'options-basics': [
-    {
-      name: 'Kai P.',
-      role: 'Educational Hedger',
-      situation: 'Simulates buying a Put option contract to learn portfolio hedging during volatility.',
-      takeaway: 'Options have fixed expiration dates. Leverage means 100% loss of paid premium is common; never risk essential cash.',
-      tag: 'Educational Safety',
-    },
-  ],
+  'options-intro': OPTIONS_SCENARIOS,
+  'options-basics': OPTIONS_SCENARIOS,
 };
 
 const QUIZ_HINTS: Record<string, string> = {
@@ -142,13 +194,45 @@ const QUIZ_HINTS: Record<string, string> = {
   'q-opt-4': 'Hint: The cash price paid upfront to purchase an option contract is known as the option premium.',
 };
 
+const TOPIC_QUIZ_HINTS: Record<string, Record<string, string>> = {
+  'quiz-cd-basics': {
+    q1: QUIZ_HINTS.q1,
+    q2: QUIZ_HINTS.q2,
+    q3: QUIZ_HINTS.q3,
+    q4: QUIZ_HINTS.q4,
+  },
+  'quiz-hysa-basics': {
+    q1: QUIZ_HINTS['q-hysa-2'],
+    q2: QUIZ_HINTS['q-hysa-3'],
+    q3: QUIZ_HINTS['q-hysa-4'],
+    q4: 'Hint: When inflation outpaces your APY, your real purchasing power declines even though your balance grows nominally.',
+  },
+  'quiz-stock-basics': {
+    q1: QUIZ_HINTS['q-stock-1'],
+    q2: 'Hint: FDIC insures bank deposits; SIPC protects brokerage custody up to $500k, never market price losses.',
+    q3: QUIZ_HINTS['q-stock-4'],
+    q4: 'Hint: Putting all your money in one company exposes you to company-specific (idiosyncratic) risk.',
+  },
+  'quiz-etf-basics': {
+    q1: QUIZ_HINTS['q-etf-1'],
+    q2: QUIZ_HINTS['q-etf-4'],
+    q3: QUIZ_HINTS['q-etf-3'],
+    q4: QUIZ_HINTS['q-etf-2'],
+  },
+  'quiz-options-intro': {
+    q1: QUIZ_HINTS['q-opt-1'],
+    q2: QUIZ_HINTS['q-opt-4'],
+    q3: QUIZ_HINTS['q-opt-2'],
+    q4: QUIZ_HINTS['q-opt-3'],
+  },
+};
+
 function renderFormattedInlineText(text: string) {
-  // Parse **bold** into real strong elements
   const parts = text.split(/(\*\*[^*]+\*\*)/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
       return (
-        <strong key={i} className="font-bold text-slate-900">
+        <strong key={i} className="font-bold text-[#222038]">
           {part.slice(2, -2)}
         </strong>
       );
@@ -195,16 +279,16 @@ function renderSectionLines(lines: string[]) {
     if (!currentList) return;
     if (currentList.type === 'ordered') {
       elements.push(
-        <div key={elements.length} className="space-y-2.5 my-3">
+        <div key={elements.length} className="space-y-2 my-3">
           {currentList.items.map((item, idx) => (
             <div
               key={idx}
-              className="flex items-start gap-3 bg-white/95 p-3 rounded-xl border border-slate-200/90 shadow-2xs hover:border-blue-300 transition-colors"
+              className="flex items-start gap-3 p-3.5 rounded-[15px] bg-[#fbfaff] border border-[#e8e4f1]"
             >
-              <span className="w-6 h-6 rounded-lg bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+              <span className="w-6 h-6 rounded-[8px] bg-[#eee6ff] text-[#4f32a9] font-extrabold text-xs flex items-center justify-center shrink-0 mt-0.5">
                 {idx + 1}
               </span>
-              <div className="text-xs sm:text-sm leading-relaxed text-slate-700 flex-1">
+              <div className="text-xs sm:text-sm leading-relaxed text-[#383354] flex-1">
                 {renderFormattedInlineText(item)}
               </div>
             </div>
@@ -217,12 +301,10 @@ function renderSectionLines(lines: string[]) {
           {currentList.items.map((item, idx) => (
             <div
               key={idx}
-              className="flex items-start gap-2.5 bg-white/95 p-3 rounded-xl border border-slate-200/90 shadow-2xs hover:border-emerald-300 transition-colors"
+              className="flex items-start gap-2.5 p-3 rounded-[15px] bg-[#fbfaff] border border-[#e8e4f1]"
             >
-              <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
-                ✓
-              </span>
-              <div className="text-xs sm:text-sm leading-relaxed text-slate-700 flex-1">
+              <span className="w-2 h-2 rounded-full bg-[#5637ca] shrink-0 mt-2 ml-1" />
+              <div className="text-xs sm:text-sm leading-relaxed text-[#383354] flex-1">
                 {renderFormattedInlineText(item)}
               </div>
             </div>
@@ -240,7 +322,6 @@ function renderSectionLines(lines: string[]) {
       return;
     }
 
-    // Numbered item: e.g. "1. **Principal Commitment**: ..."
     const numMatch = trimmed.match(/^\d+\.\s+(.*)$/);
     if (numMatch) {
       if (!currentList || currentList.type !== 'ordered') {
@@ -251,7 +332,6 @@ function renderSectionLines(lines: string[]) {
       return;
     }
 
-    // Bullet item: e.g. "- **Targeted Goals**: ..."
     const bulletMatch = trimmed.match(/^-\s+(.*)$/);
     if (bulletMatch) {
       if (!currentList || currentList.type !== 'bullet') {
@@ -262,10 +342,9 @@ function renderSectionLines(lines: string[]) {
       return;
     }
 
-    // Paragraph
     flushList();
     elements.push(
-      <p key={elements.length} className="leading-relaxed text-slate-700 my-2">
+      <p key={elements.length} className="leading-relaxed text-[#383354] my-2">
         {renderFormattedInlineText(trimmed)}
       </p>
     );
@@ -321,16 +400,13 @@ function RichCurriculumContent({
   body,
   fontSize,
   storageKey,
-  onOpenStrategies,
 }: {
   body: string;
   fontSize: 'normal' | 'large';
   storageKey?: string;
-  onOpenStrategies?: () => void;
 }) {
   const sections = useMemo(() => parseLessonMarkdown(body), [body]);
   const [activeConceptIdx, setActiveConceptIdx] = useState<number>(0);
-  const [viewMode, setViewMode] = useState<'deck' | 'list'>('deck');
   const [{ understoodMap, checkList }, setConceptProgress] = useStoredPractice<ConceptProgress>(storageKey, () => (
     (storageKey && readPractice(storageKey, isConceptProgress)) || { understoodMap: {}, checkList: [false, false, false] }
   ));
@@ -341,20 +417,6 @@ function RichCurriculumContent({
       ...prev,
       [idx]: !prev[idx],
     }));
-  };
-
-  const areAllCollapsed = sections.length > 0 && sections.every((_, i) => !!collapsedSections[i]);
-
-  const toggleAll = () => {
-    if (areAllCollapsed) {
-      setCollapsedSections({});
-    } else {
-      const all: Record<number, boolean> = {};
-      sections.forEach((_, i) => {
-        all[i] = true;
-      });
-      setCollapsedSections(all);
-    }
   };
 
   const activeSec = sections[activeConceptIdx] || sections[0];
@@ -377,364 +439,182 @@ function RichCurriculumContent({
     activeLower.includes('how') ||
     activeLower.includes('instant');
 
-  const activeCardStyle = isActiveWarning
-    ? 'border-amber-300 bg-gradient-to-br from-amber-50/70 via-white to-orange-50/40 text-amber-950'
-    : isActiveSafety
-    ? 'border-emerald-300 bg-gradient-to-br from-emerald-50/70 via-white to-teal-50/40 text-emerald-950'
-    : isActiveDefinition
-    ? 'border-blue-300 bg-gradient-to-br from-blue-50/70 via-white to-indigo-50/40 text-blue-950'
-    : isActiveAction
-    ? 'border-indigo-300 bg-gradient-to-br from-indigo-50/60 via-white to-purple-50/30 text-indigo-950'
-    : 'border-slate-300 bg-gradient-to-br from-slate-50/80 via-white to-slate-100/40 text-slate-900';
-
   const activeBadgeText = isActiveWarning
-    ? '⚠️ Trade-Off & Risk Alert'
+    ? 'Risk & Trade-Off'
     : isActiveSafety
-    ? '🛡️ Federal & Custodial Safety'
+    ? 'Safety & Protection'
     : isActiveDefinition
-    ? '💡 Core Concept Definition'
+    ? 'Core Definition'
     : isActiveAction
-    ? '🎯 Strategy & Real-World Use'
-    : '📘 Market Mechanics';
+    ? 'Practical Strategy'
+    : 'Market Mechanics';
 
-  const activeBadgeStyle = isActiveWarning
-    ? 'bg-amber-100 text-amber-900 border-amber-300'
+  const activeBadgeTone = isActiveWarning
+    ? 'fw-peach border border-[#f5cdb2]'
     : isActiveSafety
-    ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-    : isActiveDefinition
-    ? 'bg-blue-100 text-blue-900 border-blue-300'
-    : isActiveAction
-    ? 'bg-indigo-100 text-indigo-900 border-indigo-300'
-    : 'bg-slate-100 text-slate-800 border-slate-300';
+    ? 'fw-mint border border-[#c3e2b0]'
+    : 'fw-lavender border border-[#dfd5f8]';
 
   return (
-    <div className="space-y-4">
-      {/* Visual Learning Banner */}
-      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-4 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-sm border border-blue-800">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600/60 border border-blue-400 flex items-center justify-center text-lg">
-            🎓
-          </div>
-          <div>
-            <h4 className="text-sm font-bold text-white">Interactive Concept Curriculum</h4>
-            <p className="text-xs text-blue-200">
-              {sections.length} core modular concept blocks • Step-by-step interactive studio
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 text-xs">
-          <div className="inline-flex rounded-lg border border-blue-700 bg-blue-950/80 p-0.5">
+    <div className="space-y-6">
+      {/* Concept Navigator Pills */}
+      <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-[16px] bg-[#f3effa] border border-[#e8e4f1]">
+        {sections.map((sec, idx) => {
+          const isSelected = idx === activeConceptIdx;
+          const isDone = !!understoodMap[idx];
+          return (
             <button
+              key={idx}
               type="button"
-              onClick={() => setViewMode('deck')}
-              className={`px-2 py-0.5 rounded-md font-semibold transition ${
-                viewMode === 'deck' ? 'bg-blue-600 text-white shadow-2xs' : 'text-blue-200 hover:text-white'
+              onClick={() => setActiveConceptIdx(idx)}
+              className={`px-3 py-1.5 rounded-[11px] text-xs font-bold transition-all flex items-center gap-1.5 ${
+                isSelected
+                  ? 'bg-[#5637ca] text-white shadow-xs'
+                  : isDone
+                  ? 'bg-[#e3f3d9] text-[#285137] hover:bg-[#d7edc8]'
+                  : 'text-[#615d76] hover:text-[#222038] hover:bg-white/80'
               }`}
             >
-              🃏 Concept Deck
+              <span className="text-[10px] opacity-80">{isDone ? '✓' : `${idx + 1}`}</span>
+              <span className="truncate max-w-[150px] sm:max-w-[200px]">
+                {sec.title.replace('###', '').trim()}
+              </span>
             </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('list')}
-              className={`px-2 py-0.5 rounded-md font-semibold transition ${
-                viewMode === 'list' ? 'bg-blue-600 text-white shadow-2xs' : 'text-blue-200 hover:text-white'
-              }`}
-            >
-              📑 All Cards
-            </button>
-          </div>
-          <button
-            type="button"
-            onClick={toggleAll}
-            className="px-2.5 py-1 rounded-full bg-blue-800/80 hover:bg-blue-700 text-blue-200 border border-blue-600 font-semibold transition-colors"
-          >
-            {areAllCollapsed ? '▼ Expand All' : '▲ Collapse All'}
-          </button>
-        </div>
+          );
+        })}
       </div>
 
-      {/* Quick Launch Callout to US vs Europe Strategies */}
-      {onOpenStrategies && (
-        <div className="rounded-2xl border border-indigo-200 bg-gradient-to-r from-blue-50/80 via-indigo-50/70 to-purple-50/80 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🌐</span>
-            <div>
-              <span className="text-xs font-bold text-slate-900 block">
-                Compare Trading Strategies: 🇺🇸 US vs. 🇪🇺 Europe
+      {/* Active Concept Card */}
+      {activeSec && (
+        <div className="fw-panel !rounded-[21px] border border-[#e8e4f1] bg-white p-5 sm:p-6 shadow-[0_6px_22px_rgba(39,32,71,0.04)] space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e8e4f1] pb-3.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="fw-kicker">
+                Part {activeConceptIdx + 1} of {sections.length}
               </span>
-              <span className="text-[11px] text-slate-600 leading-snug">
-                CD ladders, Treasury barbells, UCITS Accumulating ETFs, and cross-border bank yields.
-              </span>
+              <h4 className="text-base sm:text-lg font-black tracking-[-0.03em] text-[#222038]">
+                {activeSec.title}
+              </h4>
             </div>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={onOpenStrategies}
-            className="text-xs font-semibold bg-white hover:bg-slate-50 border-indigo-300 text-indigo-900 whitespace-nowrap self-start sm:self-center"
-          >
-            Explore Global Strategies →
-          </Button>
-        </div>
-      )}
-
-      {/* VIEW MODE 1: INTERACTIVE CONCEPT DECK STUDIO */}
-      {viewMode === 'deck' && activeSec && (
-        <div className="space-y-4">
-          {/* Step Selector Pills */}
-          <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-xl bg-slate-100/90 border border-slate-200">
-            {sections.map((sec, idx) => {
-              const isSelected = idx === activeConceptIdx;
-              const isDone = !!understoodMap[idx];
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => setActiveConceptIdx(idx)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    isSelected
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : isDone
-                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
-                      : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <span>{isDone ? '✓' : `${idx + 1}.`}</span>
-                  <span className="truncate max-w-[140px] sm:max-w-[200px]">
-                    {sec.title.replace('###', '').trim()}
-                  </span>
-                </button>
-              );
-            })}
+            <span className={`px-3 py-1 rounded-full text-[11px] font-extrabold ${activeBadgeTone}`}>
+              {activeBadgeText}
+            </span>
           </div>
 
-          {/* Active Concept Card */}
-          <div className={`rounded-2xl border p-5 shadow-sm space-y-4 ${activeCardStyle}`}>
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-400">Concept {activeConceptIdx + 1} of {sections.length}:</span>
-                <h4 className="text-base sm:text-lg font-bold tracking-tight text-slate-900">
-                  {activeSec.title}
-                </h4>
-              </div>
-              <span
-                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${activeBadgeStyle}`}
-              >
-                {activeBadgeText}
+          {/* Editorial Key Takeaway */}
+          <div className="p-4 rounded-[16px] bg-[#f4f0fd] border border-[#dfd5f8] border-l-4 border-l-[#5637ca] space-y-1">
+            <span className="fw-kicker block">Key Insight</span>
+            <p className="text-xs sm:text-sm font-semibold text-[#222038] leading-relaxed">
+              {getExecutiveTakeaway(activeSec.title)}
+            </p>
+          </div>
+
+          {/* Content Lines */}
+          <div className={`space-y-3 pt-1 ${fontSize === 'large' ? 'text-base' : 'text-sm'}`}>
+            {renderSectionLines(activeSec.lines)}
+          </div>
+
+          {/* Card Footer Controls */}
+          <div className="pt-3.5 border-t border-[#e8e4f1] flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setConceptProgress((previous) => {
+                  const understood = !previous.understoodMap[activeConceptIdx];
+                  return {
+                    understoodMap: { ...previous.understoodMap, [activeConceptIdx]: understood },
+                    checkList: previous.checkList.map((checked, idx) =>
+                      idx === activeConceptIdx ? understood : checked
+                    ),
+                  };
+                });
+              }}
+              className={`px-3.5 py-2 rounded-[11px] text-xs font-extrabold border transition-all flex items-center gap-1.5 ${
+                understoodMap[activeConceptIdx]
+                  ? 'bg-[#e3f3d9] text-[#285137] border-[#b7dc9f]'
+                  : 'bg-white hover:bg-[#f4f0fd] text-[#222038] border-[#e8e4f1] hover:border-[#cfc1fa]'
+              }`}
+            >
+              <span>{understoodMap[activeConceptIdx] ? '✓' : '○'}</span>
+              <span>
+                {understoodMap[activeConceptIdx] ? 'Concept Mastered' : 'Mark as Understood'}
               </span>
-            </div>
+            </button>
 
-            {/* Executive Key Takeaway Callout */}
-            <div className="p-3.5 rounded-xl bg-white/95 border border-slate-200 shadow-2xs space-y-1">
-              <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 block">
-                💡 Executive Key Takeaway
-              </span>
-              <p className="text-xs sm:text-sm font-semibold text-slate-900 leading-relaxed">
-                {getExecutiveTakeaway(activeSec.title)}
-              </p>
-            </div>
-
-            {/* Content Lines */}
-            <div className={`space-y-3 pt-1 ${fontSize === 'large' ? 'text-base' : 'text-sm'}`}>
-              {renderSectionLines(activeSec.lines)}
-            </div>
-
-            {/* Card Footer Controls */}
-            <div className="pt-3 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setConceptProgress((previous) => {
-                    const understood = !previous.understoodMap[activeConceptIdx];
-                    return {
-                      understoodMap: { ...previous.understoodMap, [activeConceptIdx]: understood },
-                      checkList: previous.checkList.map((checked, idx) => idx === activeConceptIdx ? understood : checked),
-                    };
-                  });
-                }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 ${
-                  understoodMap[activeConceptIdx]
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
-                    : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
-                }`}
+                disabled={activeConceptIdx === 0}
+                onClick={() => setActiveConceptIdx((p) => Math.max(0, p - 1))}
+                className="px-3.5 py-2 text-xs rounded-[11px] border border-[#e8e4f1] bg-white hover:bg-[#f4f0fd] hover:border-[#cfc1fa] disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[#222038] transition-colors"
               >
-                <span>{understoodMap[activeConceptIdx] ? '✓' : '○'}</span>
-                <span>
-                  {understoodMap[activeConceptIdx] ? 'Understood & Mastered' : 'Mark Concept Understood'}
-                </span>
+                ← Prev
               </button>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={activeConceptIdx === 0}
-                  onClick={() => setActiveConceptIdx((p) => Math.max(0, p - 1))}
-                  className="px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-slate-700"
-                >
-                  ← Prev Concept
-                </button>
-                <button
-                  type="button"
-                  disabled={activeConceptIdx === sections.length - 1}
-                  onClick={() => setActiveConceptIdx((p) => Math.min(sections.length - 1, p + 1))}
-                  className="px-3 py-1 text-xs rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-white shadow-2xs"
-                >
-                  Next Concept →
-                </button>
-              </div>
+              <button
+                type="button"
+                disabled={activeConceptIdx === sections.length - 1}
+                onClick={() => setActiveConceptIdx((p) => Math.min(sections.length - 1, p + 1))}
+                className="px-4 py-2 text-xs rounded-[11px] bg-[#5637ca] hover:bg-[#4626ad] disabled:bg-[#eeeaf5] disabled:text-[#726a83] disabled:cursor-not-allowed font-bold text-white shadow-2xs transition-colors"
+              >
+                Next →
+              </button>
             </div>
           </div>
-
-          {/* Collapsible reference cards for remaining sections so all text is 100% accessible in DOM */}
-          <div className="space-y-2 pt-2">
-            <h5 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              All Lesson Sections (Click to expand any section):
-            </h5>
-            {sections.map((section, sIdx) => {
-              if (sIdx === activeConceptIdx) return null;
-              const isCollapsed = collapsedSections[sIdx] !== false; // default collapsed in deck mode
-
-              return (
-                <div
-                  key={sIdx}
-                  className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs hover:border-blue-200 transition-colors"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <button type="button" onClick={() => toggleSection(sIdx)} aria-expanded={!isCollapsed}
-                      className="text-left text-xs font-bold text-slate-800 flex items-center gap-2">
-                      <span aria-hidden="true" className="text-slate-400 text-[10px]">{isCollapsed ? '▶' : '▼'}</span>
-                      <span>{section.title}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveConceptIdx(sIdx)}
-                      className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 hover:underline px-2 py-0.5 rounded bg-blue-50"
-                    >
-                      Open in Studio →
-                    </button>
-                  </div>
-
-                  {!isCollapsed && (
-                    <div className={`space-y-3 pt-3 border-t border-slate-100 mt-2 ${fontSize === 'large' ? 'text-base' : 'text-sm'}`}>
-                      {renderSectionLines(section.lines)}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
         </div>
       )}
 
-      {/* VIEW MODE 2: FULL EXPANDED CARDS LIST */}
-      {viewMode === 'list' && (
-        <div className="space-y-4">
-          {sections.map((section, sIdx) => {
-            const lower = section.title.toLowerCase();
-            const isWarning =
-              lower.includes('penalty') ||
-              lower.includes('risk') ||
-              lower.includes('trade-off') ||
-              lower.includes('caution') ||
-              lower.includes('mandatory');
-            const isSafety =
-              lower.includes('safety') ||
-              lower.includes('protection') ||
-              lower.includes('fdic') ||
-              lower.includes('sipc');
-            const isDefinition =
-              lower.includes('what is') || lower.includes('introduction') || lower.includes('primer');
-            const isAction =
-              lower.includes('when to choose') ||
-              lower.includes('role') ||
-              lower.includes('how') ||
-              lower.includes('instant') ||
-              lower.includes('simulator');
+      {/* Collapsible reference cards for remaining sections so all text is 100% accessible in DOM */}
+      <div className="space-y-2.5">
+        <h5 className="fw-kicker">All Curriculum Sections</h5>
+        {sections.map((section, sIdx) => {
+          if (sIdx === activeConceptIdx) return null;
+          const isCollapsed = collapsedSections[sIdx] !== false;
 
-            const cardStyle = isWarning
-              ? 'border-amber-300 bg-gradient-to-br from-amber-50/70 via-white to-orange-50/40 text-amber-950'
-              : isSafety
-              ? 'border-emerald-300 bg-gradient-to-br from-emerald-50/70 via-white to-teal-50/40 text-emerald-950'
-              : isDefinition
-              ? 'border-blue-300 bg-gradient-to-br from-blue-50/70 via-white to-indigo-50/40 text-blue-950'
-              : isAction
-              ? 'border-indigo-300 bg-gradient-to-br from-indigo-50/60 via-white to-purple-50/30 text-indigo-950'
-              : 'border-slate-300 bg-gradient-to-br from-slate-50/80 via-white to-slate-100/40 text-slate-900';
-
-            const badgeText = isWarning
-              ? '⚠️ Trade-Off & Risk Alert'
-              : isSafety
-              ? '🛡️ Federal & Custodial Safety'
-              : isDefinition
-              ? '💡 Core Concept Definition'
-              : isAction
-              ? '🎯 Strategy & Real-World Use'
-              : '📘 Market Mechanics';
-
-            const badgeStyle = isWarning
-              ? 'bg-amber-100 text-amber-900 border-amber-300'
-              : isSafety
-              ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-              : isDefinition
-              ? 'bg-blue-100 text-blue-900 border-blue-300'
-              : isAction
-              ? 'bg-indigo-100 text-indigo-900 border-indigo-300'
-              : 'bg-slate-100 text-slate-800 border-slate-300';
-
-            const isCollapsed = !!collapsedSections[sIdx];
-
-            return (
-              <div
-                key={sIdx}
-                className={`rounded-2xl border p-5 shadow-xs hover:shadow-md transition-all duration-150 ${cardStyle}`}
-              >
-                <div
+          return (
+            <div
+              key={sIdx}
+              className="fw-panel !rounded-[16px] border border-[#e8e4f1] bg-white p-3.5 hover:border-[#cbb8f6] transition-colors"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
                   onClick={() => toggleSection(sIdx)}
-                  className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-3 mb-2 cursor-pointer select-none"
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      toggleSection(sIdx);
-                    }
-                  }}
                   aria-expanded={!isCollapsed}
+                  className="text-left text-xs font-extrabold text-[#222038] flex items-center gap-2 flex-1"
                 >
-                  <h4 className="text-sm sm:text-base font-bold tracking-tight flex items-center gap-2">
-                    <span className="text-slate-400 text-xs">{isCollapsed ? '▶' : '▼'}</span>
-                    <span>{section.title}</span>
-                  </h4>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${badgeStyle}`}
-                    >
-                      {badgeText}
-                    </span>
-                  </div>
-                </div>
-
-                {!isCollapsed && (
-                  <div className={`space-y-3 pt-1 ${fontSize === 'large' ? 'text-base' : 'text-sm'}`}>
-                    {renderSectionLines(section.lines)}
-                  </div>
-                )}
+                  <span aria-hidden="true" className="text-[#5b43a7] text-[10px]">
+                    {isCollapsed ? '▶' : '▼'}
+                  </span>
+                  <span>{section.title}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveConceptIdx(sIdx)}
+                  className="text-[11px] font-bold text-[#4f32a9] hover:text-[#272047] px-2.5 py-1 rounded-[9px] bg-[#f4f0fd] hover:bg-[#eee6ff] transition-colors"
+                >
+                  Focus View →
+                </button>
               </div>
-            );
-          })}
-        </div>
-      )}
 
-      {/* Interactive Concept Checkoff Card */}
-      <div className="rounded-2xl border border-slate-300/80 bg-white p-5 shadow-xs space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-base">✅</span>
-            <h5 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              Interactive Concept Checkoff
-            </h5>
-          </div>
-          <span className="text-[11px] text-slate-500 font-medium">
+              {!isCollapsed && (
+                <div
+                  className={`space-y-3 pt-3 border-t border-[#e8e4f1] mt-2.5 ${
+                    fontSize === 'large' ? 'text-base' : 'text-sm'
+                  }`}
+                >
+                  {renderSectionLines(section.lines)}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Interactive Concept Checkoff */}
+      <div className="fw-panel !rounded-[21px] border border-[#dfd5f8] bg-[#f8f5ff] p-5 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <h5 className="fw-kicker">Concept Verification Checklist</h5>
+          <span className="text-xs text-[#4f32a9] font-extrabold px-2.5 py-0.5 rounded-full bg-[#eee6ff]">
             {checkList.filter(Boolean).length} of 3 Mastered
           </span>
         </div>
@@ -747,21 +627,24 @@ function RichCurriculumContent({
           ].map((item, idx) => (
             <label
               key={idx}
-              className={`flex items-start gap-3 p-2.5 rounded-xl border text-xs cursor-pointer transition-colors ${
+              className={`flex items-start gap-3 p-3 rounded-[14px] border text-xs cursor-pointer transition-colors ${
                 checkList[idx]
-                  ? 'border-emerald-300 bg-emerald-50/60 text-emerald-950 font-medium'
-                  : 'border-slate-200 bg-slate-50/50 text-slate-700 hover:bg-slate-100'
+                  ? 'border-[#b7dc9f] bg-[#e3f3d9]/80 text-[#285137] font-semibold'
+                  : 'border-[#e8e4f1] bg-white text-[#222038] hover:border-[#cfc1fa] hover:bg-[#fbf9ff]'
               }`}
             >
               <input
                 type="checkbox"
                 checked={checkList[idx]}
                 onChange={() => {
-                  setConceptProgress((previous) => ({ ...previous,
-                    checkList: previous.checkList.map((checked, itemIndex) => itemIndex === idx ? !checked : checked),
+                  setConceptProgress((previous) => ({
+                    ...previous,
+                    checkList: previous.checkList.map((checked, itemIndex) =>
+                      itemIndex === idx ? !checked : checked
+                    ),
                   }));
                 }}
-                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 mt-0.5"
+                className="rounded border-[#cfc1fa] accent-[#5637ca] mt-0.5"
               />
               <span className="leading-relaxed">{item}</span>
             </label>
@@ -769,11 +652,8 @@ function RichCurriculumContent({
         </div>
 
         {checkList.every(Boolean) && (
-          <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-xs font-bold flex items-center justify-between shadow-xs">
-            <span>🎉 Outstanding! You have verified all 3 core concepts.</span>
-            <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">
-              Ready for Quiz!
-            </span>
+          <div className="p-3.5 rounded-[14px] bg-[#e3f3d9] border border-[#b7dc9f] text-[#285137] text-xs font-bold flex items-center justify-between">
+            <span>✓ All 3 foundational concepts verified. Ready for the Knowledge Check!</span>
           </div>
         )}
       </div>
@@ -790,21 +670,25 @@ export function LearningView({
   serverAnswerKeys = SERVER_ANSWER_KEYS,
   onProgressUpdate,
 }: LearningViewProps) {
-  // Navigation / Selection
-  const [selectedTopicId, setSelectedTopicId] = useState<string>(initialTopicId);
+  const [selectedTopicId, setSelectedTopicId] = useState<string>(() => normalizeTopicId(initialTopicId));
   const quizHeading = useRef<HTMLHeadingElement>(null);
   const topicHeading = useRef<HTMLHeadingElement>(null);
 
-  // View presentation mode: 'interactive' | 'strategies' | 'reader' | 'matrix'
   const [activeTab, setActiveTab] = useState<'interactive' | 'strategies' | 'reader' | 'matrix'>('interactive');
   const [fontSize, setFontSize] = useState<'normal' | 'large'>('normal');
   const [isOverviewOpen, setIsOverviewOpen] = useState<boolean>(false);
+
+  // Streamlined Interactive Studio tool selector
+  const [activeStudioTool, setActiveStudioTool] = useState<'lifecycle' | 'whatif' | 'simulator' | 'scenarios' | 'matcher'>('lifecycle');
 
   // Interactive Mini-Simulator State
   const [simDeposit, setSimDeposit] = useState<number>(1000);
   const [simApy, setSimApy] = useState<number>(5.0);
   const [simMonths, setSimMonths] = useState<number>(12);
   const savingsInputId = useId();
+
+  // Active Persona for Case Studies
+  const [activePersonaIdx, setActivePersonaIdx] = useState<number>(0);
 
   // Hint expansion tracking per question id
   const [openHints, setOpenHints] = useState<Record<string, boolean>>({});
@@ -833,6 +717,7 @@ export function LearningView({
     }
     return initial;
   });
+
   useEffect(() => {
     if (!storageScope || shouldScoreLocally) return;
     let active = true;
@@ -846,10 +731,11 @@ export function LearningView({
     return () => { active = false; };
   }, [apiClient, setProgressMap, shouldScoreLocally, storageScope]);
 
-  const activeLesson: Lesson = LESSONS[selectedTopicId] || LESSONS['cd-basics'];
+  const normalizedSelectedId = normalizeTopicId(selectedTopicId);
+  const activeLesson: Lesson = LESSONS[normalizedSelectedId] || LESSONS['cd-basics'];
   const activeQuiz: Quiz = quizzes[activeLesson.quiz_id] || quizzes['quiz-cd-basics'];
-  const activeProgress: ProgressItem = progressMap[selectedTopicId] || {
-    lesson_id: selectedTopicId,
+  const activeProgress: ProgressItem = progressMap[normalizedSelectedId] || {
+    lesson_id: normalizedSelectedId,
     quiz_version: 1,
     attempt_count: 0,
     best_score_pct: '0.00',
@@ -858,22 +744,22 @@ export function LearningView({
   };
 
   const completedCount = Object.values(progressMap).filter((p) => p.completed).length;
-  const scenarios = TOPIC_SCENARIOS[selectedTopicId] || TOPIC_SCENARIOS['cd-basics'];
-  const [activePersonaIdx, setActivePersonaIdx] = useState<number>(0);
+  const scenarios = TOPIC_SCENARIOS[normalizedSelectedId] || TOPIC_SCENARIOS['cd-basics'];
+  const tuckTakeaway = TUCK_TAKEAWAYS[normalizedSelectedId] || TUCK_TAKEAWAYS['cd-basics'];
 
   // Handle switching topic
   const handleSelectTopic = (topicId: string) => {
-    setSelectedTopicId(topicId);
+    const nextTopic = normalizeTopicId(topicId);
+    setSelectedTopicId(nextTopic);
     setSelectedAnswers({});
     setValidationError(null);
     setAttemptResult(null);
     setOpenHints({});
     setActivePersonaIdx(0);
-    // Reset simulator defaults based on topic
-    if (topicId === 'hysa-basics') {
+    if (nextTopic === 'hysa-basics') {
       setSimApy(4.5);
       setSimMonths(12);
-    } else if (topicId === 'cd-basics') {
+    } else if (nextTopic === 'cd-basics') {
       setSimApy(5.0);
       setSimMonths(12);
     } else {
@@ -881,7 +767,11 @@ export function LearningView({
     }
   };
 
-  // Handle selecting an option
+  const scrollToQuiz = () => {
+    quizHeading.current?.focus({ preventScroll: true });
+    quizHeading.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+  };
+
   const handleOptionSelect = (questionId: string, optionId: string) => {
     setSelectedAnswers((prev) => ({
       ...prev,
@@ -892,17 +782,14 @@ export function LearningView({
     }
   };
 
-  // Toggle question hint
   const toggleHint = (qId: string) => {
     setOpenHints((prev) => ({ ...prev, [qId]: !prev[qId] }));
   };
 
-  // Handle quiz submission
   const handleSubmitQuiz = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
 
-    // Validate that every question has an answer
     const unansweredQuestions = activeQuiz.questions.filter((q) => !selectedAnswers[q.id]);
 
     if (unansweredQuestions.length > 0) {
@@ -937,10 +824,9 @@ export function LearningView({
 
       setAttemptResult(response);
 
-      // Update progress
       setProgressMap((prev) => {
-        const current = prev[selectedTopicId] || {
-          lesson_id: selectedTopicId,
+        const current = prev[normalizedSelectedId] || {
+          lesson_id: normalizedSelectedId,
           quiz_version: activeQuiz.version,
           attempt_count: 0,
           best_score_pct: '0.00',
@@ -957,7 +843,7 @@ export function LearningView({
         const isCompleted = current.completed || response.passed;
 
         const updated: ProgressItem = {
-          lesson_id: selectedTopicId,
+          lesson_id: normalizedSelectedId,
           quiz_version: activeQuiz.version,
           attempt_count: newAttemptCount,
           best_score_pct: newBestScore,
@@ -965,7 +851,7 @@ export function LearningView({
           completed: isCompleted,
         };
 
-        const nextMap = { ...prev, [selectedTopicId]: updated };
+        const nextMap = { ...prev, [normalizedSelectedId]: updated };
         onProgressUpdate?.(nextMap);
 
         if (response.passed) {
@@ -982,7 +868,6 @@ export function LearningView({
     }
   };
 
-  // Handle retry
   const handleRetryQuiz = () => {
     setSelectedAnswers({});
     setValidationError(null);
@@ -990,64 +875,110 @@ export function LearningView({
   };
 
   // Simulator math
-  const isSavingsTopic = selectedTopicId === 'cd-basics' || selectedTopicId === 'hysa-basics';
+  const isSavingsTopic = normalizedSelectedId === 'cd-basics' || normalizedSelectedId === 'hysa-basics';
   const savingsInputs = { mode: 'savings' as const, startingAmount: simDeposit, monthlyContribution: 0, horizonMonths: simMonths };
   const savingsExample = calculateGrowth({ ...savingsInputs, annualRatePercent: simApy });
   const baselineInterest = calculateGrowth({ ...savingsInputs, annualRatePercent: 0.01 }).totalGrowth;
-  const penaltyEst = (simDeposit * (simApy / 100) * (3 / 12)); // 90-day penalty
+  const penaltyEst = simDeposit * (simApy / 100) * (3 / 12);
 
   const answeredCount = Object.keys(selectedAnswers).length;
   const totalQuestions = activeQuiz.questions.length;
   const progressPercent = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
 
   return (
-    <div className="space-y-8">
-      {/* Learn Tab Overview Popup */}
+    <div className="space-y-6 max-w-7xl mx-auto text-[#222038]">
       <TabOverviewModal
         tab="learning"
         isOpen={isOverviewOpen}
         onClose={() => setIsOverviewOpen(false)}
       />
 
-      {/* View Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
+      {/* Cinematic FutureWorth Academy Hero Banner */}
+      <article className="fw-hero shadow-[0_14px_40px_rgba(39,32,71,0.16)]" aria-label="FutureWorth Academy Hero">
+        <div className="fw-hero-art" aria-hidden="true" />
+        <div className="fw-hero-content">
+          <p className="fw-hero-tag">✦ FUTUREWORTH ACADEMY</p>
+          <h2>Knowledge is your leverage.</h2>
+          <p>
+            Master compound growth, debt shields, and portfolio allocation with interactive labs.
+          </p>
+          <button
+            type="button"
+            className="fw-button fw-button-lime"
+            onClick={scrollToQuiz}
+          >
+            Jump to knowledge check <span aria-hidden="true">↓</span>
+          </button>
+        </div>
+      </article>
+
+      {/* Curriculum Overview Bar */}
+      <div className="fw-panel !rounded-[21px] border border-[#e8e4f1] bg-white p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Financial Education &amp; Learning</h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Interactive, inclusive starter curriculum covering savings, equities, and derivatives with hands-on scenario simulators.
+          <span className="fw-kicker">Curriculum</span>
+          <h2 className="text-xl sm:text-2xl font-black tracking-[-0.035em] text-[#222038] mt-0.5">
+            Financial Education &amp; Learning
+          </h2>
+          <p className="text-xs sm:text-sm text-[#615d76] mt-0.5 max-w-2xl">
+            Essential financial instruments explained through structured concepts, scenario modeling, and knowledge checks.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <button
             type="button"
             onClick={() => setIsOverviewOpen(true)}
             aria-label="What is Learn Tab?"
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition-colors shadow-2xs cursor-pointer"
+            className="fw-quiet !min-h-[38px] !rounded-full !px-3.5 !py-1.5 text-xs"
           >
-            <span>💡</span>
+            <span aria-hidden="true">💡</span>
             <span>What is Learn?</span>
           </button>
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+          <span
+            className={`text-xs font-extrabold px-3.5 py-2 rounded-full border ${
+              completedCount === LESSON_SUMMARIES.length
+                ? 'bg-[#e3f3d9] text-[#285137] border-[#b7dc9f]'
+                : 'bg-[#eee6ff] text-[#4f32a9] border-[#dfd5f8]'
+            }`}
+          >
             Completed: {completedCount} of {LESSON_SUMMARIES.length} Topics
           </span>
         </div>
       </div>
 
       {/* Main Grid: Sidebar Navigation + Content Area */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Navigation List of all 5 topics */}
         <nav
           aria-label="Topics Navigation"
-          className="lg:col-span-4 bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-2"
+          className="lg:col-span-4 fw-panel !rounded-[21px] border border-[#e8e4f1] bg-white p-4 shadow-[0_6px_22px_rgba(39,32,71,0.04)] space-y-3"
         >
-          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-2 mb-3">
-            Course Topics
-          </h3>
-          <ul className="space-y-1.5" role="list">
+          <div className="px-2 pt-1 flex items-center justify-between gap-2">
+            <div>
+              <span className="fw-kicker block">Lesson Map</span>
+              <h3 className="text-base font-black tracking-[-0.025em] text-[#222038]">
+                Course Topics
+              </h3>
+            </div>
+            <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#eee6ff] text-[#4f32a9]">
+              {completedCount}/{LESSON_SUMMARIES.length}
+            </span>
+          </div>
+
+          <div className="w-full h-2 rounded-full bg-[#ece6fa] overflow-hidden">
+            <div
+              className="h-full bg-[#5637ca] transition-all duration-300"
+              style={{
+                width: `${LESSON_SUMMARIES.length > 0 ? Math.round((completedCount / LESSON_SUMMARIES.length) * 100) : 0}%`,
+              }}
+            />
+          </div>
+
+          <ul className="space-y-2" role="list">
             {LESSON_SUMMARIES.map((topic: LessonSummary) => {
-              const isSelected = topic.id === selectedTopicId;
+              const isSelected = topic.id === normalizedSelectedId;
               const isDone = progressMap[topic.id]?.completed;
+              const visual = TOPIC_VISUALS[topic.id] || { icon: '◈', tone: 'fw-lavender' as const };
 
               return (
                 <li key={topic.id}>
@@ -1059,21 +990,41 @@ export function LearningView({
                       topicHeading.current?.scrollIntoView?.({ block: 'center' });
                     }}
                     aria-current={isSelected ? 'page' : undefined}
-                    className={`w-full text-left px-3.5 py-3 rounded-lg text-sm transition-colors flex items-center justify-between border ${
+                    className={`w-full text-left px-3 py-2.5 rounded-[16px] text-sm transition-all flex items-center justify-between gap-2.5 border ${
                       isSelected
-                        ? 'bg-blue-50 border-blue-300 text-blue-900 font-semibold shadow-sm'
-                        : 'border-transparent text-slate-700 hover:bg-slate-100 hover:border-slate-200'
+                        ? 'bg-[#272047] border-[#272047] text-white font-bold shadow-[0_8px_20px_rgba(39,32,71,0.18)]'
+                        : 'bg-[#fbfaff] border-[#e8e4f1] text-[#222038] hover:bg-[#f4f0fd] hover:border-[#cbb8f6]'
                     }`}
                   >
-                    <div className="flex min-w-0 flex-col pr-2">
-                      <span>{topic.title}</span>
-                      <span className="text-xs font-normal text-slate-500">{topic.topic}</span>
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <span
+                        className={`fw-tile !w-10 !h-10 !text-lg !rounded-[12px] ${
+                          isSelected ? 'bg-[#3d3270] text-[#dbfb84]' : visual.tone
+                        }`}
+                        aria-hidden="true"
+                      >
+                        {visual.icon}
+                      </span>
+                      <div className="flex min-w-0 flex-col">
+                        <span className="font-extrabold truncate leading-snug">{topic.title}</span>
+                        <span
+                          className={`text-xs font-semibold ${
+                            isSelected ? 'text-[#e3d7ff]' : 'text-[#615d76]'
+                          }`}
+                        >
+                          {topic.topic}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
                       {isDone && (
                         <span
-                          className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-800"
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                            isSelected
+                              ? 'bg-[#dbfb84] text-[#272047]'
+                              : 'bg-[#e3f3d9] text-[#285137] border border-[#b7dc9f]'
+                          }`}
                           title="Topic Completed"
                         >
                           ✓ Completed
@@ -1087,441 +1038,592 @@ export function LearningView({
           </ul>
         </nav>
 
-        {/* Content Area: Lesson Reading + Sources + Progress + Quiz */}
+        {/* Content Area: Tuck Companion + Lesson Reading + Sources + Progress + Quiz */}
         <div className="lg:col-span-8 space-y-6">
-          {/* Lesson Card */}
-          <Card className="border-slate-200">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 mb-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+          {/* Tuck's Study Companion Widget */}
+          <section
+            aria-label="Tuck's Study Companion"
+            className="rounded-[21px] border border-[#dfd5f8] bg-[linear-gradient(110deg,#ede4ff,#f7f2ff_60%,#f6fde8)] p-4 sm:p-5 flex flex-col sm:flex-row items-center gap-4 shadow-[0_6px_22px_rgba(79,50,169,0.06)]"
+          >
+            <div className="w-24 h-24 rounded-[17px] bg-[radial-gradient(circle,rgba(255,255,255,0.85),rgba(224,206,245,0.65))] grid place-items-center shrink-0 p-2">
+              <Tuck className="w-20 h-20 object-contain" />
+            </div>
+
+            <div className="flex-1 min-w-0 w-full">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="fw-kicker">Tuck&apos;s Study Companion</p>
+                <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-white/85 text-[#4f32a9] border border-[#dfd5f8]">
+                  {activeLesson.topic}
+                </span>
+              </div>
+
+              <div className="relative mt-2 rounded-[18px] bg-white border border-[#dfd5f8] px-4 py-3 shadow-[0_4px_14px_rgba(39,32,71,0.05)]">
+                <span
+                  aria-hidden="true"
+                  className="hidden sm:block absolute -left-2 top-5 w-3.5 h-3.5 rotate-45 bg-white border-l border-b border-[#dfd5f8]"
+                />
+                <p className="text-xs sm:text-sm font-bold leading-relaxed text-[#222038]">
+                  {tuckTakeaway}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Main Lesson Card */}
+          <Card className="fw-panel !rounded-[21px] border-[#e8e4f1] shadow-[0_6px_24px_rgba(39,32,71,0.04)] bg-white p-6 sm:p-7 space-y-6">
+            {/* Header row with badges and controls */}
+            <div className="space-y-4 border-b border-[#e8e4f1] pb-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-[#eee6ff] text-[#4f32a9] border border-[#dfd5f8]">
                     {activeLesson.topic}
                   </span>
                   <span
                     data-testid="draft-status-badge"
-                    className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200"
+                    className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-[#ffe9da] text-[#7b402a] border border-[#f5cdb2]"
                   >
                     Draft Content - Pending Review
                   </span>
                 </div>
-                <h3 ref={topicHeading} tabIndex={-1} className="text-xl font-bold text-slate-900">{activeLesson.title}</h3>
-              </div>
 
-              <button type="button" className="fw-quiet" onClick={() => {
-                quizHeading.current?.focus({ preventScroll: true });
-                quizHeading.current?.scrollIntoView?.({ block: 'center' });
-              }}>Jump to knowledge check</button>
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={scrollToQuiz}
+                    className="text-xs font-extrabold text-[#5637ca] hover:text-[#4626ad] transition-colors inline-flex items-center gap-1 px-2.5 py-1.5 rounded-[10px] hover:bg-[#f4f0fd]"
+                  >
+                    <span>Skip to quiz</span>
+                    <span aria-hidden="true">↓</span>
+                  </button>
 
-              {/* View Presentation Switcher & Text Size Accessibility */}
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <div className="flex flex-wrap rounded-lg border border-slate-200 p-0.5 bg-slate-100 text-xs font-medium">
                   <button
                     type="button"
-                    onClick={() => setActiveTab('interactive')}
-                    aria-pressed={activeTab === 'interactive'}
-                    className={`px-2.5 py-1 rounded-md transition ${
-                      activeTab === 'interactive'
-                        ? 'bg-white text-blue-700 shadow-sm font-semibold'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                    title="Toggle larger reading font size"
+                    aria-pressed={fontSize === 'large'}
+                    onClick={() => setFontSize((f) => (f === 'normal' ? 'large' : 'normal'))}
+                    className="px-3 py-1.5 text-xs font-extrabold rounded-[10px] border border-[#e8e4f1] bg-white hover:bg-[#f4f0fd] hover:border-[#cfc1fa] text-[#222038] transition-colors"
                   >
-                    💡 Interactive Explorer
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('strategies')}
-                    aria-pressed={activeTab === 'strategies'}
-                    className={`px-2.5 py-1 rounded-md transition ${
-                      activeTab === 'strategies'
-                        ? 'bg-white text-blue-700 shadow-sm font-semibold'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    🌐 US vs EU Strategies
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('reader')}
-                    aria-pressed={activeTab === 'reader'}
-                    className={`px-2.5 py-1 rounded-md transition ${
-                      activeTab === 'reader'
-                        ? 'bg-white text-blue-700 shadow-sm font-semibold'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    📖 Full Guide
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('matrix')}
-                    aria-pressed={activeTab === 'matrix'}
-                    className={`px-2.5 py-1 rounded-md transition ${
-                      activeTab === 'matrix'
-                        ? 'bg-white text-blue-700 shadow-sm font-semibold'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    ⚖️ Cheat Sheet
+                    {fontSize === 'normal' ? 'Aa+' : 'Aa-'}
                   </button>
                 </div>
+              </div>
 
+              <div>
+                <h3
+                  ref={topicHeading}
+                  tabIndex={-1}
+                  className="text-2xl sm:text-3xl font-black tracking-[-0.04em] text-[#222038]"
+                >
+                  {activeLesson.title}
+                </h3>
+              </div>
+
+              {/* Segmented Tab Switcher */}
+              <div className="inline-flex rounded-[14px] p-1.5 bg-[#f3effa] border border-[#e8e4f1] text-xs font-bold gap-1.5 flex-wrap">
                 <button
                   type="button"
-                  title="Toggle larger reading font size"
-                  aria-pressed={fontSize === 'large'}
-                  onClick={() => setFontSize((f) => (f === 'normal' ? 'large' : 'normal'))}
-                  className="px-2 py-1 text-xs font-semibold rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                  onClick={() => setActiveTab('interactive')}
+                  aria-pressed={activeTab === 'interactive'}
+                  className={`px-3.5 py-2 rounded-[10px] transition-all ${
+                    activeTab === 'interactive'
+                      ? 'bg-[#272047] text-[#dbfb84] shadow-xs font-extrabold'
+                      : 'text-[#615d76] hover:text-[#222038] hover:bg-white/70'
+                  }`}
                 >
-                  {fontSize === 'normal' ? 'Aa+' : 'Aa-'}
+                  💡 Interactive Explorer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('strategies')}
+                  aria-pressed={activeTab === 'strategies'}
+                  className={`px-3.5 py-2 rounded-[10px] transition-all ${
+                    activeTab === 'strategies'
+                      ? 'bg-[#272047] text-[#dbfb84] shadow-xs font-extrabold'
+                      : 'text-[#615d76] hover:text-[#222038] hover:bg-white/70'
+                  }`}
+                >
+                  🌐 US vs EU Strategies
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('reader')}
+                  aria-pressed={activeTab === 'reader'}
+                  className={`px-3.5 py-2 rounded-[10px] transition-all ${
+                    activeTab === 'reader'
+                      ? 'bg-[#272047] text-[#dbfb84] shadow-xs font-extrabold'
+                      : 'text-[#615d76] hover:text-[#222038] hover:bg-white/70'
+                  }`}
+                >
+                  📖 Full Guide
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('matrix')}
+                  aria-pressed={activeTab === 'matrix'}
+                  className={`px-3.5 py-2 rounded-[10px] transition-all ${
+                    activeTab === 'matrix'
+                      ? 'bg-[#272047] text-[#dbfb84] shadow-xs font-extrabold'
+                      : 'text-[#615d76] hover:text-[#222038] hover:bg-white/70'
+                  }`}
+                >
+                  ⚖️ Cheat Sheet
                 </button>
               </div>
             </div>
 
-            {/* TAB 1: Interactive Explorer with Simulator & Scenarios */}
+            {/* TAB 1: Default Interactive Explorer Mode */}
             {activeTab === 'interactive' && (
-              <div className="space-y-6">
-                {/* Visual Highlights Badges */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="p-3 rounded-lg bg-blue-50/70 border border-blue-200">
-                    <span className="text-[11px] font-bold text-blue-700 uppercase block">Category</span>
-                    <span className="text-sm font-bold text-blue-950">{activeLesson.topic}</span>
-                  </div>
-                  <div className="p-3 rounded-lg bg-emerald-50/70 border border-emerald-200">
-                    <span className="text-[11px] font-bold text-emerald-700 uppercase block">Protection</span>
-                    <span className="text-sm font-bold text-emerald-950">
-                      {selectedTopicId.includes('cd') || selectedTopicId.includes('hysa')
-                        ? '🛡️ FDIC ($250k)'
-                        : selectedTopicId.includes('options')
-                        ? '⚠️ None (Leverage)'
-                        : '🏛️ SIPC ($500k)'}
+              <div className="space-y-7">
+                {/* At-a-Glance Pastel Tile Metrics */}
+                <div className="grid grid-cols-1 min-[440px]:grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="rounded-[18px] border border-[#e8e4f1] bg-[#fbfaff] p-3.5 flex items-center gap-3">
+                    <span className="fw-tile fw-lavender !w-10 !h-10 !text-lg !rounded-[12px]" aria-hidden="true">
+                      ◈
                     </span>
+                    <div className="min-w-0">
+                      <span className="fw-kicker !text-[10px] block">Category</span>
+                      <span className="text-sm font-black text-[#222038] mt-0.5 block truncate">
+                        {activeLesson.topic}
+                      </span>
+                    </div>
                   </div>
-                  <div className="p-3 rounded-lg bg-amber-50/70 border border-amber-200">
-                    <span className="text-[11px] font-bold text-amber-700 uppercase block">Liquidity</span>
-                    <span className="text-sm font-bold text-amber-950">
-                      {selectedTopicId.includes('cd')
-                        ? '⏳ Locked Term'
-                        : selectedTopicId.includes('hysa')
-                        ? '💧 Daily Access'
-                        : '📊 Market Hours'}
+
+                  <div className="rounded-[18px] border border-[#e8e4f1] bg-[#fbfaff] p-3.5 flex items-center gap-3">
+                    <span className="fw-tile fw-mint !w-10 !h-10 !text-lg !rounded-[12px]" aria-hidden="true">
+                      ✧
                     </span>
+                    <div className="min-w-0">
+                      <span className="fw-kicker !text-[10px] block">Protection</span>
+                      <span className="text-sm font-black text-[#222038] mt-0.5 block truncate">
+                        {normalizedSelectedId.includes('cd') || normalizedSelectedId.includes('hysa')
+                          ? 'FDIC Insured ($250k)'
+                          : normalizedSelectedId.includes('options')
+                          ? 'None (Leverage Risk)'
+                          : 'SIPC Protected ($500k)'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="p-3 rounded-lg bg-purple-50/70 border border-purple-200">
-                    <span className="text-[11px] font-bold text-purple-700 uppercase block">Return Type</span>
-                    <span className="text-sm font-bold text-purple-950">
-                      {selectedTopicId.includes('cd')
-                        ? '🔒 Fixed APY'
-                        : selectedTopicId.includes('hysa')
-                        ? '📈 Variable APY'
-                        : '📊 Capital & Dividends'}
+
+                  <div className="rounded-[18px] border border-[#e8e4f1] bg-[#fbfaff] p-3.5 flex items-center gap-3">
+                    <span className="fw-tile fw-peach !w-10 !h-10 !text-lg !rounded-[12px]" aria-hidden="true">
+                      ◷
                     </span>
+                    <div className="min-w-0">
+                      <span className="fw-kicker !text-[10px] block">Liquidity</span>
+                      <span className="text-sm font-black text-[#222038] mt-0.5 block truncate">
+                        {normalizedSelectedId.includes('cd')
+                          ? 'Locked Term'
+                          : normalizedSelectedId.includes('hysa')
+                          ? 'Daily Access'
+                          : 'Market Hours (T+1)'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[18px] border border-[#e8e4f1] bg-[#fbfaff] p-3.5 flex items-center gap-3">
+                    <span className="fw-tile !w-10 !h-10 !text-lg !rounded-[12px] bg-[#dbfb84] text-[#272047]" aria-hidden="true">
+                      ↗
+                    </span>
+                    <div className="min-w-0">
+                      <span className="fw-kicker !text-[10px] block">Return Type</span>
+                      <span className="text-sm font-black text-[#222038] mt-0.5 block truncate">
+                        {normalizedSelectedId.includes('cd')
+                          ? 'Fixed APY'
+                          : normalizedSelectedId.includes('hysa')
+                          ? 'Variable APY'
+                          : 'Capital & Dividends'}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Interactive Lifecycle Step-Through Diagram */}
-                <InstrumentLifecycleDiagram topicId={selectedTopicId} />
-
-                {/* Specialized Interactive What-If Scenario Lab */}
-                <InteractiveWhatIfTool topicId={selectedTopicId} />
-
-                {/* Hands-On Mini-Simulator Widget */}
-                {isSavingsTopic && <div className="rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50/60 via-slate-50 to-blue-50/40 p-4 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-sm font-bold text-indigo-950 flex items-center gap-1.5">
-                        <span>🧮</span> Interactive Scenario Simulator
-                      </h4>
-                      <p className="text-xs text-slate-500">
-                        Adjust numbers below to see how this instrument works with real dollars.
-                      </p>
-                    </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
-                      Live Preview
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                    <div>
-                      <label htmlFor={`${savingsInputId}-deposit`} className="font-semibold text-slate-700 block mb-1">
-                        Deposit Amount: ${simDeposit.toLocaleString()}
-                      </label>
-                      <input
-                        id={`${savingsInputId}-deposit`}
-                        type="range"
-                        min="100"
-                        max="20000"
-                        step="100"
-                        value={simDeposit}
-                        onChange={(e) => setSimDeposit(Number(e.target.value))}
-                        className="w-full accent-blue-600"
-                      />
-                      <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
-                        <span>$100</span>
-                        <span>$10k</span>
-                        <span>$20k</span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label htmlFor={`${savingsInputId}-apy`} className="font-semibold text-slate-700 block mb-1">
-                        Annual Rate (APY): {simApy.toFixed(2)}%
-                      </label>
-                      <input
-                        id={`${savingsInputId}-apy`}
-                        type="range"
-                        min="0.5"
-                        max="8.0"
-                        step="0.25"
-                        value={simApy}
-                        onChange={(e) => setSimApy(Number(e.target.value))}
-                        className="w-full accent-blue-600"
-                      />
-                      <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
-                        <span>0.5%</span>
-                        <span>4.0%</span>
-                        <span>8.0%</span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label htmlFor={`${savingsInputId}-months`} className="font-semibold text-slate-700 block mb-1">
-                        Time Horizon: {simMonths} Months
-                      </label>
-                      <input
-                        id={`${savingsInputId}-months`}
-                        type="range"
-                        min="3"
-                        max="60"
-                        step="3"
-                        value={simMonths}
-                        onChange={(e) => setSimMonths(Number(e.target.value))}
-                        className="w-full accent-blue-600"
-                      />
-                      <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
-                        <span>3 mo</span>
-                        <span>1 yr</span>
-                        <span>5 yr</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Calculated Result Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-indigo-100">
-                    <div className="p-3 rounded-lg bg-white border border-indigo-100 shadow-xs">
-                      <span className="text-[11px] text-slate-500 block">Estimated Interest Earned</span>
-                      <span className="text-lg font-black text-emerald-600 font-mono">
-                        +${savingsExample.totalGrowth.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="p-3 rounded-lg bg-white border border-indigo-100 shadow-xs">
-                      <span className="text-[11px] text-slate-500 block">Total Balance at End</span>
-                      <span className="text-lg font-black text-slate-900 font-mono">
-                        ${savingsExample.finalBalance.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="p-3 rounded-lg bg-white border border-indigo-100 shadow-xs">
-                      <span className="text-[11px] text-slate-500 block">
-                        {selectedTopicId === 'cd-basics' ? 'Example early withdrawal penalty (90 days of interest)' : 'Baseline interest at 0.01% APY'}
-                      </span>
-                      <span className="text-xs font-semibold text-slate-700 font-mono">
-                        {selectedTopicId === 'cd-basics'
-                          ? `-$${penaltyEst.toFixed(2)} if broken early`
-                          : `$${baselineInterest.toFixed(2)} ($${(savingsExample.totalGrowth - baselineInterest).toFixed(2)} difference)`}
-                      </span>
-                    </div>
-                  </div>
-                </div>}
-
-                {/* Interactive Goal & Asset Matcher */}
-                <InteractiveGoalMatcher onSelectTopic={handleSelectTopic} />
-
-                {/* Interactive Real-World Case Studies */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">👥</span>
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-900">
-                          Interactive Real-World Case Studies
-                        </h4>
-                        <p className="text-[11px] text-slate-500">
-                          Click any saver or investor to see their scenario and tactical takeaway.
-                        </p>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200">
-                      Case Study {activePersonaIdx + 1} of {scenarios.length}
-                    </span>
-                  </div>
-
-                  {/* Persona Selector Ribbon */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    {scenarios.map((sc, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setActivePersonaIdx(idx)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 ${
-                          idx === activePersonaIdx
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                            : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                        }`}
-                      >
-                        <span>👤</span>
-                        <span>{sc.name}</span>
-                        <span
-                          className={`text-[10px] px-1.5 py-0.5 rounded font-normal ${
-                            idx === activePersonaIdx ? 'bg-blue-700 text-blue-100' : 'bg-slate-200 text-slate-600'
-                          }`}
-                        >
-                          {sc.tag}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Active Persona Card */}
-                  {scenarios[activePersonaIdx] && (() => {
-                    const sc = scenarios[activePersonaIdx];
-                    return (
-                      <div className="p-4 rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50/50 via-white to-slate-50/50 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="text-xs font-bold text-blue-950 block">{sc.name}</span>
-                            <span className="text-[11px] text-slate-500">{sc.role}</span>
-                          </div>
-                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-200">
-                            {sc.tag}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-700 leading-relaxed bg-white p-3 rounded-lg border border-slate-200/80">
-                          <strong>Situation:</strong> {sc.situation}
-                        </p>
-                        <div className="p-3 rounded-lg bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-950 flex items-start gap-2">
-                          <span className="text-base">💡</span>
-                          <div>
-                            <strong className="block text-[11px] uppercase tracking-wider text-emerald-900">
-                              Key Takeaway &amp; Strategy:
-                            </strong>
-                            <span className="leading-relaxed">{sc.takeaway}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* Complete Lesson Body Text with Rich Modular Cards */}
-                <div className="pt-4 border-t border-slate-200">
-                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
-                    Core Curriculum Overview
-                  </h4>
+                {/* Core Curriculum Content */}
+                <div>
                   <RichCurriculumContent
-                    key={selectedTopicId}
+                    key={normalizedSelectedId}
                     body={activeLesson.body}
                     fontSize={fontSize}
-                    storageKey={storageScope && `concepts:${storageScope}:${selectedTopicId}`}
-                    onOpenStrategies={() => setActiveTab('strategies')}
+                    storageKey={storageScope && `concepts:${storageScope}:${normalizedSelectedId}`}
                   />
+                </div>
+
+                {/* Streamlined Interactive Studio Workbench */}
+                <div className="fw-panel !rounded-[21px] border border-[#dfd5f8] bg-[linear-gradient(145deg,#faf8ff,#f3effb)] p-5 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-[#e8e4f1] pb-3.5">
+                    <div className="flex items-center gap-3">
+                      <span className="fw-tile fw-lavender !w-10 !h-10 !text-lg !rounded-[12px]" aria-hidden="true">
+                        ⚡
+                      </span>
+                      <div>
+                        <span className="fw-kicker block">Hands-on Workbench</span>
+                        <h4 className="text-base font-black tracking-[-0.025em] text-[#222038]">
+                          Interactive Concept Studio
+                        </h4>
+                        <p className="text-xs text-[#615d76] mt-0.5">
+                          Explore dynamic simulations, lifecycle walkthroughs, and real-world scenarios.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Studio Tool Switcher Pills */}
+                    <div className="flex flex-wrap items-center gap-1 p-1 bg-white rounded-[14px] border border-[#e8e4f1] text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setActiveStudioTool('lifecycle')}
+                        className={`px-3 py-1.5 rounded-[10px] font-bold transition ${
+                          activeStudioTool === 'lifecycle'
+                            ? 'bg-[#5637ca] text-white shadow-xs'
+                            : 'text-[#615d76] hover:text-[#222038] hover:bg-[#f6f3ff]'
+                        }`}
+                      >
+                        Lifecycle
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveStudioTool('whatif')}
+                        className={`px-3 py-1.5 rounded-[10px] font-bold transition ${
+                          activeStudioTool === 'whatif'
+                            ? 'bg-[#5637ca] text-white shadow-xs'
+                            : 'text-[#615d76] hover:text-[#222038] hover:bg-[#f6f3ff]'
+                        }`}
+                      >
+                        What-If
+                      </button>
+                      {isSavingsTopic && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveStudioTool('simulator')}
+                          className={`px-3 py-1.5 rounded-[10px] font-bold transition ${
+                            activeStudioTool === 'simulator'
+                              ? 'bg-[#5637ca] text-white shadow-xs'
+                              : 'text-[#615d76] hover:text-[#222038] hover:bg-[#f6f3ff]'
+                          }`}
+                        >
+                          Calculator
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setActiveStudioTool('scenarios')}
+                        className={`px-3 py-1.5 rounded-[10px] font-bold transition ${
+                          activeStudioTool === 'scenarios'
+                            ? 'bg-[#5637ca] text-white shadow-xs'
+                            : 'text-[#615d76] hover:text-[#222038] hover:bg-[#f6f3ff]'
+                        }`}
+                      >
+                        Case Studies
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveStudioTool('matcher')}
+                        className={`px-3 py-1.5 rounded-[10px] font-bold transition ${
+                          activeStudioTool === 'matcher'
+                            ? 'bg-[#5637ca] text-white shadow-xs'
+                            : 'text-[#615d76] hover:text-[#222038] hover:bg-[#f6f3ff]'
+                        }`}
+                      >
+                        Goal Matcher
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Active Tool View */}
+                  <div className="pt-1">
+                    {activeStudioTool === 'lifecycle' && (
+                      <InstrumentLifecycleDiagram topicId={normalizedSelectedId} />
+                    )}
+
+                    {activeStudioTool === 'whatif' && (
+                      <InteractiveWhatIfTool topicId={normalizedSelectedId} />
+                    )}
+
+                    {activeStudioTool === 'simulator' && isSavingsTopic && (
+                      <div className="fw-panel !rounded-[21px] border border-[#e8e4f1] bg-white p-5 space-y-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e8e4f1] pb-3">
+                          <div>
+                            <span className="fw-kicker block">Compound Growth</span>
+                            <h4 className="text-base font-black tracking-[-0.03em] text-[#222038] flex items-center gap-1.5 mt-0.5">
+                              <span aria-hidden="true">🧮</span> Savings Growth Calculator
+                            </h4>
+                            <p className="text-xs text-[#615d76]">
+                              Adjust parameters below to project potential interest returns.
+                            </p>
+                          </div>
+                          <span className="text-[11px] font-extrabold px-3 py-1 rounded-full bg-[#e3f3d9] text-[#285137] border border-[#c3e2b0]">
+                            Live Preview
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                          <div className="p-3.5 rounded-[16px] bg-[#fbfaff] border border-[#e8e4f1]">
+                            <label htmlFor={`${savingsInputId}-deposit`} className="font-bold text-[#222038] block mb-1.5">
+                              Deposit: ${simDeposit.toLocaleString()}
+                            </label>
+                            <input
+                              id={`${savingsInputId}-deposit`}
+                              type="range"
+                              min="100"
+                              max="20000"
+                              step="100"
+                              value={simDeposit}
+                              onChange={(e) => setSimDeposit(Number(e.target.value))}
+                              className="w-full accent-[#5637ca]"
+                            />
+                            <div className="flex justify-between text-[10px] font-semibold text-[#615d76] mt-1">
+                              <span>$100</span>
+                              <span>$10k</span>
+                              <span>$20k</span>
+                            </div>
+                          </div>
+
+                          <div className="p-3.5 rounded-[16px] bg-[#fbfaff] border border-[#e8e4f1]">
+                            <label htmlFor={`${savingsInputId}-apy`} className="font-bold text-[#222038] block mb-1.5">
+                              APY: {simApy.toFixed(2)}%
+                            </label>
+                            <input
+                              id={`${savingsInputId}-apy`}
+                              type="range"
+                              min="0.5"
+                              max="8.0"
+                              step="0.25"
+                              value={simApy}
+                              onChange={(e) => setSimApy(Number(e.target.value))}
+                              className="w-full accent-[#5637ca]"
+                            />
+                            <div className="flex justify-between text-[10px] font-semibold text-[#615d76] mt-1">
+                              <span>0.5%</span>
+                              <span>4.0%</span>
+                              <span>8.0%</span>
+                            </div>
+                          </div>
+
+                          <div className="p-3.5 rounded-[16px] bg-[#fbfaff] border border-[#e8e4f1]">
+                            <label htmlFor={`${savingsInputId}-months`} className="font-bold text-[#222038] block mb-1.5">
+                              Horizon: {simMonths} Months
+                            </label>
+                            <input
+                              id={`${savingsInputId}-months`}
+                              type="range"
+                              min="3"
+                              max="60"
+                              step="3"
+                              value={simMonths}
+                              onChange={(e) => setSimMonths(Number(e.target.value))}
+                              className="w-full accent-[#5637ca]"
+                            />
+                            <div className="flex justify-between text-[10px] font-semibold text-[#615d76] mt-1">
+                              <span>3 mo</span>
+                              <span>1 yr</span>
+                              <span>5 yr</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-[#e8e4f1]">
+                          <div className="p-3.5 rounded-[16px] bg-[#e3f3d9]/70 border border-[#b7dc9f]">
+                            <span className="text-[11px] font-bold text-[#285137] block">Estimated Interest</span>
+                            <span className="text-lg font-black text-[#285137] font-mono tabular-nums">
+                              +${savingsExample.totalGrowth.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="p-3.5 rounded-[16px] bg-[#eee6ff]/70 border border-[#dfd5f8]">
+                            <span className="text-[11px] font-bold text-[#4f32a9] block">Total Balance at Term End</span>
+                            <span className="text-lg font-black text-[#222038] font-mono tabular-nums">
+                              ${savingsExample.finalBalance.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="p-3.5 rounded-[16px] bg-[#ffe9da]/70 border border-[#f5cdb2]">
+                            <span className="text-[11px] font-bold text-[#7b402a] block">
+                              {normalizedSelectedId === 'cd-basics'
+                                ? 'Early break penalty (90d)'
+                                : 'Baseline interest (0.01% APY)'}
+                            </span>
+                            <span className="text-xs font-bold text-[#7b402a] font-mono tabular-nums">
+                              {normalizedSelectedId === 'cd-basics'
+                                ? `-$${penaltyEst.toFixed(2)} if broken early`
+                                : `$${baselineInterest.toFixed(2)} ($${(savingsExample.totalGrowth - baselineInterest).toFixed(2)} difference)`}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeStudioTool === 'scenarios' && (
+                      <div className="fw-panel !rounded-[21px] border border-[#e8e4f1] bg-white p-5 space-y-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e8e4f1] pb-3">
+                          <div>
+                            <span className="fw-kicker block">Learner Profiles</span>
+                            <h4 className="text-base font-black tracking-[-0.03em] text-[#222038] mt-0.5">
+                              Real-World Case Studies
+                            </h4>
+                            <p className="text-xs text-[#615d76]">
+                              Explore practical situations and strategic takeaways.
+                            </p>
+                          </div>
+                          <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-[#eee6ff] text-[#4f32a9]">
+                            Profile {activePersonaIdx + 1} of {scenarios.length}
+                          </span>
+                        </div>
+
+                        {/* Persona Selector Ribbon */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {scenarios.map((sc, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => setActivePersonaIdx(idx)}
+                              className={`px-3.5 py-2 rounded-[13px] text-xs font-bold border transition-all flex items-center gap-2 ${
+                                idx === activePersonaIdx
+                                  ? 'bg-[#272047] text-white border-[#272047] shadow-xs'
+                                  : 'bg-[#fbfaff] hover:bg-[#f4f0fd] text-[#222038] border-[#e8e4f1] hover:border-[#cbb8f6]'
+                              }`}
+                            >
+                              <span>{sc.name}</span>
+                              <span
+                                className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                  idx === activePersonaIdx
+                                    ? 'bg-[#dbfb84] text-[#272047]'
+                                    : 'bg-[#eee6ff] text-[#4f32a9]'
+                                }`}
+                              >
+                                {sc.tag}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Active Persona Card */}
+                        {scenarios[activePersonaIdx] && (() => {
+                          const sc = scenarios[activePersonaIdx];
+                          return (
+                            <div className="p-4 rounded-[18px] border border-[#dfd5f8] bg-[#f8f5ff] space-y-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  <span className="text-sm font-black text-[#222038] block">{sc.name}</span>
+                                  <span className="text-xs font-medium text-[#615d76]">{sc.role}</span>
+                                </div>
+                                <span className="text-[11px] font-extrabold px-3 py-0.5 rounded-full bg-[#eee6ff] text-[#4f32a9] border border-[#dfd5f8]">
+                                  {sc.tag}
+                                </span>
+                              </div>
+                              <p className="text-xs text-[#383354] leading-relaxed bg-white p-3.5 rounded-[14px] border border-[#e8e4f1]">
+                                <strong className="text-[#222038]">Situation:</strong> {sc.situation}
+                              </p>
+                              <div className="p-3.5 rounded-[14px] bg-[#e3f3d9]/80 border border-[#b7dc9f] text-xs text-[#285137] flex items-start gap-2.5">
+                                <span className="text-base" aria-hidden="true">💡</span>
+                                <div>
+                                  <strong className="block text-[11px] uppercase tracking-wider font-extrabold text-[#285137]">
+                                    Takeaway &amp; Strategy:
+                                  </strong>
+                                  <span className="leading-relaxed font-medium">{sc.takeaway}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+
+                    {activeStudioTool === 'matcher' && (
+                      <InteractiveGoalMatcher onSelectTopic={handleSelectTopic} />
+                    )}
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* TAB: US vs EU Market Strategies Lab */}
+            {/* TAB 2: Market Strategies Lab */}
             {activeTab === 'strategies' && (
               <MarketStrategiesLab
-                currentTopicId={selectedTopicId}
+                currentTopicId={normalizedSelectedId}
                 onNavigateTopic={handleSelectTopic}
               />
             )}
 
-            {/* TAB 2: Full Formatted Reader */}
+            {/* TAB 3: Full Reading Guide */}
             {activeTab === 'reader' && (
               <div className="space-y-4">
                 <RichCurriculumContent
-                  key={selectedTopicId}
+                  key={normalizedSelectedId}
                   body={activeLesson.body}
                   fontSize={fontSize}
-                  storageKey={storageScope && `concepts:${storageScope}:${selectedTopicId}`}
-                  onOpenStrategies={() => setActiveTab('strategies')}
+                  storageKey={storageScope && `concepts:${storageScope}:${normalizedSelectedId}`}
                 />
               </div>
             )}
 
-            {/* TAB 3: Comparison Matrix */}
+            {/* TAB 4: Comparison Cheat Sheet */}
             {activeTab === 'matrix' && (
               <div className="space-y-4">
-                <div className="overflow-x-auto rounded-lg border border-slate-200">
-                  <table className="min-w-full text-xs text-left text-slate-700">
-                    <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-200">
+                <div className="overflow-x-auto rounded-[18px] border border-[#e8e4f1] bg-white">
+                  <table className="min-w-full text-xs text-left text-[#383354]">
+                    <thead className="bg-[#f3effa] text-[#4f32a9] font-extrabold border-b border-[#e8e4f1]">
                       <tr>
-                        <th className="p-3">Instrument</th>
-                        <th className="p-3">Safety / Guarantee</th>
-                        <th className="p-3">Liquidity</th>
-                        <th className="p-3">Ideal Horizon</th>
-                        <th className="p-3">Primary Risk</th>
+                        <th className="p-3.5">Instrument</th>
+                        <th className="p-3.5">Safety / Guarantee</th>
+                        <th className="p-3.5">Liquidity</th>
+                        <th className="p-3.5">Ideal Horizon</th>
+                        <th className="p-3.5">Primary Risk</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      <tr className={selectedTopicId === 'cd-basics' ? 'bg-blue-50/60 font-semibold' : ''}>
-                        <td className="p-3 font-bold">Certificates of Deposit (CD)</td>
-                        <td className="p-3 text-emerald-700">🛡️ FDIC ($250k)</td>
-                        <td className="p-3">Locked until maturity</td>
-                        <td className="p-3">3 months – 5 years</td>
-                        <td className="p-3 text-amber-700">Early withdrawal penalty</td>
+                    <tbody className="divide-y divide-[#e8e4f1]">
+                      <tr className={normalizedSelectedId === 'cd-basics' ? 'bg-[#eee6ff]/65 font-semibold' : ''}>
+                        <td className="p-3.5 font-extrabold text-[#222038]">Certificates of Deposit (CD)</td>
+                        <td className="p-3.5 text-[#285137] font-bold">FDIC ($250k)</td>
+                        <td className="p-3.5">Locked until maturity</td>
+                        <td className="p-3.5">3 months – 5 years</td>
+                        <td className="p-3.5 text-[#7b402a] font-semibold">Early withdrawal penalty</td>
                       </tr>
-                      <tr className={selectedTopicId === 'hysa-basics' ? 'bg-blue-50/60 font-semibold' : ''}>
-                        <td className="p-3 font-bold">High-Yield Savings (HYSA)</td>
-                        <td className="p-3 text-emerald-700">🛡️ FDIC ($250k)</td>
-                        <td className="p-3 text-emerald-700">Daily complete access</td>
-                        <td className="p-3">Immediate – 2 years</td>
-                        <td className="p-3 text-amber-700">Floating/variable rates</td>
+                      <tr className={normalizedSelectedId === 'hysa-basics' ? 'bg-[#eee6ff]/65 font-semibold' : ''}>
+                        <td className="p-3.5 font-extrabold text-[#222038]">High-Yield Savings (HYSA)</td>
+                        <td className="p-3.5 text-[#285137] font-bold">FDIC ($250k)</td>
+                        <td className="p-3.5 text-[#285137] font-bold">Daily complete access</td>
+                        <td className="p-3.5">Immediate – 2 years</td>
+                        <td className="p-3.5 text-[#7b402a] font-semibold">Floating/variable rates</td>
                       </tr>
-                      <tr className={selectedTopicId === 'stocks-basics' ? 'bg-blue-50/60 font-semibold' : ''}>
-                        <td className="p-3 font-bold">Individual Stocks</td>
-                        <td className="p-3 text-slate-500">None (Market Risk)</td>
-                        <td className="p-3">Market hours (T+1)</td>
-                        <td className="p-3">3 – 10+ years</td>
-                        <td className="p-3 text-red-700">Single company volatility</td>
+                      <tr className={normalizedSelectedId === 'stock-basics' ? 'bg-[#eee6ff]/65 font-semibold' : ''}>
+                        <td className="p-3.5 font-extrabold text-[#222038]">Individual Stocks</td>
+                        <td className="p-3.5 text-[#615d76]">None (Market Risk)</td>
+                        <td className="p-3.5">Market hours (T+1)</td>
+                        <td className="p-3.5">3 – 10+ years</td>
+                        <td className="p-3.5 text-[#7b402a] font-semibold">Single company volatility</td>
                       </tr>
-                      <tr className={selectedTopicId === 'etf-basics' ? 'bg-blue-50/60 font-semibold' : ''}>
-                        <td className="p-3 font-bold">Index ETFs</td>
-                        <td className="p-3 text-slate-500">None (Market Risk)</td>
-                        <td className="p-3">Market hours (T+1)</td>
-                        <td className="p-3">5+ years</td>
-                        <td className="p-3 text-amber-700">Broad market downturns</td>
+                      <tr className={normalizedSelectedId === 'etf-basics' ? 'bg-[#eee6ff]/65 font-semibold' : ''}>
+                        <td className="p-3.5 font-extrabold text-[#222038]">Index ETFs</td>
+                        <td className="p-3.5 text-[#615d76]">None (Market Risk)</td>
+                        <td className="p-3.5">Market hours (T+1)</td>
+                        <td className="p-3.5">5+ years</td>
+                        <td className="p-3.5 text-[#7b402a] font-semibold">Broad market downturns</td>
                       </tr>
-                      <tr className={selectedTopicId === 'options-basics' ? 'bg-blue-50/60 font-semibold' : ''}>
-                        <td className="p-3 font-bold">Options Contracts</td>
-                        <td className="p-3 text-red-600 font-bold">None (High Leverage)</td>
-                        <td className="p-3">Market hours (expires)</td>
-                        <td className="p-3">Days to months</td>
-                        <td className="p-3 text-red-700 font-bold">100% loss of premium</td>
+                      <tr className={normalizedSelectedId === 'options-intro' ? 'bg-[#eee6ff]/65 font-semibold' : ''}>
+                        <td className="p-3.5 font-extrabold text-[#222038]">Options Contracts</td>
+                        <td className="p-3.5 text-[#7b402a] font-bold">None (High Leverage)</td>
+                        <td className="p-3.5">Market hours (expires)</td>
+                        <td className="p-3.5">Days to months</td>
+                        <td className="p-3.5 text-[#7b402a] font-bold">100% loss of premium</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
 
-                {/* Keep core text in DOM for reader tab */}
                 <div className="sr-only">{activeLesson.body}</div>
               </div>
             )}
 
             {/* Authoritative Sources */}
-            <div className="border-t border-slate-200 pt-4 mt-6">
-              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                Authoritative Primary Sources
-              </h4>
-              <ul className="space-y-1 text-xs" aria-label="Authoritative Source Links">
+            <div className="border-t border-[#e8e4f1] pt-4 mt-6">
+              <h4 className="fw-kicker mb-2">Authoritative Primary Sources</h4>
+              <ul className="space-y-1.5 text-xs" aria-label="Authoritative Source Links">
                 {activeLesson.source_links.map((link, idx) => (
                   <li key={idx}>
                     <a
                       href={link}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 hover:underline break-all inline-flex items-center gap-1"
+                      className="text-[#4f32a9] hover:text-[#272047] hover:underline font-medium break-all inline-flex items-center gap-1.5 transition-colors"
                     >
-                      🔗 {link}
+                      <span className="text-[#7257e0] text-[10px]" aria-hidden="true">↗</span>
+                      <span>{link}</span>
                     </a>
                   </li>
                 ))}
@@ -1530,65 +1632,83 @@ export function LearningView({
           </Card>
 
           {/* Topic Progress Summary */}
-          <Card className="bg-slate-50 border-slate-200">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="fw-panel !rounded-[21px] border border-[#e8e4f1] bg-white p-5 shadow-[0_6px_22px_rgba(39,32,71,0.04)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="fw-tile fw-mint !w-11 !h-11 !text-lg !rounded-[13px]" aria-hidden="true">
+                ✦
+              </span>
               <div>
-                <h4 className="text-sm font-bold text-slate-900">Topic Progress Summary</h4>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <h4 className="text-sm font-black tracking-[-0.02em] text-[#222038]">
+                  Topic Progress Summary
+                </h4>
+                <p className="text-xs text-[#615d76] mt-0.5">
                   Track your quiz attempts and scores for this lesson.
                 </p>
               </div>
-
-              <div className="flex flex-wrap items-center gap-3 text-xs">
-                <div className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
-                  <span className="text-slate-500">Attempts: </span>
-                  <span data-testid="progress-attempts" className="font-bold text-slate-900">{activeProgress.attempt_count}</span>
-                </div>
-                <div className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
-                  <span className="text-slate-500">Latest: </span>
-                  <span data-testid="progress-latest" className="font-bold text-slate-900">{activeProgress.latest_score_pct}%</span>
-                </div>
-                <div className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
-                  <span className="text-slate-500">Best: </span>
-                  <span data-testid="progress-best" className="font-bold text-slate-900">{activeProgress.best_score_pct}%</span>
-                </div>
-                {activeProgress.completed ? (
-                  <span className="inline-flex items-center px-2.5 py-1.5 rounded-lg text-xs font-bold bg-green-100 text-green-800 border border-green-200">
-                    ✓ Completed (80%+ Passed)
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-200 text-slate-700">
-                    Not Completed
-                  </span>
-                )}
-              </div>
             </div>
-          </Card>
 
-          {/* Interactive Quiz Module */}
-          <Card className="border-slate-200 shadow-sm">
-            <div className="border-b border-slate-200 pb-3 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <div className="bg-[#f6f3ff] px-3 py-1.5 rounded-[12px] border border-[#e8e4f1]">
+                <span className="text-[#615d76] font-medium">Attempts: </span>
+                <span data-testid="progress-attempts" className="font-black text-[#222038] tabular-nums">
+                  {activeProgress.attempt_count}
+                </span>
+              </div>
+              <div className="bg-[#f6f3ff] px-3 py-1.5 rounded-[12px] border border-[#e8e4f1]">
+                <span className="text-[#615d76] font-medium">Latest: </span>
+                <span data-testid="progress-latest" className="font-black text-[#222038] tabular-nums">
+                  {activeProgress.latest_score_pct}%
+                </span>
+              </div>
+              <div className="bg-[#f6f3ff] px-3 py-1.5 rounded-[12px] border border-[#e8e4f1]">
+                <span className="text-[#615d76] font-medium">Best: </span>
+                <span data-testid="progress-best" className="font-black text-[#222038] tabular-nums">
+                  {activeProgress.best_score_pct}%
+                </span>
+              </div>
+              {activeProgress.completed ? (
+                <span className="inline-flex items-center px-3 py-1.5 rounded-[12px] text-xs font-extrabold bg-[#e3f3d9] text-[#285137] border border-[#b7dc9f]">
+                  ✓ Completed (80%+ Passed)
+                </span>
+              ) : (
+                <span className="inline-flex items-center px-3 py-1.5 rounded-[12px] text-xs font-bold bg-[#f3effa] text-[#615d76] border border-[#e8e4f1]">
+                  Not Completed
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Knowledge Check Quiz Module */}
+          <Card className="fw-panel !rounded-[21px] border-[#e8e4f1] shadow-[0_8px_28px_rgba(39,32,71,0.05)] bg-white p-6 sm:p-7 space-y-6">
+            <div className="border-b border-[#e8e4f1] pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <h3 ref={quizHeading} tabIndex={-1} className="text-lg font-bold text-slate-900">Knowledge Check Quiz</h3>
-                <p className="text-xs text-slate-500">
+                <span className="fw-kicker block">Mastery Check</span>
+                <h3
+                  ref={quizHeading}
+                  tabIndex={-1}
+                  className="text-lg sm:text-xl font-black tracking-[-0.03em] text-[#222038] mt-0.5"
+                >
+                  Knowledge Check Quiz
+                </h3>
+                <p className="text-xs text-[#615d76] mt-0.5">
                   {activeQuiz.questions.length} questions • Minimum passing score is 80%
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold px-2 py-1 rounded bg-blue-50 text-blue-800 border border-blue-200">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-[#eee6ff] text-[#4f32a9] border border-[#dfd5f8]">
                   Pass Threshold: 80%
                 </span>
-                <span className="text-xs font-mono font-bold px-2 py-1 rounded bg-slate-100 text-slate-700">
+                <span className="text-xs font-mono font-extrabold px-3 py-1 rounded-full bg-[#272047] text-[#dbfb84] tabular-nums">
                   {answeredCount}/{totalQuestions} Answered ({progressPercent}%)
                 </span>
               </div>
             </div>
 
             {/* Visual Progress Bar */}
-            <div className="w-full bg-slate-100 h-2 rounded-full mb-6 overflow-hidden">
+            <div className="w-full bg-[#ece6fa] h-2 rounded-full overflow-hidden">
               <div
-                className="bg-blue-600 h-full transition-all duration-300"
+                className="bg-[#5637ca] h-full transition-all duration-300"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
@@ -1597,7 +1717,7 @@ export function LearningView({
             {validationError && (
               <div
                 role="alert"
-                className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm flex items-center justify-between"
+                className="p-4 rounded-[16px] bg-[#ffe9da] border border-[#f0bca0] text-[#7b402a] text-sm font-semibold flex items-center justify-between"
               >
                 <span>{validationError}</span>
               </div>
@@ -1609,47 +1729,47 @@ export function LearningView({
                 <div
                   role="alert"
                   data-testid="quiz-result-banner"
-                  className={`p-5 rounded-xl border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ${
+                  className={`p-5 rounded-[18px] border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ${
                     attemptResult.passed
-                      ? 'bg-green-50 border-green-200 text-green-900'
-                      : 'bg-amber-50 border-amber-200 text-amber-900'
+                      ? 'bg-[#e3f3d9]/85 border-[#b7dc9f] text-[#285137]'
+                      : 'bg-[#ffe9da]/90 border-[#f0bca0] text-[#7b402a]'
                   }`}
                 >
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base font-bold">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-base font-black">
                         {attemptResult.passed ? '🎉 Passed!' : '⚠️ Needs Review'}
                       </span>
                       <span
-                        className={`text-xs px-2 py-0.5 rounded font-bold ${
+                        className={`text-xs px-2.5 py-0.5 rounded-full font-extrabold ${
                           attemptResult.passed
-                            ? 'bg-green-200 text-green-900'
-                            : 'bg-amber-200 text-amber-900'
+                            ? 'bg-white/80 text-[#285137]'
+                            : 'bg-white/80 text-[#7b402a]'
                         }`}
                       >
                         {attemptResult.passed ? 'Status: Passed' : 'Status: Failed'}
                       </span>
                     </div>
-                    <p className="text-xs">
+                    <p className="text-xs font-medium">
                       {attemptResult.passed
                         ? 'Congratulations! You achieved at least the 80% passing threshold.'
                         : 'You did not achieve the required 80% passing threshold. Review the explanations below and try again.'}
                     </p>
                   </div>
 
-                  <div className="text-right sm:border-l sm:pl-6 border-slate-300/50">
-                    <div data-testid="quiz-score-pct" className="text-2xl font-black">{attemptResult.score_pct}%</div>
-                    <div data-testid="quiz-correct-count" className="text-xs opacity-80">
+                  <div className="text-right sm:border-l sm:pl-6 border-current/20">
+                    <div data-testid="quiz-score-pct" className="text-2xl font-black font-mono tabular-nums">
+                      {attemptResult.score_pct}%
+                    </div>
+                    <div data-testid="quiz-correct-count" className="text-xs font-bold opacity-85">
                       {attemptResult.correct} of {attemptResult.total} correct
                     </div>
                   </div>
                 </div>
 
-                {/* Question-by-Question Feedback & Explanations */}
-                <div className="space-y-4">
-                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Detailed Explanations
-                  </h4>
+                {/* Explanations */}
+                <div className="space-y-3">
+                  <h4 className="fw-kicker">Detailed Explanations</h4>
                   {activeQuiz.questions.map((question, qIdx) => {
                     const feedbackItem = attemptResult.feedback.find(
                       (f) => f.question_id === question.id
@@ -1661,34 +1781,34 @@ export function LearningView({
                     return (
                       <div
                         key={question.id}
-                        className={`p-4 rounded-xl border transition-all ${
+                        className={`p-4 rounded-[18px] border transition-all space-y-2 ${
                           isCorrect
-                            ? 'bg-green-50/50 border-green-200'
-                            : 'bg-red-50/50 border-red-200'
+                            ? 'bg-[#e3f3d9]/50 border-[#b7dc9f]'
+                            : 'bg-[#ffe9da]/65 border-[#f5cdb2]'
                         }`}
                       >
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <p className="text-sm font-semibold text-slate-900">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-bold text-[#222038]">
                             {qIdx + 1}. {question.prompt}
                           </p>
                           <span
-                            className={`shrink-0 text-xs font-bold px-2 py-0.5 rounded ${
+                            className={`shrink-0 text-xs font-extrabold px-2.5 py-0.5 rounded-full ${
                               isCorrect
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-red-100 text-red-800'
+                                ? 'bg-[#e3f3d9] text-[#285137] border border-[#b7dc9f]'
+                                : 'bg-[#ffe9da] text-[#7b402a] border border-[#f5cdb2]'
                             }`}
                           >
                             {isCorrect ? '✓ Correct' : '✗ Incorrect'}
                           </span>
                         </div>
 
-                        <p className="text-xs text-slate-600 mb-2">
-                          <span className="font-semibold">Your selection: </span>
+                        <p className="text-xs text-[#615d76]">
+                          <span className="font-bold text-[#222038]">Your selection: </span>
                           {selectedOption?.text || 'None'}
                         </p>
 
-                        <div className="p-2.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-700">
-                          <span className="font-bold text-slate-900">Explanation: </span>
+                        <div className="p-3 rounded-[14px] bg-white border border-[#e8e4f1] text-xs text-[#383354]">
+                          <span className="font-extrabold text-[#222038]">Explanation: </span>
                           {feedbackItem?.explanation || 'No explanation provided.'}
                         </div>
                       </div>
@@ -1696,7 +1816,7 @@ export function LearningView({
                   })}
                 </div>
 
-                <div className="pt-4 border-t border-slate-200 flex justify-end">
+                <div className="pt-4 border-t border-[#e8e4f1] flex justify-end">
                   <Button
                     type="button"
                     variant="primary"
@@ -1709,10 +1829,11 @@ export function LearningView({
               </div>
             ) : (
               /* Quiz Questions Form */
-              <form onSubmit={handleSubmitQuiz} className="space-y-6">
+              <form onSubmit={handleSubmitQuiz} className="space-y-5">
                 {activeQuiz.questions.map((question, qIdx) => {
                   const promptId = `prompt-${question.id}`;
-                  const hintText = QUIZ_HINTS[question.id];
+                  const hintText =
+                    TOPIC_QUIZ_HINTS[activeQuiz.id]?.[question.id] ?? QUIZ_HINTS[question.id];
                   const isHintOpen = !!openHints[question.id];
 
                   return (
@@ -1720,12 +1841,12 @@ export function LearningView({
                       key={question.id}
                       role="radiogroup"
                       aria-labelledby={promptId}
-                      className="border border-slate-200 rounded-xl p-4 bg-slate-50/50 space-y-3"
+                      className="border border-[#e8e4f1] rounded-[18px] p-4 sm:p-5 bg-[#fbfaff] space-y-3"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <legend
                           id={promptId}
-                          className="text-sm font-semibold text-slate-900 px-1"
+                          className="text-sm font-extrabold text-[#222038] px-1"
                         >
                           {qIdx + 1}. {question.prompt}
                         </legend>
@@ -1734,17 +1855,17 @@ export function LearningView({
                           <button
                             type="button"
                             onClick={() => toggleHint(question.id)}
-                            className="text-xs text-blue-600 hover:text-blue-800 font-medium shrink-0 flex items-center gap-1 bg-blue-50 px-2 py-1 rounded border border-blue-100"
+                            className="text-xs text-[#4f32a9] hover:text-[#272047] font-bold shrink-0 flex items-center gap-1 bg-[#eee6ff] hover:bg-[#e4d9ff] px-2.5 py-1 rounded-[10px] border border-[#dfd5f8] transition-colors"
                           >
-                            <span>💡</span>
+                            <span aria-hidden="true">💡</span>
                             <span>{isHintOpen ? 'Hide Hint' : 'Need Hint?'}</span>
                           </button>
                         )}
                       </div>
 
                       {isHintOpen && hintText && (
-                        <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
-                          <span>💡</span>
+                        <div className="p-3.5 rounded-[14px] bg-[#eee6ff] border border-[#dfd5f8] text-xs text-[#4f32a9] font-medium flex items-start gap-2">
+                          <span aria-hidden="true">💡</span>
                           <span>{hintText}</span>
                         </div>
                       )}
@@ -1758,10 +1879,10 @@ export function LearningView({
                             <label
                               key={option.id}
                               htmlFor={inputId}
-                              className={`flex items-start gap-3 p-3 rounded-lg border text-xs sm:text-sm cursor-pointer transition-colors ${
+                              className={`flex items-start gap-3 p-3.5 rounded-[14px] border text-xs sm:text-sm cursor-pointer transition-all ${
                                 isChecked
-                                  ? 'bg-blue-50 border-blue-400 text-blue-950 font-medium shadow-sm'
-                                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                  ? 'bg-[#f0eaff] border-[#7257e0] text-[#222038] font-semibold shadow-2xs'
+                                  : 'bg-white border-[#e8e4f1] text-[#383354] hover:border-[#cfc1fa] hover:bg-[#fbf9ff]'
                               }`}
                             >
                               <input
@@ -1772,7 +1893,7 @@ export function LearningView({
                                 checked={isChecked}
                                 onChange={() => handleOptionSelect(question.id, option.id)}
                                 aria-checked={isChecked}
-                                className="mt-0.5 h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300"
+                                className="mt-0.5 h-4 w-4 accent-[#5637ca] border-[#cfc1fa]"
                               />
                               <span className="flex-1 select-none">{option.text}</span>
                             </label>
@@ -1783,8 +1904,8 @@ export function LearningView({
                   );
                 })}
 
-                <div className="flex items-center justify-between pt-4 border-t border-slate-200">
-                  <span className="text-xs text-slate-500">
+                <div className="flex items-center justify-between pt-3 border-t border-[#e8e4f1]">
+                  <span className="text-xs text-[#615d76] font-bold">
                     {answeredCount} of {totalQuestions} answered
                   </span>
 

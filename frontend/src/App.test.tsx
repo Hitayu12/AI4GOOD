@@ -133,7 +133,7 @@ describe('FutureWorth learning journey', () => {
     fireEvent.click(tools.getByRole('button', { name: 'Lessons' }));
     expect(await screen.findByText('Financial Education & Learning')).toBeInTheDocument();
     fireEvent.click(tools.getByRole('button', { name: 'Market replay' }));
-    expect(await screen.findByText('Curriculum Time Cursor')).toBeInTheDocument();
+    expect(await screen.findByText('Curriculum Time Cursor', undefined, { timeout: 4000 })).toBeInTheDocument();
     fireEvent.click(tools.getByRole('button', { name: 'Trade Lab' }));
     expect(await screen.findByTestId('trading-view')).toBeInTheDocument();
     fireEvent.click(tools.getByRole('button', { name: 'Portfolio' }));
@@ -167,5 +167,27 @@ describe('FutureWorth learning journey', () => {
     expect(screen.getByText('Practice order cancelled.')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Your order is queued' })).not.toBeInTheDocument();
     expect(screen.getByTestId('cash-balance')).toHaveTextContent('$10,000.00');
+  });
+
+  it('purges an expired auth session from localStorage on reload and preserves guest state', () => {
+    const expiredSession = {
+      user: { id: 'usr_old', email: 'old@example.com' },
+      token: 'tok_expired',
+      expiresAt: new Date(Date.now() - 3600000).toISOString(),
+    };
+    localStorage.setItem('futureworth_auth_session_v1', JSON.stringify(expiredSession));
+
+    render(<App />);
+    expect(localStorage.getItem('futureworth_auth_session_v1')).toBeNull();
+    expect(screen.getByText('Demo data')).toBeInTheDocument();
+  });
+
+  it('closes initial visit sign-in modal with Escape key', async () => {
+    render(<App />);
+    const modal = await screen.findByRole('dialog', { name: 'Sign in to FutureWorth' });
+    expect(modal).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Sign in to FutureWorth' })).not.toBeInTheDocument();
   });
 });

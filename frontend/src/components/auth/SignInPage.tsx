@@ -21,6 +21,10 @@ function describeError(error: unknown, registering: boolean) {
   return 'The account service couldn’t complete that request. Try again, or continue as a guest.';
 }
 
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
 export function SignInPage({ apiClient, onGuest, onAuthenticated }: Props) {
   const [registering, setRegistering] = useState(false);
   const [email, setEmail] = useState('');
@@ -41,12 +45,17 @@ export function SignInPage({ apiClient, onGuest, onAuthenticated }: Props) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending.current) return;
+    const trimmedEmail = email.trim();
+    if (!isValidEmail(trimmedEmail) || (registering && password.length < 12)) {
+      setError('Check the email format and use a password between 12 and 128 characters.');
+      return;
+    }
     const request = new AbortController();
     pending.current = request;
     setError('');
     setBusy(true);
     setReveal(false);
-    const credentials = { email: email.trim(), password };
+    const credentials = { email: trimmedEmail, password };
     const profile = toAffiliation(affiliation);
     let accountCreated = false;
     const timeout = window.setTimeout(() => { request.abort(); }, 15_000);
@@ -76,8 +85,8 @@ export function SignInPage({ apiClient, onGuest, onAuthenticated }: Props) {
     } catch (failure) {
       if (pending.current !== request) return;
 
-      // Handle expected domain errors from server (wrong password, validation error, etc.)
-      if (failure instanceof ApiError && [401, 409, 422, 429].includes(failure.status)) {
+      // Handle expected domain errors from server (wrong password, validation error, secure transport, etc.)
+      if (failure instanceof ApiError && (failure.code === 'secure_transport_required' || [401, 409, 422, 429].includes(failure.status))) {
         apiClient.setToken(null);
         setPassword('');
         if (accountCreated) {
@@ -91,7 +100,7 @@ export function SignInPage({ apiClient, onGuest, onAuthenticated }: Props) {
 
       // If backend is offline, unreachable, or in fixture mode:
       // Provide smooth fallback login so the user is never blocked!
-      const userEmail = email.trim() || 'student@rutgers.edu';
+      const userEmail = trimmedEmail || 'student@rutgers.edu';
       const fallbackUser: User = {
         id: `usr_${userEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
         email: userEmail,
@@ -165,12 +174,12 @@ export function SignInPage({ apiClient, onGuest, onAuthenticated }: Props) {
             <label className="fw-field" htmlFor="futureworth-password">FutureWorth password</label>
             <div className="fw-password fw-field">
               <input id="futureworth-password" name="password" type={reveal ? 'text' : 'password'} autoComplete={registering ? 'new-password' : 'current-password'}
-                value={password} minLength={registering ? 8 : undefined} maxLength={128} required onChange={(event) => setPassword(event.target.value)}
+                value={password} minLength={registering ? 12 : undefined} maxLength={128} required onChange={(event) => setPassword(event.target.value)}
                 aria-describedby={registering ? 'new-password-hint' : undefined} />
               <button type="button" className="fw-quiet" aria-pressed={reveal} onClick={() => setReveal(!reveal)}>{reveal ? 'Hide password' : 'Show password'}</button>
             </div>
             {registering && <>
-              <p className="fw-meta" id="new-password-hint">Use 8 to 128 characters. Choose a password unique to FutureWorth.</p>
+              <p className="fw-meta" id="new-password-hint">Use 12 to 128 characters. Choose a password unique to FutureWorth.</p>
               <div className="fw-affiliation">
                 <h2>School affiliation <small>Optional</small></h2>
                 <p className="fw-meta">Your selection is self-reported and saved to your account.</p>

@@ -196,6 +196,20 @@ export class TradingService extends SimulationService {
     return super.createSimulation(params);
   }
 
+  public override async extendSimulation(id: string, additionalDays: number = 30): Promise<Simulation> {
+    if (this.externalSimService) {
+      return this.externalSimService.extendSimulation(id, additionalDays);
+    }
+    return super.extendSimulation(id, additionalDays);
+  }
+
+  public override async resetSimulation(id: string): Promise<Simulation> {
+    if (this.externalSimService) {
+      return this.externalSimService.resetSimulation(id);
+    }
+    return super.resetSimulation(id);
+  }
+
   /**
    * Registers custom market data bars for a symbol (e.g. for testing reference reconciliation).
    */
@@ -215,9 +229,11 @@ export class TradingService extends SimulationService {
     }
     const rawBars = this.rawMarketData[symbol];
     if (rawBars) {
-      return rawBars.find((b) => b.session_date === sessionDate);
+      const bar = rawBars.find((b) => b.session_date === sessionDate);
+      if (bar) return bar;
     }
-    return undefined;
+    const generated = filterVisibleMarketData(symbol, sessionDate);
+    return generated.find((b) => b.session_date === sessionDate);
   }
 
   /**
@@ -303,6 +319,22 @@ export class TradingService extends SimulationService {
     const list = (this.ordersMap.get(simulationId) || []).map((o) => ({ ...o }));
     (list as unknown as { items: Order[] }).items = list;
     return list as Order[] & { items: Order[] };
+  }
+
+  /**
+   * Cancels a pending practice order for a simulation before execution.
+   */
+  public cancelOrder(simulationId: string, orderId?: string): boolean {
+    const orders = this.ordersMap.get(simulationId) || [];
+    const index = orderId
+      ? orders.findIndex((o) => o.id === orderId && o.status === 'pending')
+      : orders.findIndex((o) => o.status === 'pending');
+    if (index >= 0) {
+      orders.splice(index, 1);
+      this.ordersMap.set(simulationId, orders);
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -594,7 +626,8 @@ export class TradingService extends SimulationService {
     }
 
     // 4. Session calendar lookup
-    const dates = this.getSessionDates(sim.dataset_id);
+    const historicalDates = this.getSessionDates(sim.dataset_id);
+    const dates = getReplaySessionDates(historicalDates, sim.start_session, sim.end_session);
     const currentIndex = dates.indexOf(sim.current_session);
     if (currentIndex === -1 || currentIndex + 1 >= dates.length) {
       sim.status = 'completed';
@@ -608,7 +641,7 @@ export class TradingService extends SimulationService {
 
     const nextSession = dates[currentIndex + 1];
     const endIndex = dates.indexOf(sim.end_session);
-    if (currentIndex + 1 > endIndex) {
+    if (endIndex !== -1 && currentIndex + 1 > endIndex) {
       sim.status = 'completed';
       this.setSimulation(sim);
       throw new ApiError(
@@ -1108,8 +1141,7 @@ export class TradingService extends SimulationService {
 
   public markPositionsToMarket(positions: Position[], sessionDate: string): Position[] {
     return positions.map((pos) => {
-      const bars = this.rawMarketData[pos.symbol] || [];
-      const bar = bars.find((b) => b.session_date === sessionDate);
+      const bar = this.getMarketDataBar(pos.symbol, sessionDate);
       const closePrice = bar ? bar.close : pos.market_price;
       const closeNum = parseFloat(closePrice);
       const costBasisNum = parseFloat(pos.cost_basis);

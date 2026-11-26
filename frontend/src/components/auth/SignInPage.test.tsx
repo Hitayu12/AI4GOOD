@@ -43,7 +43,7 @@ describe('FutureWorth sign-in', () => {
     const form = within(screen.getByRole('form'));
     fireEvent.change(form.getByLabelText('Email address'), { target: { value: testUser.email } });
     fireEvent.change(form.getByLabelText('FutureWorth password'), { target: { value: testPassword } });
-    fireEvent.click(form.getByRole('button', { name: 'Sign in' }));
+    fireEvent.submit(screen.getByRole('form'));
     expect(await screen.findByRole('alert')).toHaveTextContent('The email or password didn’t match.');
     expect(form.getByLabelText('FutureWorth password')).toHaveValue('');
     expect(onAuthenticated).not.toHaveBeenCalled();
@@ -57,5 +57,53 @@ describe('FutureWorth sign-in', () => {
     const fetch = vi.spyOn(window, 'fetch');
     await expect(client.login({ email: testUser.email, password: testPassword })).rejects.toMatchObject({ code: 'secure_transport_required' });
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid email format upfront without making network calls', async () => {
+    const client = new ApiClient({ fixtureMode: false });
+    const login = vi.spyOn(client, 'login');
+    const onAuthenticated = vi.fn();
+    render(<SignInPage apiClient={client} onGuest={vi.fn()} onAuthenticated={onAuthenticated} />);
+    const form = within(screen.getByRole('form'));
+    fireEvent.change(form.getByLabelText('Email address'), { target: { value: 'not-an-email' } });
+    fireEvent.change(form.getByLabelText('FutureWorth password'), { target: { value: testPassword } });
+    fireEvent.submit(screen.getByRole('form'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Check the email format and use a password between 12 and 128 characters.');
+    expect(login).not.toHaveBeenCalled();
+    expect(onAuthenticated).not.toHaveBeenCalled();
+  });
+
+  it('displays secure transport error when login throws secure_transport_required', async () => {
+    const client = new ApiClient({ fixtureMode: false });
+    vi.spyOn(client, 'login').mockRejectedValue(new ApiError(0, 'secure_transport_required', 'Insecure transport'));
+    const onAuthenticated = vi.fn();
+    render(<SignInPage apiClient={client} onGuest={vi.fn()} onAuthenticated={onAuthenticated} />);
+    const form = within(screen.getByRole('form'));
+    fireEvent.change(form.getByLabelText('Email address'), { target: { value: testUser.email } });
+    fireEvent.change(form.getByLabelText('FutureWorth password'), { target: { value: testPassword } });
+    fireEvent.submit(screen.getByRole('form'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Sign-in needs HTTPS outside this local preview.');
+    expect(onAuthenticated).not.toHaveBeenCalled();
+  });
+
+  it('falls back to offline login when backend is unreachable with valid credentials', async () => {
+    const client = new ApiClient({ fixtureMode: false });
+    vi.spyOn(client, 'login').mockRejectedValue(new TypeError('Failed to fetch'));
+    const onAuthenticated = vi.fn();
+    render(<SignInPage apiClient={client} onGuest={vi.fn()} onAuthenticated={onAuthenticated} />);
+    const form = within(screen.getByRole('form'));
+    fireEvent.change(form.getByLabelText('Email address'), { target: { value: testUser.email } });
+    fireEvent.change(form.getByLabelText('FutureWorth password'), { target: { value: testPassword } });
+    fireEvent.submit(screen.getByRole('form'));
+
+    await waitFor(() => expect(onAuthenticated).toHaveBeenCalled());
+    expect(onAuthenticated).toHaveBeenCalledWith(
+      expect.objectContaining({ email: testUser.email }),
+      expect.any(String),
+      expect.any(Object),
+      expect.stringContaining('Signed in successfully!')
+    );
   });
 });
