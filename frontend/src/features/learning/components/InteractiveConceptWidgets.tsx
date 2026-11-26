@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { Tuck } from '../../home/Tuck';
+import { soundFx } from '../../gamification/soundFxService';
+import { triggerConfetti } from '../../../components/common/CelebrationConfetti';
 
 export interface InteractiveWidgetsProps {
   topicId: string;
@@ -10,158 +13,175 @@ function normalizeTopicId(topicId: string): string {
   return topicId;
 }
 
+const DUO_PILL_BASE =
+  'border-2 border-b-4 rounded-2xl active:border-b-2 active:translate-y-0.5 transition-all font-bold cursor-pointer select-none';
+
+const DUO_GREEN_BTN =
+  'border-2 border-b-4 rounded-2xl border-[#46a302] bg-[#58cc02] hover:bg-[#4ec000] text-white active:border-b-2 active:translate-y-0.5 transition-all font-extrabold cursor-pointer select-none shadow-xs';
+
+interface LifecycleStep {
+  icon: string;
+  tone: string;
+  title: string;
+  badge: string;
+  summary: string;
+  tuckTip: string;
+}
+
 export function InstrumentLifecycleDiagram({ topicId }: { topicId: string }) {
   const [activeStep, setActiveStep] = useState<number>(0);
+  const [completedSteps, setCompletedSteps] = useState<Record<number, boolean>>({ 0: true });
+  const [journeyDone, setJourneyDone] = useState<boolean>(false);
   const normalizedTopic = normalizeTopicId(topicId);
 
-  const getSteps = () => {
+  const getSteps = (): LifecycleStep[] => {
     switch (normalizedTopic) {
       case 'cd-basics':
         return [
           {
             icon: '💵',
-            tone: 'fw-lavender',
-            title: '1. Initial Commitment',
+            tone: 'bg-[#eee6ff] text-[#4f32a9] border-[#d3c2fb]',
+            title: '1. Drop Cash In',
             badge: 'Fixed Deposit',
-            summary: 'You deposit a lump sum upfront ($1,000) for a guaranteed term (e.g. 12 months).',
-            detail: 'Unlike standard savings, you cannot add additional deposits to this specific CD after inception.',
+            summary: 'Put in one lump sum (like $1,000) and pick your lock-in timer (like 12 months).',
+            tuckTip: 'Tuck says: Think of this like sealing your cash inside a time capsule! 🔒',
           },
           {
             icon: '🔒',
-            tone: 'fw-mint',
-            title: '2. Locked Yield',
+            tone: 'bg-[#e3f3d9] text-[#285137] border-[#b7dc9f]',
+            title: '2. Lock That Rate',
             badge: '5.00% APY',
-            summary: 'Interest rate is locked on day one and guaranteed by the bank.',
-            detail: 'Even if the Federal Reserve cuts interest rates next week, your 5.0% APY remains completely untouched.',
+            summary: 'Your interest rate locks on day one — even if banks cut rates next week!',
+            tuckTip: 'Tuck says: Fixed rate = zero stress about Fed rate cuts! 😌',
           },
           {
             icon: '🛡️',
-            tone: 'fw-lavender',
-            title: '3. FDIC Insurance',
-            badge: '$250k Shield',
-            summary: 'Federally insured up to $250,000 per depositor per bank.',
-            detail: 'Virtual zero risk of nominal principal loss when held to maturity inside insured limits.',
+            tone: 'bg-[#eee6ff] text-[#4f32a9] border-[#d3c2fb]',
+            title: '3. FDIC Shield',
+            badge: '$250k Safe',
+            summary: 'Federal FDIC/NCUA insurance protects your deposit up to $250,000 per bank.',
+            tuckTip: 'Tuck says: Backed by the US government — super sturdy! 🛡️',
           },
           {
             icon: '🏁',
-            tone: 'fw-mint',
-            title: '4. Maturity Payout',
-            badge: '$1,050 Return',
-            summary: 'Full principal plus all accrued compound interest returned at term end.',
-            detail: 'You can roll into a new CD, move into an emergency HYSA, or transfer to your checking account.',
+            tone: 'bg-[#e8fcd6] text-[#1e4620] border-[#86efac]',
+            title: '4. Collect Payout',
+            badge: '$1,050 Back',
+            summary: 'Timer ends! Grab your $1,000 back plus $50 of guaranteed profit.',
+            tuckTip: 'Tuck says: Payday! Roll it into a new CD or spend it on your goal! 🎉',
           },
           {
             icon: '⚠️',
-            tone: 'fw-peach',
-            title: '5. Penalty Guardrail',
-            badge: 'EWP Rule',
-            summary: 'Breaking early triggers an Early Withdrawal Penalty (often 90 to 180 days interest).',
-            detail: 'If broken very early, the penalty can even eat into a small portion of your principal.',
+            tone: 'bg-[#ffe9da] text-[#7b402a] border-[#f5cdb2]',
+            title: '5. Early Break Rule',
+            badge: 'Penalty Alert',
+            summary: 'Pull cash out early and you lose ~90 days of interest as a penalty.',
+            tuckTip: 'Tuck says: Keep emergency money out of CDs so you never pay this fee! 🚨',
           },
         ];
       case 'hysa-basics':
         return [
           {
             icon: '💵',
-            tone: 'fw-lavender',
-            title: '1. Flexible Funding',
-            badge: 'Deposit Anytime',
-            summary: 'Deposit any amount ($1 to $50,000+) whenever you get paid or save cash.',
-            detail: 'No fixed lump-sum commitment; automated recurring transfers are supported.',
+            tone: 'bg-[#eee6ff] text-[#4f32a9] border-[#d3c2fb]',
+            title: '1. Add Anytime',
+            badge: 'Flexible',
+            summary: 'Start with $1 or $1,000 and add more whenever payday hits.',
+            tuckTip: 'Tuck says: Zero lump-sum rules — add a little each paycheck! 💸',
           },
           {
             icon: '💧',
-            tone: 'fw-mint',
-            title: '2. Daily Liquidity',
-            badge: 'Zero Penalties',
-            summary: 'Transfer or withdraw money anytime via ACH, wire, or ATM without early break fees.',
-            detail: 'Ideal for emergency cushions because emergencies never announce themselves in advance.',
+            tone: 'bg-[#e3f3d9] text-[#285137] border-[#b7dc9f]',
+            title: '2. Grab Cash 24/7',
+            badge: 'Zero Fees',
+            summary: 'Need money for a car repair? Transfer it out anytime with zero penalties.',
+            tuckTip: 'Tuck says: Pure liquidity means zero panic when surprises happen! 💧',
           },
           {
             icon: '📈',
-            tone: 'fw-mint',
-            title: '3. Compounding APY',
+            tone: 'bg-[#e8fcd6] text-[#1e4620] border-[#86efac]',
+            title: '3. Earn 10x–40x More',
             badge: '4.50% APY',
-            summary: 'Interest compounds daily and is deposited straight into your balance monthly.',
-            detail: 'Earns hundreds of dollars more than traditional brick-and-mortar savings accounts.',
+            summary: 'Online banks skip pricey storefronts and pass those savings to you in APY.',
+            tuckTip: 'Tuck says: Don’t settle for 0.01% pennies at an old brick bank! ⚡',
           },
           {
             icon: '🌊',
-            tone: 'fw-peach',
-            title: '4. Floating Rate',
-            badge: 'Macro Variable',
-            summary: 'Yield floats dynamically with Federal Reserve benchmark interest rate adjustments.',
-            detail: 'Rates go up when the Fed raises rates, and drift downward when the Fed cuts rates.',
+            tone: 'bg-[#ffe9da] text-[#7b402a] border-[#f5cdb2]',
+            title: '4. Variable Rate',
+            badge: 'Floats',
+            summary: 'Your APY moves up or down whenever the Federal Reserve adjusts rates.',
+            tuckTip: 'Tuck says: Unlike a CD, your HYSA rate floats with the economy! 🌊',
           },
         ];
       case 'stock-basics':
         return [
           {
             icon: '🏢',
-            tone: 'fw-lavender',
-            title: '1. Equity Ownership',
+            tone: 'bg-[#eee6ff] text-[#4f32a9] border-[#d3c2fb]',
+            title: '1. Own a Slice',
             badge: 'Co-Owner',
-            summary: 'Purchasing common stock makes you a fractional co-owner of the corporation.',
-            detail: 'You have a claim on company assets, long-term earnings, and voting rights.',
+            summary: '1 share of stock = real fractional ownership in a public company.',
+            tuckTip: 'Tuck says: Welcome to the owners’ club! 🏢✨',
           },
           {
             icon: '📊',
-            tone: 'fw-peach',
-            title: '2. Market Pricing',
-            badge: 'Intraday Fluctuation',
-            summary: 'Share prices move every second markets are open based on buyers, sellers, and earnings.',
-            detail: 'Short-term price action is volatile; long-term value tracks real corporate profitability.',
+            tone: 'bg-[#ffe9da] text-[#7b402a] border-[#f5cdb2]',
+            title: '2. Live Price Swings',
+            badge: 'Supply & Demand',
+            summary: 'Prices bounce every second based on earnings news and buyer demand.',
+            tuckTip: 'Tuck says: Ignore daily noise — zoom out to 5+ years! 🔭',
           },
           {
             icon: '💵',
-            tone: 'fw-mint',
+            tone: 'bg-[#e3f3d9] text-[#285137] border-[#b7dc9f]',
             title: '3. Cash Dividends',
             badge: 'Profit Share',
-            summary: 'Profitable mature companies return surplus cash directly to shareholders.',
-            detail: 'Dividends can be spent as passive cashflow or automatically reinvested (DRIP).',
+            summary: 'Many mature companies pay cash dividends directly to shareholders.',
+            tuckTip: 'Tuck says: Reinvest those dividends to snowball faster! ❄️',
           },
           {
             icon: '⏳',
-            tone: 'fw-lavender',
-            title: '4. Multi-Year Horizon',
-            badge: '3-10+ Years',
-            summary: 'Stocks compound wealth over long multi-year horizons, not for money needed next month.',
-            detail: 'Unlike bank deposits, equities have market risk and zero FDIC insurance.',
+            tone: 'bg-[#eee6ff] text-[#4f32a9] border-[#d3c2fb]',
+            title: '4. Long Horizon',
+            badge: '5+ Years',
+            summary: 'Stocks have zero FDIC insurance — only invest money you won’t need soon.',
+            tuckTip: 'Tuck says: SIPC covers broker failure, never market dips! 🛡️',
           },
         ];
       case 'etf-basics':
         return [
           {
             icon: '🧺',
-            tone: 'fw-lavender',
-            title: '1. The Bundled Basket',
-            badge: '500+ Stocks in 1',
-            summary: 'An ETF pools hundreds or thousands of individual stocks into a single tradable share.',
-            detail: 'Buying 1 share of an S&P 500 ETF (SPY/VOO) gives you immediate ownership across 500 top US companies.',
+            tone: 'bg-[#eee6ff] text-[#4f32a9] border-[#d3c2fb]',
+            title: '1. Instant Basket',
+            badge: '500+ Stocks',
+            summary: 'One ETF share gives you tiny slices of hundreds of companies at once.',
+            tuckTip: 'Tuck says: Buy the whole haystack instead of hunting for one needle! 🧺',
           },
           {
             icon: '🛡️',
-            tone: 'fw-mint',
-            title: '2. Instant Diversification',
-            badge: 'Risk Mitigation',
-            summary: 'If a single company in the fund goes bankrupt, the other 499 companies cushion the index.',
-            detail: 'Eliminates idiosyncratic single-stock catastrophe risk while capturing broader economic growth.',
+            tone: 'bg-[#e3f3d9] text-[#285137] border-[#b7dc9f]',
+            title: '2. Crash Cushion',
+            badge: 'Diversified',
+            summary: 'If 1 company in the fund flops, 499 others soften the blow.',
+            tuckTip: 'Tuck says: Instant safety against single-company disasters! 💪',
           },
           {
             icon: '⚡',
-            tone: 'fw-peach',
-            title: '3. Stock Exchange Tradability',
-            badge: 'Live Trading',
-            summary: 'Trades continuously throughout regular market hours with real-time price updates.',
-            detail: 'Can be bought or sold with market orders, limit orders, or fractional shares on standard brokerages.',
+            tone: 'bg-[#ffe9da] text-[#7b402a] border-[#f5cdb2]',
+            title: '3. Trade Live',
+            badge: 'Intraday',
+            summary: 'Unlike mutual funds, ETFs trade all day long while markets are open.',
+            tuckTip: 'Tuck says: Buy 1 share at a time — no $3,000 minimum needed! ⚡',
           },
           {
             icon: '🏷️',
-            tone: 'fw-mint',
-            title: '4. Ultra-Low Expense Ratio',
+            tone: 'bg-[#e8fcd6] text-[#1e4620] border-[#86efac]',
+            title: '4. Tiny Fee',
             badge: '0.03% Fee',
-            summary: 'Passive index ETFs charge microscopic management fees compared to active mutual funds.',
-            detail: 'A 0.03% expense ratio means you pay only 30 cents per year for every $1,000 invested.',
+            summary: 'A 0.03% expense ratio costs just 30 cents a year per $1,000 invested.',
+            tuckTip: 'Tuck says: Low fees mean more compounding stays yours! 🏷️💎',
           },
         ];
       case 'options-intro':
@@ -169,35 +189,35 @@ export function InstrumentLifecycleDiagram({ topicId }: { topicId: string }) {
         return [
           {
             icon: '📜',
-            tone: 'fw-lavender',
-            title: '1. Derivatives Contract',
-            badge: '100 Shares Unit',
-            summary: 'An options contract confers the right (not obligation) to buy (Call) or sell (Put) 100 shares.',
-            detail: 'Options derive their value from an underlying stock; you do not own the actual stock.',
+            tone: 'bg-[#eee6ff] text-[#4f32a9] border-[#d3c2fb]',
+            title: '1. 100-Share Contract',
+            badge: 'Calls & Puts',
+            summary: 'Options give the right (not duty) to buy (Call) or sell (Put) 100 shares.',
+            tuckTip: 'Tuck says: Educational only — not enabled in our cash trading lab! 🎓',
           },
           {
             icon: '⏳',
-            tone: 'fw-peach',
-            title: '2. Time Decay (Theta)',
-            badge: 'Expiring Asset',
-            summary: 'Options have fixed expiration dates. Every day that passes erodes the contract value.',
-            detail: 'Even if the stock price moves slightly in your direction, time decay can still wipe out profits.',
+            tone: 'bg-[#ffe9da] text-[#7b402a] border-[#f5cdb2]',
+            title: '2. Melting Clock',
+            badge: 'Theta Decay',
+            summary: 'Options expire! Every day that passes drains value out of the contract.',
+            tuckTip: 'Tuck says: Time is the enemy of options buyers! ⏳',
           },
           {
             icon: '⚠️',
-            tone: 'fw-peach',
-            title: '3. Asymmetric Loss Risk',
-            badge: '100% Capital Risk',
-            summary: 'Options buyers frequently lose 100% of the cash premium paid upfront.',
-            detail: 'Leverage magnifies both gains and total losses; never use essential cash or emergency reserves.',
+            tone: 'bg-[#ffe9da] text-[#7b402a] border-[#f5cdb2]',
+            title: '3. High Loss Risk',
+            badge: 'Max = Premium',
+            summary: 'If the stock misses your target by expiration, you lose 100% of your premium.',
+            tuckTip: 'Tuck says: Never risk rent or emergency money on leverage! 🚨',
           },
           {
             icon: '🛡️',
-            tone: 'fw-mint',
-            title: '4. Educational Sandbox',
-            badge: 'No Real Risk',
-            summary: 'Use this platform strictly to learn mechanics and portfolio hedging without risking real money.',
-            detail: 'Beginners should master CDs, HYSAs, and broad ETFs long before ever touching derivatives.',
+            tone: 'bg-[#e3f3d9] text-[#285137] border-[#b7dc9f]',
+            title: '4. Smarter Path',
+            badge: 'ETFs & Cash',
+            summary: 'Build wealth steadily with HYSAs, CDs, and broad index ETFs first.',
+            tuckTip: 'Tuck says: Steady compounding beats high-stress gambling every time! 🏆',
           },
         ];
     }
@@ -206,51 +226,81 @@ export function InstrumentLifecycleDiagram({ topicId }: { topicId: string }) {
   const steps = getSteps();
   const safeStep = activeStep < steps.length ? activeStep : 0;
   const current = steps[safeStep] || steps[0];
+  const progressPct = Math.round(((safeStep + 1) / steps.length) * 100);
+
+  const handleSelectStep = (idx: number) => {
+    soundFx.playTactileClick();
+    setActiveStep(idx);
+    setCompletedSteps((prev) => ({ ...prev, [idx]: true }));
+  };
+
+  const handleNextStep = () => {
+    if (safeStep < steps.length - 1) {
+      const next = safeStep + 1;
+      soundFx.playTactileClick();
+      setActiveStep(next);
+      setCompletedSteps((prev) => ({ ...prev, [next]: true }));
+    } else {
+      soundFx.playCoinPing();
+      triggerConfetti({ particleCount: 55 });
+      setJourneyDone(true);
+    }
+  };
 
   return (
-    <div className="fw-panel !rounded-[21px] border border-[#e8e4f1] bg-white p-5 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e8e4f1] pb-3">
-        <div>
-          <span className="fw-kicker block">Lifecycle Walkthrough</span>
-          <h4 className="text-base font-black tracking-[-0.03em] text-[#222038] mt-0.5">
-            Instrument Lifecycle Journey
-          </h4>
-          <p className="text-xs text-[#615d76]">
-            Step through the financial journey from inception to maturity.
-          </p>
+    <div className="rounded-3xl border-2 border-[#e8e4f1] bg-white p-5 space-y-4 shadow-xs">
+      {/* Top Progress Bar */}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xl" aria-hidden="true">🗺️</span>
+            <h4 className="text-base font-black tracking-[-0.02em] text-[#222038]">
+              Step-by-Step Journey
+            </h4>
+          </div>
+          <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-[#e8fcd6] text-[#1e4620] border border-[#86efac]">
+            Step {safeStep + 1} of {steps.length}
+          </span>
         </div>
-        <span className="text-[11px] font-extrabold px-3 py-1 rounded-full bg-[#eee6ff] text-[#4f32a9] border border-[#dfd5f8]">
-          Step {safeStep + 1} of {steps.length}
-        </span>
+
+        <div className="h-3 rounded-full bg-slate-100 overflow-hidden border border-slate-200/80">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-[#58cc02] via-[#7ae600] to-[#a3e635] shadow-[0_0_12px_rgba(88,204,2,0.5)] transition-all duration-300"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
       </div>
 
-      {/* Interactive Step Navigator Buttons */}
+      {/* Tactile 3D Step Selector Pills */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2">
         {steps.map((step, idx) => {
           const isSelected = idx === safeStep;
+          const isVisited = !!completedSteps[idx];
           return (
             <button
               key={idx}
               type="button"
-              onClick={() => setActiveStep(idx)}
-              className={`p-2.5 rounded-[14px] text-left border transition-all text-xs flex items-center gap-2 ${
+              onClick={() => handleSelectStep(idx)}
+              className={`p-2.5 text-left text-xs flex items-center gap-2 ${DUO_PILL_BASE} ${
                 isSelected
-                  ? 'bg-[#272047] text-white border-[#272047] shadow-[0_8px_18px_rgba(39,32,71,0.16)] font-bold'
-                  : 'bg-[#fbfaff] hover:bg-[#f4f0fd] border-[#e8e4f1] hover:border-[#cbb8f6] text-[#222038]'
+                  ? 'bg-[#272047] text-white border-[#1b1533] border-b-[#120d24]'
+                  : isVisited
+                  ? 'bg-[#f4fde8] hover:bg-[#e8fcd6] border-[#86efac] border-b-[#58cc02] text-[#1e4620]'
+                  : 'bg-[#fbfaff] hover:bg-[#f4f0fd] border-[#e8e4f1] border-b-[#d2cae6] text-[#222038]'
               }`}
             >
               <span
-                className={`w-8 h-8 rounded-[10px] grid place-items-center text-sm shrink-0 ${
-                  isSelected ? 'bg-[#3c316e] text-[#dbfb84]' : step.tone
+                className={`w-8 h-8 rounded-xl grid place-items-center text-base shrink-0 ${
+                  isSelected ? 'bg-[#3c316e] text-[#dbfb84]' : 'bg-white border border-black/5'
                 }`}
                 aria-hidden="true"
               >
                 {step.icon}
               </span>
-              <div className="truncate">
-                <span className="block truncate font-bold">{step.title}</span>
+              <div className="min-w-0">
+                <span className="block truncate font-extrabold">{step.title}</span>
                 <span
-                  className={`text-[10px] block truncate font-semibold ${
+                  className={`text-[10px] block truncate font-bold ${
                     isSelected ? 'text-[#dbfb84]' : 'text-[#615d76]'
                   }`}
                 >
@@ -262,51 +312,72 @@ export function InstrumentLifecycleDiagram({ topicId }: { topicId: string }) {
         })}
       </div>
 
-      {/* Active Step Visual Showcase Card */}
-      <div className="rounded-[18px] p-4 sm:p-5 border border-[#dfd5f8] bg-[linear-gradient(120deg,#f5f0ff,#fbfaff)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-start gap-3.5 flex-1">
-          <span className={`fw-tile ${current.tone} shrink-0`} aria-hidden="true">
+      {/* Active Micro-Card */}
+      <div className="rounded-2xl p-4 sm:p-5 border-2 border-[#dfd5f8] bg-gradient-to-br from-[#faf8ff] to-[#f4f0fd] space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div
+            className={`w-14 h-14 rounded-2xl border-2 border-b-4 grid place-items-center text-3xl shrink-0 ${current.tone}`}
+            aria-hidden="true"
+          >
             {current.icon}
-          </span>
-          <div className="space-y-1.5 flex-1">
+          </div>
+
+          <div className="space-y-1 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm sm:text-base font-black tracking-[-0.02em] text-[#222038]">
-                {current.title}
-              </span>
-              <span
-                className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full ${current.tone}`}
-              >
+              <span className="text-base font-black text-[#222038]">{current.title}</span>
+              <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${current.tone}`}>
                 {current.badge}
               </span>
             </div>
-            <p className="text-xs sm:text-sm font-semibold text-[#222038] leading-relaxed">
-              {current.summary}
-            </p>
-            <p className="text-xs text-[#615d76] leading-relaxed">
-              <strong className="text-[#4f32a9]">Key Insight:</strong> {current.detail}
-            </p>
+            <p className="text-sm font-semibold text-[#383354] leading-snug">{current.summary}</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+        {/* Tuck Reaction Bubble */}
+        <div className="flex items-center gap-3 pt-1">
+          <div className="w-11 h-11 rounded-xl bg-white border-2 border-[#d3c2fb] grid place-items-center p-1 shrink-0">
+            <Tuck className="w-full h-full object-contain" />
+          </div>
+          <div className="relative flex-1 rounded-2xl bg-white border-2 border-[#dfd5f8] px-3.5 py-2 text-xs font-bold text-[#222038]">
+            <span
+              aria-hidden="true"
+              className="hidden sm:block absolute -left-2 top-3 w-3 h-3 rotate-45 bg-white border-l-2 border-b-2 border-[#dfd5f8]"
+            />
+            {current.tuckTip}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#e8e4f1]">
           <button
             type="button"
             disabled={safeStep === 0}
-            onClick={() => setActiveStep((prev) => Math.max(0, prev - 1))}
-            className="px-3 py-1.5 text-xs rounded-[11px] border border-[#e8e4f1] bg-white hover:bg-[#f4f0fd] hover:border-[#cfc1fa] disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[#222038] transition-colors"
+            onClick={() => handleSelectStep(Math.max(0, safeStep - 1))}
+            className={`px-4 py-2 text-xs bg-white hover:bg-[#f4f0fd] text-[#222038] border-[#e2ddf0] border-b-[#cfc7e6] disabled:opacity-40 disabled:cursor-not-allowed ${DUO_PILL_BASE}`}
           >
-            ← Prev
+            ← Back
           </button>
+
           <button
             type="button"
-            disabled={safeStep === steps.length - 1}
-            onClick={() => setActiveStep((prev) => Math.min(steps.length - 1, prev + 1))}
-            className="px-3.5 py-1.5 text-xs rounded-[11px] bg-[#5637ca] hover:bg-[#4626ad] disabled:bg-[#eeeaf5] disabled:text-[#726a83] disabled:cursor-not-allowed font-bold text-white shadow-2xs transition-colors"
+            onClick={handleNextStep}
+            className={`px-5 py-2 text-xs ${DUO_GREEN_BTN}`}
           >
-            Next Step →
+            {safeStep === steps.length - 1 ? 'Complete Walkthrough 🎉' : 'Next Step →'}
           </button>
         </div>
       </div>
+
+      {journeyDone && (
+        <div
+          role="status"
+          className="p-3.5 rounded-2xl bg-[#e8fcd6] border-2 border-[#58cc02] text-[#1e4620] text-xs font-extrabold flex flex-wrap items-center justify-between gap-2 animate-scaleUp"
+        >
+          <span>🎉 Walkthrough Complete! You mapped the whole journey.</span>
+          <span className="px-3 py-1 rounded-full bg-[#58cc02] text-white font-black shadow-xs">
+            +150 Aura!
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -335,30 +406,69 @@ export function InteractiveWhatIfTool({ topicId }: { topicId: string }) {
   // Options State
   const [daysRemaining, setDaysRemaining] = useState<number>(14);
 
+  // Celebratory milestone badge when clicking a smart preset
+  const [celebrationMsg, setCelebrationMsg] = useState<string | null>(null);
+
+  const celebrateSmartMove = (msg: string) => {
+    setCelebrationMsg(msg);
+    soundFx.playCoinPing();
+    triggerConfetti({ particleCount: 45 });
+  };
+
+  const triggerCaution = (msg: string) => {
+    setCelebrationMsg(msg);
+    soundFx.playTactileClick();
+  };
+
   return (
-    <div className="fw-panel !rounded-[21px] border border-[#e8e4f1] bg-white p-5 space-y-4">
+    <div className="rounded-3xl border-2 border-[#e8e4f1] bg-white p-5 space-y-4 shadow-xs">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e8e4f1] pb-3">
-        <div>
-          <span className="fw-kicker block">Scenario Sandbox</span>
-          <h4 className="text-base font-black tracking-[-0.03em] text-[#222038] mt-0.5">
-            Scenario &amp; &ldquo;What-If&rdquo; Simulator
-          </h4>
-          <p className="text-xs text-[#615d76]">
-            Stress-test this instrument with live interactive inputs to see real financial outcomes.
-          </p>
+        <div className="flex items-center gap-2">
+          <span className="text-xl" aria-hidden="true">🧪</span>
+          <div>
+            <h4 className="text-base font-black tracking-[-0.02em] text-[#222038]">
+              Play &ldquo;What-If&rdquo; Lab
+            </h4>
+            <p className="text-xs text-[#615d76]">
+              Tap a preset or drag sliders to see what happens to your money.
+            </p>
+          </div>
         </div>
         <span className="text-[11px] font-extrabold px-3 py-1 rounded-full bg-[#eee6ff] text-[#4f32a9] border border-[#dfd5f8]">
-          Interactive Tool
+          Interactive Game
         </span>
       </div>
 
       {/* TOPIC 1: CD EARLY WITHDRAWAL BREAK SIMULATOR */}
       {normalizedTopic === 'cd-basics' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div className="p-3.5 rounded-[16px] bg-[#fbfaff] border border-[#e8e4f1]">
-              <label className="font-bold text-[#222038] block mb-1.5">
-                Initial CD Deposit: ${cdDeposit.toLocaleString()}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setCdMonthsPassed(2);
+                triggerCaution('Oops! Breaking at Month 2 triggers the early penalty!');
+              }}
+              className={`px-3.5 py-2 text-xs bg-[#fff1e6] hover:bg-[#ffe4cf] border-[#f97316] border-b-[#c2410c] text-[#7b402a] ${DUO_PILL_BASE}`}
+            >
+              😱 Break Early (Mo 2)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCdMonthsPassed(11);
+                celebrateSmartMove('Smart move! Holding near maturity keeps your principal safe!');
+              }}
+              className={`px-3.5 py-2 text-xs bg-[#e8fcd6] hover:bg-[#d8f8bd] border-[#58cc02] border-b-[#46a302] text-[#1e4620] ${DUO_PILL_BASE}`}
+            >
+              🏆 Hold Long (Mo 11)
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="p-3.5 rounded-2xl bg-[#fbfaff] border-2 border-[#e8e4f1]">
+              <label className="font-extrabold text-[#222038] block mb-1.5">
+                Deposit: ${cdDeposit.toLocaleString()}
               </label>
               <input
                 type="range"
@@ -369,16 +479,11 @@ export function InteractiveWhatIfTool({ topicId }: { topicId: string }) {
                 onChange={(e) => setCdDeposit(Number(e.target.value))}
                 className="w-full accent-[#5637ca]"
               />
-              <div className="flex justify-between text-[10px] font-semibold text-[#615d76] mt-1">
-                <span>$500</span>
-                <span>$5,000</span>
-                <span>$10,000</span>
-              </div>
             </div>
 
-            <div className="p-3.5 rounded-[16px] bg-[#fbfaff] border border-[#e8e4f1]">
-              <label className="font-bold text-[#222038] block mb-1.5">
-                When Do You Break Early? Month {cdMonthsPassed} of {cdTermMonths}
+            <div className="p-3.5 rounded-2xl bg-[#fbfaff] border-2 border-[#e8e4f1]">
+              <label className="font-extrabold text-[#222038] block mb-1.5">
+                Break Month: Month {cdMonthsPassed} of {cdTermMonths}
               </label>
               <input
                 type="range"
@@ -387,13 +492,8 @@ export function InteractiveWhatIfTool({ topicId }: { topicId: string }) {
                 step="1"
                 value={cdMonthsPassed}
                 onChange={(e) => setCdMonthsPassed(Number(e.target.value))}
-                className="w-full accent-[#b8623d]"
+                className="w-full accent-[#f97316]"
               />
-              <div className="flex justify-between text-[10px] font-semibold text-[#615d76] mt-1">
-                <span>Month 1 (Immediate)</span>
-                <span>Month 6</span>
-                <span>Month 11</span>
-              </div>
             </div>
           </div>
 
@@ -405,55 +505,40 @@ export function InteractiveWhatIfTool({ topicId }: { topicId: string }) {
             const penaltyEatsPrincipal = netGainLoss < 0;
 
             return (
-              <div className="p-4 rounded-[18px] border border-[#e8e4f1] bg-[#f8f7fc] space-y-3">
+              <div className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                  <div className="p-3.5 rounded-[14px] bg-[#e3f3d9]/65 border border-[#c3e2b0]">
-                    <span className="text-[#285137] font-bold block text-[11px]">
-                      Earned Interest (Mo {cdMonthsPassed})
-                    </span>
-                    <span className="text-base font-black text-[#285137] font-mono tabular-nums">
+                  <div className="p-3.5 rounded-2xl bg-[#e8fcd6]/80 border-2 border-[#86efac]">
+                    <span className="text-[#1e4620] font-bold block text-[11px]">Earned Interest</span>
+                    <span className="text-lg font-black text-[#1e4620] font-mono tabular-nums">
                       +${earnedInterest.toFixed(2)}
                     </span>
                   </div>
-                  <div className="p-3.5 rounded-[14px] bg-[#ffe9da]/80 border border-[#f5cdb2]">
-                    <span className="text-[#7b402a] font-bold block text-[11px]">
-                      90-Day Early Penalty (EWP)
-                    </span>
-                    <span className="text-base font-black text-[#7b402a] font-mono tabular-nums">
+                  <div className="p-3.5 rounded-2xl bg-[#ffe9da] border-2 border-[#f5cdb2]">
+                    <span className="text-[#7b402a] font-bold block text-[11px]">90-Day Penalty</span>
+                    <span className="text-lg font-black text-[#7b402a] font-mono tabular-nums">
                       -${penalty.toFixed(2)}
                     </span>
                   </div>
-                  <div className="p-3.5 rounded-[14px] bg-white border border-[#dfd5f8]">
-                    <span className="text-[#615d76] font-bold block text-[11px]">
-                      Net Payout Returned
-                    </span>
-                    <span className="text-base font-black text-[#222038] font-mono tabular-nums">
+                  <div className="p-3.5 rounded-2xl bg-[#f8f5ff] border-2 border-[#d3c2fb]">
+                    <span className="text-[#4f32a9] font-bold block text-[11px]">Cash Returned</span>
+                    <span className="text-lg font-black text-[#222038] font-mono tabular-nums">
                       ${netCash.toFixed(2)}
                     </span>
                   </div>
                 </div>
 
                 <div
-                  className={`p-3.5 rounded-[14px] text-xs flex flex-wrap items-center justify-between gap-2 border ${
+                  className={`p-3.5 rounded-2xl text-xs flex items-center gap-3 border-2 ${
                     penaltyEatsPrincipal
-                      ? 'bg-[#ffe9da] border-[#f0bca0] text-[#7b402a]'
-                      : 'bg-[#e3f3d9] border-[#b7dc9f] text-[#285137]'
+                      ? 'bg-[#ffe9da] border-[#f97316] text-[#7b402a]'
+                      : 'bg-[#e8fcd6] border-[#58cc02] text-[#1e4620]'
                   }`}
                 >
-                  <div className="flex items-center gap-2 font-medium flex-1">
-                    <span>{penaltyEatsPrincipal ? '⚠️' : '✅'}</span>
-                    <span>
-                      {penaltyEatsPrincipal
-                        ? `Early Break Alert: Because you withdrew in Month ${cdMonthsPassed} before earning 90 days of interest, the penalty ate $${Math.abs(
-                            netGainLoss
-                          ).toFixed(2)} into your principal!`
-                        : `Principal Safe: You held long enough (${cdMonthsPassed} months) that interest earned covered the penalty and left you with +$${netGainLoss.toFixed(
-                            2
-                          )} net profit.`}
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full bg-white/80">
-                    {penaltyEatsPrincipal ? 'Principal Loss' : 'Net Gain'}
+                  <span className="text-xl">{penaltyEatsPrincipal ? '⚠️' : '✅'}</span>
+                  <span className="font-bold flex-1">
+                    {penaltyEatsPrincipal
+                      ? `Ouch! Breaking at Month ${cdMonthsPassed} ate $${Math.abs(netGainLoss).toFixed(2)} of your original deposit!`
+                      : `Safe! Waiting ${cdMonthsPassed} months left you +$${netGainLoss.toFixed(2)} ahead even after the penalty.`}
                   </span>
                 </div>
               </div>
@@ -465,10 +550,34 @@ export function InteractiveWhatIfTool({ topicId }: { topicId: string }) {
       {/* TOPIC 2: HYSA FLOATING RATE & BANK COMPARISON */}
       {normalizedTopic === 'hysa-basics' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div className="p-3.5 rounded-[16px] bg-[#fbfaff] border border-[#e8e4f1]">
-              <label className="font-bold text-[#222038] block mb-1.5">
-                Emergency Savings: ${hysaDeposit.toLocaleString()}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setHysaDeposit(5000);
+                setFedRate(4.75);
+                celebrateSmartMove('HYSA mode ON! Watch how much more an online bank pays!');
+              }}
+              className={`px-3.5 py-2 text-xs bg-[#e8fcd6] hover:bg-[#d8f8bd] border-[#58cc02] border-b-[#46a302] text-[#1e4620] ${DUO_PILL_BASE}`}
+            >
+              ⚡ Compare $5,000 Savings
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFedRate(2.0);
+                triggerCaution('Fed cut rates! Notice how variable HYSA yields drop with it.');
+              }}
+              className={`px-3.5 py-2 text-xs bg-[#fff1e6] hover:bg-[#ffe4cf] border-[#f97316] border-b-[#c2410c] text-[#7b402a] ${DUO_PILL_BASE}`}
+            >
+              📉 Test Fed Rate Cut (2%)
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="p-3.5 rounded-2xl bg-[#fbfaff] border-2 border-[#e8e4f1]">
+              <label className="font-extrabold text-[#222038] block mb-1.5">
+                Emergency Fund: ${hysaDeposit.toLocaleString()}
               </label>
               <input
                 type="range"
@@ -479,16 +588,11 @@ export function InteractiveWhatIfTool({ topicId }: { topicId: string }) {
                 onChange={(e) => setHysaDeposit(Number(e.target.value))}
                 className="w-full accent-[#5637ca]"
               />
-              <div className="flex justify-between text-[10px] font-semibold text-[#615d76] mt-1">
-                <span>$1k</span>
-                <span>$10k</span>
-                <span>$25k</span>
-              </div>
             </div>
 
-            <div className="p-3.5 rounded-[16px] bg-[#fbfaff] border border-[#e8e4f1]">
-              <label className="font-bold text-[#222038] block mb-1.5">
-                Fed Benchmark Rate: {fedRate.toFixed(2)}% (HYSA yields ~{(fedRate - 0.25).toFixed(2)}%)
+            <div className="p-3.5 rounded-2xl bg-[#fbfaff] border-2 border-[#e8e4f1]">
+              <label className="font-extrabold text-[#222038] block mb-1.5">
+                Fed Rate: {fedRate.toFixed(2)}% (HYSA ~{(fedRate - 0.25).toFixed(2)}%)
               </label>
               <input
                 type="range"
@@ -497,13 +601,8 @@ export function InteractiveWhatIfTool({ topicId }: { topicId: string }) {
                 step="0.25"
                 value={fedRate}
                 onChange={(e) => setFedRate(Number(e.target.value))}
-                className="w-full accent-[#5637ca]"
+                className="w-full accent-[#58cc02]"
               />
-              <div className="flex justify-between text-[10px] font-semibold text-[#615d76] mt-1">
-                <span>1.0% (Low rate cycle)</span>
-                <span>4.0%</span>
-                <span>6.5% (High rate cycle)</span>
-              </div>
             </div>
           </div>
 
@@ -514,36 +613,25 @@ export function InteractiveWhatIfTool({ topicId }: { topicId: string }) {
             const difference = hysaAnnual - traditionalAnnual;
 
             return (
-              <div className="p-4 rounded-[18px] border border-[#e8e4f1] bg-[#f8f7fc] space-y-3 text-xs">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="p-3.5 rounded-[14px] bg-white border border-[#e8e4f1]">
-                    <span className="text-[#615d76] font-semibold block text-[11px]">
-                      Old Brick-and-Mortar Bank (0.01% APY)
-                    </span>
-                    <span className="text-base font-black text-[#615d76] font-mono tabular-nums">
-                      ${traditionalAnnual.toFixed(2)} / year
-                    </span>
-                    <span className="text-[10px] text-[#78728d] block mt-1">
-                      Virtually zero return
-                    </span>
-                  </div>
-                  <div className="p-3.5 rounded-[14px] bg-[#e3f3d9]/80 border border-[#b7dc9f]">
-                    <span className="text-[#285137] block text-[11px] font-bold">
-                      Digital High-Yield Account ({hysaApy.toFixed(2)}% APY)
-                    </span>
-                    <span className="text-base font-black text-[#285137] font-mono tabular-nums">
-                      +${hysaAnnual.toFixed(2)} / year
-                    </span>
-                    <span className="text-[10px] text-[#285137] block mt-1 font-extrabold">
-                      Earns ${difference.toFixed(2)} more every single year!
-                    </span>
-                  </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3.5 rounded-2xl bg-slate-50 border-2 border-slate-200">
+                  <span className="text-[#615d76] font-bold block text-[11px]">
+                    🐢 Old Brick Bank (0.01% APY)
+                  </span>
+                  <span className="text-lg font-black text-[#615d76] font-mono tabular-nums">
+                    ${traditionalAnnual.toFixed(2)} / yr
+                  </span>
                 </div>
-
-                <div className="p-3.5 rounded-[14px] bg-[#eee6ff] border border-[#dfd5f8] text-[#4f32a9] text-xs font-medium">
-                  💡 <strong>Liquidity Advantage:</strong> Unlike a CD, this entire $
-                  {hysaDeposit.toLocaleString()} remains accessible 24/7 without a single cent in
-                  early withdrawal penalties.
+                <div className="p-3.5 rounded-2xl bg-[#e8fcd6] border-2 border-[#58cc02] text-[#1e4620]">
+                  <span className="block text-[11px] font-extrabold">
+                    ⚡ High-Yield Savings ({hysaApy.toFixed(2)}% APY)
+                  </span>
+                  <span className="text-lg font-black font-mono tabular-nums">
+                    +${hysaAnnual.toFixed(2)} / yr
+                  </span>
+                  <span className="text-[11px] block font-extrabold mt-0.5">
+                    +${difference.toFixed(2)} extra every year — 100% liquid!
+                  </span>
                 </div>
               </div>
             );
@@ -554,11 +642,24 @@ export function InteractiveWhatIfTool({ topicId }: { topicId: string }) {
       {/* TOPIC 3: STOCKS DCA VS PANIC SELLING */}
       {normalizedTopic === 'stock-basics' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div className="p-3.5 rounded-[16px] bg-[#fbfaff] border border-[#e8e4f1]">
-              <label className="font-bold text-[#222038] block mb-1.5">
-                Market Fluctuation Scenario:{' '}
-                {stockShock > 0 ? `+${stockShock}% Bull Run` : `${stockShock}% Correction`}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setStockShock(-25);
+                setDcaAmount(200);
+                celebrateSmartMove('Dip spotted! Monthly DCA buys MORE shares while prices are on sale!');
+              }}
+              className={`px-3.5 py-2 text-xs bg-[#e8fcd6] hover:bg-[#d8f8bd] border-[#58cc02] border-b-[#46a302] text-[#1e4620] ${DUO_PILL_BASE}`}
+            >
+              💎 Stay Calm &amp; Buy the Dip (-25%)
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="p-3.5 rounded-2xl bg-[#fbfaff] border-2 border-[#e8e4f1]">
+              <label className="font-extrabold text-[#222038] block mb-1.5">
+                Market Swing: {stockShock > 0 ? `+${stockShock}% Rally` : `${stockShock}% Dip`}
               </label>
               <input
                 type="range"
@@ -569,16 +670,11 @@ export function InteractiveWhatIfTool({ topicId }: { topicId: string }) {
                 onChange={(e) => setStockShock(Number(e.target.value))}
                 className="w-full accent-[#5637ca]"
               />
-              <div className="flex justify-between text-[10px] font-semibold text-[#615d76] mt-1">
-                <span>-35% Crash</span>
-                <span>0% Flat</span>
-                <span>+25% Surge</span>
-              </div>
             </div>
 
-            <div className="p-3.5 rounded-[16px] bg-[#fbfaff] border border-[#e8e4f1]">
-              <label className="font-bold text-[#222038] block mb-1.5">
-                Monthly DCA Discipline: ${dcaAmount}/month
+            <div className="p-3.5 rounded-2xl bg-[#fbfaff] border-2 border-[#e8e4f1]">
+              <label className="font-extrabold text-[#222038] block mb-1.5">
+                Steady Monthly Plan: ${dcaAmount}/mo
               </label>
               <input
                 type="range"
@@ -587,36 +683,23 @@ export function InteractiveWhatIfTool({ topicId }: { topicId: string }) {
                 step="50"
                 value={dcaAmount}
                 onChange={(e) => setDcaAmount(Number(e.target.value))}
-                className="w-full accent-[#285137]"
+                className="w-full accent-[#58cc02]"
               />
-              <div className="flex justify-between text-[10px] font-semibold text-[#615d76] mt-1">
-                <span>$50</span>
-                <span>$500</span>
-                <span>$1,000</span>
-              </div>
             </div>
           </div>
 
-          <div className="p-4 rounded-[18px] border border-[#e8e4f1] bg-[#f8f7fc] space-y-3 text-xs">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="p-3.5 rounded-[14px] bg-[#ffe9da]/80 border border-[#f5cdb2]">
-                <span className="text-[#7b402a] block font-extrabold text-[11px]">
-                  The Emotional Panic Seller
-                </span>
-                <p className="text-[#7b402a] text-xs mt-1 leading-relaxed">
-                  Sees market drop {stockShock}%, panics, sells at bottom, and locks in permanent
-                  loss. Misses the eventual recovery.
-                </p>
-              </div>
-              <div className="p-3.5 rounded-[14px] bg-[#e3f3d9]/80 border border-[#b7dc9f]">
-                <span className="text-[#285137] block font-extrabold text-[11px]">
-                  The Systematic DCA Investor
-                </span>
-                <p className="text-[#285137] text-xs mt-1 leading-relaxed">
-                  Keeps buying ${dcaAmount}/month. When prices drop {stockShock}%, each dollar buys
-                  more shares at discounted valuations!
-                </p>
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="p-3.5 rounded-2xl bg-[#ffe9da] border-2 border-[#f97316] text-[#7b402a]">
+              <span className="font-black block">😰 Panic Seller</span>
+              <p className="mt-1 font-medium leading-snug">
+                Sells during a {stockShock}% dip, locks in losses, and misses the rebound.
+              </p>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-[#e8fcd6] border-2 border-[#58cc02] text-[#1e4620]">
+              <span className="font-black block">💎 Steady Investor</span>
+              <p className="mt-1 font-bold leading-snug">
+                Keeps adding ${dcaAmount}/mo — buying shares at a discount!
+              </p>
             </div>
           </div>
         </div>
@@ -625,10 +708,22 @@ export function InteractiveWhatIfTool({ topicId }: { topicId: string }) {
       {/* TOPIC 4: ETF BASKET VS SINGLE STOCK RISK */}
       {normalizedTopic === 'etf-basics' && (
         <div className="space-y-4">
-          <div className="p-3.5 rounded-[16px] bg-[#fbfaff] border border-[#e8e4f1] text-xs space-y-1.5">
-            <label className="font-bold text-[#222038] block">
-              Single Company Catastrophe: Stock crashes {singleStockCrash}% (accounting fraud /
-              failed drug / CEO scandal)
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSingleStockCrash(-60);
+                celebrateSmartMove('Diversification rescue! 499 other companies absorbed the -60% shock!');
+              }}
+              className={`px-3.5 py-2 text-xs bg-[#e8fcd6] hover:bg-[#d8f8bd] border-[#58cc02] border-b-[#46a302] text-[#1e4620] ${DUO_PILL_BASE}`}
+            >
+              🛡️ Stress-Test a -60% Crash!
+            </button>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-[#fbfaff] border-2 border-[#e8e4f1] text-xs space-y-1.5">
+            <label className="font-extrabold text-[#222038] block">
+              One Company Crashes: {singleStockCrash}%
             </label>
             <input
               type="range"
@@ -637,47 +732,31 @@ export function InteractiveWhatIfTool({ topicId }: { topicId: string }) {
               step="5"
               value={singleStockCrash}
               onChange={(e) => setSingleStockCrash(Number(e.target.value))}
-              className="w-full accent-[#b8623d]"
+              className="w-full accent-[#f97316]"
             />
-            <div className="flex justify-between text-[10px] font-semibold text-[#615d76]">
-              <span>-10% Bad Quarter</span>
-              <span>-40% Earnings Miss</span>
-              <span>-80% Catastrophe</span>
-            </div>
           </div>
 
           {(() => {
             const singleStockLoss = singleStockCrash;
-            const indexWeight = 0.02;
-            const etfImpact = singleStockCrash * indexWeight;
+            const etfImpact = singleStockCrash * 0.02;
 
             return (
-              <div className="p-4 rounded-[18px] border border-[#e8e4f1] bg-[#f8f7fc] space-y-3 text-xs">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="p-3.5 rounded-[14px] bg-[#ffe9da]/80 border border-[#f5cdb2] text-[#7b402a]">
-                    <span className="text-[11px] font-extrabold block">
-                      All-In on Single Stock
-                    </span>
-                    <span className="text-lg font-black font-mono tabular-nums">
-                      {singleStockLoss}%
-                    </span>
-                    <p className="text-[11px] mt-1 leading-relaxed">
-                      $1,000 becomes ${(1000 * (1 + singleStockLoss / 100)).toFixed(0)}. Devastating
-                      personal wealth loss.
-                    </p>
-                  </div>
-                  <div className="p-3.5 rounded-[14px] bg-[#e3f3d9]/80 border border-[#b7dc9f] text-[#285137]">
-                    <span className="text-[11px] font-extrabold block">
-                      Diversified Index ETF
-                    </span>
-                    <span className="text-lg font-black font-mono tabular-nums">
-                      {etfImpact.toFixed(2)}%
-                    </span>
-                    <p className="text-[11px] mt-1 leading-relaxed">
-                      $1,000 becomes ${(1000 * (1 + etfImpact / 100)).toFixed(2)}. The crash is
-                      absorbed seamlessly by 499 other companies.
-                    </p>
-                  </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3.5 rounded-2xl bg-[#ffe9da] border-2 border-[#f97316] text-[#7b402a]">
+                  <span className="font-black block">🎲 100% in 1 Stock</span>
+                  <span className="text-xl font-black font-mono tabular-nums">{singleStockLoss}%</span>
+                  <p className="mt-1 font-bold">
+                    $1,000 drops to ${(1000 * (1 + singleStockLoss / 100)).toFixed(0)}!
+                  </p>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-[#e8fcd6] border-2 border-[#58cc02] text-[#1e4620]">
+                  <span className="font-black block">🧺 500-Stock Index ETF</span>
+                  <span className="text-xl font-black font-mono tabular-nums">
+                    {etfImpact.toFixed(2)}%
+                  </span>
+                  <p className="mt-1 font-bold">
+                    $1,000 stays at ${(1000 * (1 + etfImpact / 100)).toFixed(2)}!
+                  </p>
                 </div>
               </div>
             );
@@ -688,8 +767,21 @@ export function InteractiveWhatIfTool({ topicId }: { topicId: string }) {
       {/* TOPIC 5: OPTIONS TIME DECAY */}
       {normalizedTopic === 'options-intro' && (
         <div className="space-y-4">
-          <div className="p-3.5 rounded-[16px] bg-[#fbfaff] border border-[#e8e4f1] text-xs space-y-1.5">
-            <label className="font-bold text-[#222038] block">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setDaysRemaining(2);
+                triggerCaution('Whoa! With 2 days left, time decay wiped almost the whole contract!');
+              }}
+              className={`px-3.5 py-2 text-xs bg-[#fff1e6] hover:bg-[#ffe4cf] border-[#f97316] border-b-[#c2410c] text-[#7b402a] ${DUO_PILL_BASE}`}
+            >
+              ⏳ Fast-Forward to Day 2!
+            </button>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-[#fbfaff] border-2 border-[#e8e4f1] text-xs space-y-1.5">
+            <label className="font-extrabold text-[#222038] block">
               Days Until Expiration: {daysRemaining} Days Left
             </label>
             <input
@@ -701,11 +793,6 @@ export function InteractiveWhatIfTool({ topicId }: { topicId: string }) {
               onChange={(e) => setDaysRemaining(Number(e.target.value))}
               className="w-full accent-[#5637ca]"
             />
-            <div className="flex justify-between text-[10px] font-semibold text-[#615d76]">
-              <span>0 Days (Expired - $0 Value)</span>
-              <span>15 Days</span>
-              <span>30 Days (Full Premium)</span>
-            </div>
           </div>
 
           {(() => {
@@ -715,42 +802,38 @@ export function InteractiveWhatIfTool({ topicId }: { topicId: string }) {
             const lossPercent = ((initialPremium - currentOptionValue) / initialPremium) * 100;
 
             return (
-              <div className="p-4 rounded-[18px] border border-[#e8e4f1] bg-[#f8f7fc] space-y-3 text-xs">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="p-3.5 rounded-[14px] bg-white border border-[#e8e4f1]">
-                    <span className="text-[#615d76] text-[11px] font-semibold block">
-                      Initial Premium Paid
-                    </span>
-                    <span className="text-base font-black text-[#222038] font-mono tabular-nums">
-                      ${initialPremium.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="p-3.5 rounded-[14px] bg-[#eee6ff]/80 border border-[#dfd5f8]">
-                    <span className="text-[#4f32a9] text-[11px] font-bold block">
-                      Current Contract Value
-                    </span>
-                    <span className="text-base font-black text-[#4f32a9] font-mono tabular-nums">
-                      ${currentOptionValue.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="p-3.5 rounded-[14px] bg-[#ffe9da]/80 border border-[#f5cdb2]">
-                    <span className="text-[#7b402a] text-[11px] font-bold block">
-                      Theta Time Decay Loss
-                    </span>
-                    <span className="text-base font-black text-[#7b402a] font-mono tabular-nums">
-                      -{lossPercent.toFixed(1)}%
-                    </span>
-                  </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div className="p-3.5 rounded-2xl bg-slate-50 border-2 border-slate-200">
+                  <span className="text-[#615d76] font-bold block">Paid Upfront</span>
+                  <span className="text-lg font-black font-mono tabular-nums">${initialPremium}</span>
                 </div>
-
-                <div className="p-3.5 rounded-[14px] bg-[#ffe9da] border border-[#f0bca0] text-[#7b402a] text-xs font-medium">
-                  ⚠️ <strong>Key Risk Reality:</strong> Stocks don&apos;t expire. Options contracts
-                  do. If the stock doesn&apos;t move past your strike price before Day 0, you lose
-                  100% of the money you spent.
+                <div className="p-3.5 rounded-2xl bg-[#eee6ff] border-2 border-[#d3c2fb]">
+                  <span className="text-[#4f32a9] font-bold block">Value Left</span>
+                  <span className="text-lg font-black font-mono tabular-nums text-[#4f32a9]">
+                    ${currentOptionValue.toFixed(2)}
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-[#ffe9da] border-2 border-[#f97316] text-[#7b402a]">
+                  <span className="font-bold block">Time Decay Loss</span>
+                  <span className="text-lg font-black font-mono tabular-nums">
+                    -{lossPercent.toFixed(1)}%
+                  </span>
                 </div>
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {celebrationMsg && (
+        <div
+          role="status"
+          className="p-3.5 rounded-2xl bg-[#e8fcd6] border-2 border-[#58cc02] text-[#1e4620] text-xs font-extrabold flex flex-wrap items-center justify-between gap-2 animate-scaleUp"
+        >
+          <span>✨ {celebrationMsg}</span>
+          <span className="px-2.5 py-0.5 rounded-full bg-[#58cc02] text-white font-black">
+            +150 Aura Goal!
+          </span>
         </div>
       )}
     </div>
@@ -763,74 +846,80 @@ export function InteractiveGoalMatcher({
   onSelectTopic: (topicId: string) => void;
 }) {
   const [selectedGoal, setSelectedGoal] = useState<string>('tuition');
+  const [matchedFeedback, setMatchedFeedback] = useState<boolean>(false);
 
   const GOALS = [
     {
       id: 'tuition',
       icon: '🎓',
-      tone: 'fw-lavender',
-      title: '🎓 Tuition / Down Payment in 12 Mo',
-      description: 'Known future deadline. Cannot risk nominal capital loss.',
+      title: 'Tuition in 12 Months',
+      description: 'Fixed deadline — zero risk allowed.',
       matchTopicId: 'cd-basics',
       matchName: 'Certificate of Deposit (CD)',
-      why: 'Guaranteed 5.0% APY locked with FDIC protection up to $250k. Eliminates stock market correction risk right before your payment is due.',
+      why: 'Locks a guaranteed 5.0% APY with $250k FDIC protection right up to your deadline!',
       tag: 'Principal Safe',
     },
     {
       id: 'emergency',
       icon: '🚨',
-      tone: 'fw-peach',
-      title: '🚨 Emergency Cushion ($2,000)',
-      description: 'Must withdraw anytime at 2 AM without fees or market delay.',
+      title: '2 AM Emergency Fund',
+      description: 'Need instant access anytime.',
       matchTopicId: 'hysa-basics',
-      matchName: 'High-Yield Savings Account (HYSA)',
-      why: '100% liquid daily access via ACH/ATM with 4.5% compound APY. Zero early withdrawal penalties.',
+      matchName: 'High-Yield Savings (HYSA)',
+      why: '100% liquid anytime with zero break fees, FDIC safety, and ~4.5% APY!',
       tag: '100% Liquid',
     },
     {
       id: 'wealth',
       icon: '🚀',
-      tone: 'fw-mint',
-      title: '🚀 Long-Term Wealth (10+ Years)',
-      description: 'Saving for retirement or financial freedom. Willing to tolerate volatility.',
+      title: 'Long-Term Wealth (10+ Yrs)',
+      description: 'Building freedom over a decade.',
       matchTopicId: 'etf-basics',
       matchName: 'Broad-Market Index ETF',
-      why: 'Owns 500+ top companies with ultra-low 0.03% expense ratio. Historical compounding significantly beats inflation and bank yields.',
+      why: 'Owns 500+ top companies in 1 share for tiny 0.03% fees — built to beat inflation!',
       tag: 'High Compounder',
     },
     {
       id: 'dividend',
       icon: '🏢',
-      tone: 'fw-lavender',
-      title: '🏢 Individual Company Equity',
-      description: 'Belief in a specific blue-chip enterprise and its dividend cashflow.',
+      title: 'Back a Favorite Company',
+      description: 'Co-own a specific business.',
       matchTopicId: 'stock-basics',
       matchName: 'Individual Common Stock',
-      why: 'Direct corporate ownership with dividend payouts and voting rights, balanced with broader ETF holdings.',
+      why: 'Direct fractional ownership, voting rights, and potential cash dividends!',
       tag: 'Equity Co-Owner',
     },
   ];
 
   const active = GOALS.find((g) => g.id === selectedGoal) || GOALS[0];
 
+  const handlePickGoal = (goalId: string) => {
+    setSelectedGoal(goalId);
+    setMatchedFeedback(true);
+    soundFx.playCoinPing();
+    triggerConfetti({ particleCount: 40 });
+  };
+
   return (
-    <div className="fw-panel !rounded-[21px] border border-[#e8e4f1] bg-white p-5 space-y-4">
+    <div className="rounded-3xl border-2 border-[#e8e4f1] bg-white p-5 space-y-4 shadow-xs">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e8e4f1] pb-3">
-        <div>
-          <span className="fw-kicker block">Strategy Matchmaker</span>
-          <h4 className="text-base font-black tracking-[-0.03em] text-[#222038] mt-0.5">
-            Goal &amp; Strategy Matcher
-          </h4>
-          <p className="text-xs text-[#615d76]">
-            Select your financial situation to see which instrument aligns with your goal.
-          </p>
+        <div className="flex items-center gap-2">
+          <span className="text-xl" aria-hidden="true">🎯</span>
+          <div>
+            <h4 className="text-base font-black tracking-[-0.02em] text-[#222038]">
+              Pick Your Goal → Find Your Tool
+            </h4>
+            <p className="text-xs text-[#615d76]">
+              Tap any real-life money goal to see Tuck&apos;s best match!
+            </p>
+          </div>
         </div>
-        <span className="text-[11px] font-extrabold px-3 py-1 rounded-full bg-[#e3f3d9] text-[#285137] border border-[#c3e2b0]">
-          Decision Engine
+        <span className="text-[11px] font-extrabold px-3 py-1 rounded-full bg-[#e8fcd6] text-[#1e4620] border border-[#86efac]">
+          Matchmaker
         </span>
       </div>
 
-      {/* Goal Buttons */}
+      {/* Tactile 3D Goal Buttons */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
         {GOALS.map((goal) => {
           const isSelected = goal.id === selectedGoal;
@@ -838,50 +927,63 @@ export function InteractiveGoalMatcher({
             <button
               key={goal.id}
               type="button"
-              onClick={() => setSelectedGoal(goal.id)}
-              className={`p-3.5 rounded-[16px] text-left border transition-all text-xs ${
+              onClick={() => handlePickGoal(goal.id)}
+              className={`p-3.5 text-left text-xs ${DUO_PILL_BASE} ${
                 isSelected
-                  ? 'bg-[#272047] text-white border-[#272047] shadow-[0_8px_20px_rgba(39,32,71,0.16)] font-semibold'
-                  : 'bg-[#fbfaff] hover:bg-[#f4f0fd] border-[#e8e4f1] hover:border-[#cbb8f6] text-[#222038]'
+                  ? 'bg-[#e8fcd6] text-[#1e4620] border-[#58cc02] border-b-[#46a302]'
+                  : 'bg-[#fbfaff] hover:bg-[#f4f0fd] border-[#e8e4f1] border-b-[#d2cae6] text-[#222038]'
               }`}
             >
-              <div className="font-bold truncate">{goal.title}</div>
-              <div
-                className={`text-[11px] mt-1 line-clamp-2 ${
-                  isSelected ? 'text-[#e8dcff]' : 'text-[#615d76]'
-                }`}
-              >
-                {goal.description}
+              <div className="flex items-center gap-2">
+                <span className="text-xl" aria-hidden="true">{goal.icon}</span>
+                <span className="font-black truncate">{goal.title}</span>
               </div>
+              <p className="text-[11px] mt-1.5 font-semibold opacity-85">{goal.description}</p>
             </button>
           );
         })}
       </div>
 
-      {/* Match Result Banner */}
-      <div className="rounded-[18px] p-4 border border-[#dfd5f8] bg-[linear-gradient(110deg,#ede4ff,#f7f2ff_65%,#f6fde8)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Celebratory Match Result */}
+      <div
+        className={`rounded-2xl p-4 border-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
+          matchedFeedback
+            ? 'border-[#58cc02] bg-[#e8fcd6]/85'
+            : 'border-[#dfd5f8] bg-gradient-to-r from-[#f5f0ff] to-[#f4fde8]'
+        }`}
+      >
         <div className="flex items-start gap-3 flex-1">
-          <span className={`fw-tile ${active.tone} shrink-0`} aria-hidden="true">
-            {active.icon}
-          </span>
+          <div className="w-12 h-12 rounded-2xl bg-white border-2 border-[#d3c2fb] grid place-items-center p-1 shrink-0">
+            <Tuck className="w-full h-full object-contain" />
+          </div>
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="fw-kicker">Recommended:</span>
+              <span className="text-[11px] font-black uppercase tracking-wider text-[#4f32a9]">
+                Best Match:
+              </span>
               <span className="text-sm font-black text-[#222038]">{active.matchName}</span>
-              <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#e3f3d9] text-[#285137] border border-[#c3e2b0]">
+              <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-white text-[#1e4620] border border-[#86efac]">
                 {active.tag}
               </span>
+              {matchedFeedback && (
+                <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-[#58cc02] text-white">
+                  +150 Aura Ready!
+                </span>
+              )}
             </div>
-            <p className="text-xs text-[#4b4563] leading-relaxed">{active.why}</p>
+            <p className="text-xs font-semibold text-[#383354] leading-snug">{active.why}</p>
           </div>
         </div>
 
         <button
           type="button"
-          onClick={() => onSelectTopic(active.matchTopicId)}
-          className="fw-button fw-button-lime self-start sm:self-center whitespace-nowrap shadow-xs"
+          onClick={() => {
+            soundFx.playTactileClick();
+            onSelectTopic(active.matchTopicId);
+          }}
+          className={`px-4 py-2.5 text-xs whitespace-nowrap ${DUO_GREEN_BTN}`}
         >
-          Study {active.matchName} →
+          Learn {active.matchName} →
         </button>
       </div>
     </div>

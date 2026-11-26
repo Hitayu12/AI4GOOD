@@ -1,18 +1,16 @@
-import { useState, useId } from 'react';
-import { Card } from '../../components/common/Card';
-import { Button } from '../../components/common/Button';
-import { Input } from '../../components/common/Input';
+import { useId, useState } from 'react';
 import { TabOverviewModal } from '../../components/common/TabOverviewModal';
 import { questTracker } from '../gamification/questTrackerService';
 import { Tuck } from '../home/Tuck';
+import paydayCover from '../home/payday-cover.jpg';
 import '../home/campaign.css';
 import {
-  calculateGrowth,
-  validateCalculatorInputs,
-  formatCurrency,
+  BOUNDS,
   CalculatorMode,
   CalculatorResult,
-  BOUNDS,
+  calculateGrowth,
+  formatCurrency,
+  validateCalculatorInputs,
 } from './calculatorMath';
 
 export type CalculatorPreset = {
@@ -22,7 +20,24 @@ export type CalculatorPreset = {
   horizonMonths: number;
 };
 
-type PresetScenario = {
+type GoalScenario = {
+  id: string;
+  emoji: string;
+  title: string;
+  subtitle: string;
+  badge: string;
+  mode: CalculatorMode;
+  start: number;
+  monthly: number;
+  rate: number;
+  months: number;
+  targetGoal: number;
+  idleTheme: string;
+  activeTheme: string;
+  badgeTheme: string;
+};
+
+type LabScenario = {
   id: string;
   mode: CalculatorMode;
   start: number;
@@ -30,46 +45,76 @@ type PresetScenario = {
   rate: number;
   months: number;
   label: string;
-  badge: string;
-  tone: 'mint' | 'lavender' | 'lime' | 'peach';
-  icon?: string;
 };
 
-const PRESET_SCENARIOS: PresetScenario[] = [
-  {
-    id: 'hysa',
-    mode: 'savings',
-    start: 1000,
-    monthly: 100,
-    rate: 4.5,
-    months: 12,
-    label: '1-Year HYSA (4.5%, $100/mo)',
-    badge: 'HYSA',
-    tone: 'mint',
-  },
-  {
-    id: 'etf',
-    mode: 'investment',
-    start: 1000,
-    monthly: 200,
-    rate: 8.0,
-    months: 60,
-    label: '5-Year ETF Index (8%, $200/mo)',
-    badge: 'ETF',
-    tone: 'lavender',
-  },
+const GOAL_CARDS: GoalScenario[] = [
   {
     id: 'boba',
+    emoji: '🧋',
+    title: 'Boba Stash',
+    subtitle: 'Boba to Wealth · $150/mo · 10y',
+    badge: 'POPULAR',
     mode: 'investment',
     start: 100,
     monthly: 150,
     rate: 8.5,
     months: 120,
-    label: 'Boba to Wealth ($150/mo, 10 yrs)',
-    badge: 'POPULAR',
-    tone: 'lime',
-    icon: '🧋',
+    targetGoal: 25000,
+    idleTheme: 'bg-[#f8fee7] border-[#cde785] border-b-[#a8d145] hover:bg-[#f2fcd6]',
+    activeTheme: 'bg-[#ecfccb] border-[#58cc02] border-b-[#46a302] ring-2 ring-[#58cc02]/25',
+    badgeTheme: 'bg-[#dbfb84] text-[#272047]',
   },
+  {
+    id: 'car',
+    emoji: '🚗',
+    title: 'First Car',
+    subtitle: '$200/mo · 3 yrs · 4.5% APY',
+    badge: 'RIDE',
+    mode: 'savings',
+    start: 1500,
+    monthly: 200,
+    rate: 4.5,
+    months: 36,
+    targetGoal: 9000,
+    idleTheme: 'bg-[#fff9eb] border-[#f4d58d] border-b-[#e5b856] hover:bg-[#fff3d6]',
+    activeTheme: 'bg-[#fef3c7] border-[#f59e0b] border-b-[#d97706] ring-2 ring-[#f59e0b]/25',
+    badgeTheme: 'bg-[#fde68a] text-[#78350f]',
+  },
+  {
+    id: 'hysa',
+    emoji: '🛡️',
+    title: 'Emergency Fund',
+    subtitle: '$100/mo · 1 yr · 4.5% APY',
+    badge: 'SAFE',
+    mode: 'savings',
+    start: 1000,
+    monthly: 100,
+    rate: 4.5,
+    months: 12,
+    targetGoal: 2000,
+    idleTheme: 'bg-[#f0fdf4] border-[#b7e4c7] border-b-[#74c69d] hover:bg-[#e3f9ec]',
+    activeTheme: 'bg-[#dcfce7] border-[#22c55e] border-b-[#16a34a] ring-2 ring-[#22c55e]/25',
+    badgeTheme: 'bg-[#bbf7d0] text-[#14532d]',
+  },
+  {
+    id: 'etf',
+    emoji: '🌴',
+    title: 'Wealth Bag',
+    subtitle: '$200/mo · 5 yrs · 8% ETF',
+    badge: 'GROWTH',
+    mode: 'investment',
+    start: 1000,
+    monthly: 200,
+    rate: 8.0,
+    months: 60,
+    targetGoal: 15000,
+    idleTheme: 'bg-[#f7f4ff] border-[#d8cbf8] border-b-[#b79ef4] hover:bg-[#efeaff]',
+    activeTheme: 'bg-[#ede9fe] border-[#7c3aed] border-b-[#5b21b6] ring-2 ring-[#7c3aed]/25',
+    badgeTheme: 'bg-[#ddd6fe] text-[#3b0764]',
+  },
+];
+
+const LAB_SCENARIOS: LabScenario[] = [
   {
     id: 'contract-ref',
     mode: 'investment',
@@ -78,8 +123,6 @@ const PRESET_SCENARIOS: PresetScenario[] = [
     rate: 12.0,
     months: 12,
     label: 'Contract Reference Check (12%)',
-    badge: 'REF',
-    tone: 'lavender',
   },
   {
     id: 'downturn',
@@ -89,39 +132,204 @@ const PRESET_SCENARIOS: PresetScenario[] = [
     rate: -10.0,
     months: 12,
     label: 'Market Downturn (-10%)',
-    badge: 'STRESS',
-    tone: 'peach',
   },
 ];
 
-const PRESET_BADGE_CLASSES: Record<PresetScenario['tone'], string> = {
-  mint: 'fw-mint',
-  lavender: 'fw-lavender',
-  lime: 'bg-[#dbfb84] text-[#272047]',
-  peach: 'fw-peach',
-};
+const DUO_BUTTON_BASE =
+  'border-2 border-b-4 rounded-2xl active:border-b-2 active:translate-y-0.5 transition-all duration-100 cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7257e0]';
+
+const DUO_CHIP_BASE =
+  'border-2 border-b-4 rounded-xl active:border-b-2 active:translate-y-0.5 transition-all duration-100 cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7257e0]';
 
 function fieldNumber(value: string): number {
   return value.trim() === '' ? Number.NaN : Number(value);
 }
 
-function getTuckSpeech(extraMonthly: number, difference: number | null): string {
-  if (extraMonthly === 0) {
-    return 'Tuck says: Add a little extra each month to supercharge your compound growth!';
+function getTuckSpeech(
+  result: CalculatorResult | null,
+  extraMonthly: number,
+  difference: number | null
+): string {
+  if (!result) {
+    return 'Tuck says: Whoa! Fix that highlighted number so I can calculate your bag! 🐾';
   }
-  if (extraMonthly > 0 && extraMonthly <= 25) {
-    return (
-      'Tuck says: Just $' +
-      extraMonthly +
-      ' more per month adds $' +
-      (difference ? Math.round(difference).toLocaleString() : '3,400') +
-      ' to your final bag! Good dog energy 🐾'
-    );
+  if (result.totalGrowth < 0) {
+    return `Tuck says: Market dips shrink the bag (${formatCurrency(result.totalGrowth)}). Time + diversification help you bounce back! 🛡️`;
   }
+  if (result.totalGrowth === 0) {
+    return result.horizonMonths === 0
+      ? 'Tuck says: 0 months means money is just sitting there! Add some time to let interest work. ⏳'
+      : 'Tuck says: At 0% interest, you only get back what you deposit. Add a yield to let compound growth fly! 🚀';
+  }
+  if (extraMonthly > 0 && difference && difference > 0) {
+    return `Tuck says: Supercharge! Adding just $${extraMonthly}/mo compounds an extra ${formatCurrency(difference)} into your bag! 🐕💰`;
+  }
+  return `Tuck says: That's ${result.formattedTotalGrowth} of pure free compound growth on top of your deposits! Good dog energy 🐾`;
+}
+
+type QuickChip = {
+  label: string;
+  value: number;
+};
+
+function NumberControlTile({
+  id,
+  emoji,
+  label,
+  valueStr,
+  numericValue,
+  onChange,
+  onQuickSelect,
+  min,
+  max,
+  step = 'any',
+  sliderMin,
+  sliderMax,
+  sliderStep,
+  sliderAriaLabel,
+  chips,
+  error,
+  rightBadge,
+  prefix,
+  suffix,
+}: {
+  id: string;
+  emoji: string;
+  label: string;
+  valueStr: string;
+  numericValue: number;
+  onChange: (next: string) => void;
+  onQuickSelect: (val: number) => void;
+  min: number;
+  max: number;
+  step?: string;
+  sliderMin: number;
+  sliderMax: number;
+  sliderStep: number;
+  sliderAriaLabel: string;
+  chips: QuickChip[];
+  error?: string;
+  rightBadge?: string;
+  prefix?: string;
+  suffix?: string;
+}) {
+  const clampedSlider = Number.isFinite(numericValue)
+    ? Math.min(sliderMax, Math.max(sliderMin, numericValue))
+    : sliderMin;
+
   return (
-    'Tuck says: Big moves! That extra $' +
-    extraMonthly +
-    '/mo compounds into serious financial freedom!'
+    <div
+      className={`rounded-2xl border-2 p-3 sm:p-3.5 transition-colors ${
+        error
+          ? 'bg-[#fff5f5] border-[#f43f5e]'
+          : 'bg-white border-[#e5def6] hover:border-[#cbbcf2]'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <label
+          htmlFor={id}
+          className="flex items-center gap-1.5 text-xs sm:text-sm font-black text-[#222038] cursor-pointer"
+        >
+          <span
+            aria-hidden="true"
+            className="w-6 h-6 rounded-lg bg-[#f3effe] border border-[#dfd5f8] grid place-items-center text-xs shrink-0"
+          >
+            {emoji}
+          </span>
+          <span>{label}</span>
+        </label>
+        {rightBadge && (
+          <span className="text-[10px] font-black font-mono px-2 py-0.5 rounded-full bg-[#eee6ff] text-[#4f32a9] shrink-0">
+            {rightBadge}
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          {prefix && (
+            <span
+              aria-hidden="true"
+              className="absolute inset-y-0 left-2.5 flex items-center text-xs font-black text-[#615d76]"
+            >
+              {prefix}
+            </span>
+          )}
+          <input
+            id={id}
+            type="number"
+            step={step}
+            min={min}
+            max={max}
+            value={valueStr}
+            onChange={(e) => onChange(e.target.value)}
+            aria-invalid={error ? 'true' : undefined}
+            aria-describedby={error ? `${id}-error` : undefined}
+            className={`w-full rounded-xl border-2 py-1.5 font-mono font-black text-sm tabular-nums text-[#222038] focus:outline-none transition-colors ${
+              prefix ? 'pl-6' : 'pl-2.5'
+            } ${suffix ? 'pr-7' : 'pr-2.5'} ${
+              error
+                ? 'border-[#e11d48] bg-white focus:ring-2 focus:ring-[#fb7185]/40'
+                : 'border-[#ddd5f3] bg-[#faf8ff] focus:border-[#5637ca] focus:bg-white'
+            }`}
+          />
+          {suffix && (
+            <span
+              aria-hidden="true"
+              className="absolute inset-y-0 right-2.5 flex items-center text-xs font-black text-[#615d76]"
+            >
+              {suffix}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Tactile Quick-Tap Chips */}
+      <div className="mt-2 flex flex-wrap gap-1">
+        {chips.map((chip) => {
+          const isActive = numericValue === chip.value;
+          return (
+            <button
+              key={chip.label}
+              type="button"
+              onClick={() => onQuickSelect(chip.value)}
+              className={`${DUO_CHIP_BASE} px-2 py-0.5 text-[11px] font-extrabold ${
+                isActive
+                  ? 'bg-[#5637ca] border-[#3f23a3] border-b-[#2c157d] text-white'
+                  : 'bg-[#f6f3ff] border-[#dfd5f8] border-b-[#c7b7f2] text-[#4f32a9] hover:bg-[#eee6ff]'
+              }`}
+            >
+              {chip.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Smooth Tactile Slider */}
+      <div className="mt-2">
+        <input
+          type="range"
+          aria-label={sliderAriaLabel}
+          min={sliderMin}
+          max={sliderMax}
+          step={sliderStep}
+          value={clampedSlider}
+          onChange={(e) => onQuickSelect(Number(e.target.value))}
+          className="w-full h-2 bg-[#ece6fa] rounded-full appearance-none cursor-pointer accent-[#58cc02]"
+        />
+      </div>
+
+      {error && (
+        <p
+          id={`${id}-error`}
+          role="alert"
+          className="mt-1.5 flex items-center gap-1 rounded-xl bg-[#ffe4e6] border border-[#fda4af] px-2.5 py-1 text-xs font-extrabold text-[#be123c]"
+        >
+          <span aria-hidden="true">⚠️</span>
+          <span>{error}</span>
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -131,16 +339,33 @@ export function CalculatorView({
 }: {
   preset?: CalculatorPreset;
   storageScope?: string;
-} = {}) {
-  const [mode, setMode] = useState<CalculatorMode>('savings');
-  const [startingAmountStr, setStartingAmountStr] = useState(String(preset?.startingAmount ?? 1000));
-  const [monthlyContributionStr, setMonthlyContributionStr] = useState(String(preset?.monthlyContribution ?? 100));
-  const [annualRateStr, setAnnualRateStr] = useState(preset ? String(preset.annualRatePercent) : '5.0');
-  const [horizonStr, setHorizonStr] = useState(String(preset?.horizonMonths ?? 12));
+}) {
+  const baseId = useId().replace(/:/g, '');
+  const liveAnnounceId = `${baseId}-live-output`;
+
+  const [mode, setMode] = useState<CalculatorMode>(() => {
+    if (preset) return 'investment';
+    return 'savings';
+  });
+
+  const [startingAmountStr, setStartingAmountStr] = useState<string>(
+    preset ? String(preset.startingAmount) : '1000'
+  );
+  const [monthlyContributionStr, setMonthlyContributionStr] = useState<string>(
+    preset ? String(preset.monthlyContribution) : '100'
+  );
+  const [annualRateStr, setAnnualRateStr] = useState<string>(() => {
+    if (preset) return String(preset.annualRatePercent);
+    return '4.5';
+  });
+  const [horizonStr, setHorizonStr] = useState<string>(
+    preset ? String(preset.horizonMonths) : '12'
+  );
+
+  const [extraMonthly, setExtraMonthly] = useState<number>(0);
+  const [targetGoalBalanceStr, setTargetGoalBalanceStr] = useState<string>('10000');
   const [showTable, setShowTable] = useState<boolean>(false);
   const [isOverviewOpen, setIsOverviewOpen] = useState<boolean>(false);
-  const [extraMonthly, setExtraMonthly] = useState(25);
-  const [target, setTarget] = useState(preset?.startingAmount === undefined ? '2000' : '600');
 
   const startingAmount = fieldNumber(startingAmountStr);
   const monthlyContribution = fieldNumber(monthlyContributionStr);
@@ -155,647 +380,652 @@ export function CalculatorView({
     mode,
   });
 
-  let result: CalculatorResult | null = null;
-  if (validation.isValid) {
-    try {
-      result = calculateGrowth({
+  const result: CalculatorResult | null = validation.isValid
+    ? calculateGrowth({
         startingAmount,
         monthlyContribution,
         annualRatePercent,
         horizonMonths,
         mode,
-      });
-    } catch {
-      result = null;
-    }
-  }
+      })
+    : null;
 
-  const liveAnnounceId = useId();
-  const comparisonInputs = {
+  const boostValidation = validateCalculatorInputs({
     startingAmount,
     monthlyContribution: monthlyContribution + extraMonthly,
     annualRatePercent,
     horizonMonths,
     mode,
-  };
-  const difference =
-    result && validateCalculatorInputs(comparisonInputs).isValid
-      ? calculateGrowth(comparisonInputs).finalBalance - result.finalBalance
-      : null;
-  const targetAmount = Number(target);
-  const hasTarget = Number.isFinite(targetAmount) && targetAmount > 0;
-  const goalMonth =
-    result && hasTarget
-      ? result.startingAmount >= targetAmount
-        ? 0
-        : result.breakdown.find(({ endBalance }) => endBalance >= targetAmount)?.month
-      : undefined;
+  });
 
-  // Preset scenarios
-  const applyPreset = (
-    presetMode: CalculatorMode,
+  const boostResult: CalculatorResult | null =
+    boostValidation.isValid && extraMonthly > 0
+      ? calculateGrowth({
+          startingAmount,
+          monthlyContribution: monthlyContribution + extraMonthly,
+          annualRatePercent,
+          horizonMonths,
+          mode,
+        })
+      : null;
+
+  const difference =
+    result && boostResult ? boostResult.finalBalance - result.finalBalance : null;
+
+  const tuckSpeech = getTuckSpeech(result, extraMonthly, difference);
+
+  const applyScenario = (
+    nextMode: CalculatorMode,
+    start: number,
+    monthly: number,
+    rate: number,
+    months: number,
+    targetGoal?: number
+  ) => {
+    setMode(nextMode);
+    setStartingAmountStr(String(start));
+    setMonthlyContributionStr(String(monthly));
+    setAnnualRateStr(String(rate));
+    setHorizonStr(String(months));
+    if (targetGoal) setTargetGoalBalanceStr(String(targetGoal));
+    questTracker.recordCalculatorUsed(storageScope);
+  };
+
+  const isScenarioActive = (
+    checkMode: CalculatorMode,
     start: number,
     monthly: number,
     rate: number,
     months: number
-  ) => {
-    setMode(presetMode);
-    setStartingAmountStr(start.toString());
-    setMonthlyContributionStr(monthly.toString());
-    setAnnualRateStr(rate.toString());
-    setHorizonStr(months.toString());
-    questTracker.recordCalculatorUsed(storageScope);
-  };
+  ) =>
+    mode === checkMode &&
+    startingAmount === start &&
+    monthlyContribution === monthly &&
+    annualRatePercent === rate &&
+    horizonMonths === months;
 
-  const isPresetActive = (item: PresetScenario) =>
-    mode === item.mode &&
-    startingAmount === item.start &&
-    monthlyContribution === item.monthly &&
-    annualRatePercent === item.rate &&
-    horizonMonths === item.months;
+  const totalDeposits = result ? result.startingAmount + result.totalContributions : 0;
+  const multiplier = result && totalDeposits > 0 ? result.finalBalance / totalDeposits : null;
 
-  const inputThemeClass = (hasError?: string) =>
-    `!rounded-[11px] !bg-[#fbfaff] px-3.5 py-2.5 font-mono tabular-nums text-[#222038] font-semibold transition-colors ${
-      hasError
-        ? ''
-        : '!border-[#d9d0e9] focus:!border-[#5637ca] focus:!ring-[#7257e0]'
-    }`;
+  const targetGoalNum = parseFloat(targetGoalBalanceStr) || 10000;
+  const progressToGoalPct =
+    result && targetGoalNum > 0
+      ? Math.min(100, Math.max(0, Math.round((result.finalBalance / targetGoalNum) * 100)))
+      : 0;
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto text-[#222038]">
-      {/* Calculators Tab Overview Modal */}
+    <div className="space-y-4 max-w-6xl mx-auto text-[#222038]">
       <TabOverviewModal
         tab="calculator"
         isOpen={isOverviewOpen}
         onClose={() => setIsOverviewOpen(false)}
       />
 
-      {/* Tuck's Wealth Machine Hero Banner */}
+      {/* 1. Welcoming Intro Section Defining What Compound Interest Is */}
       <section
-        aria-label="Tuck's Wealth Machine"
-        className="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-[#272047] via-[#31255b] to-[#463083] text-white p-6 sm:p-8 border border-[#4f3a8f]/50 shadow-[0_18px_40px_-14px_rgba(39,32,71,0.45)]"
+        aria-label="About the Compound Interest Calculator"
+        className="rounded-3xl border-2 border-[#e5def6] bg-gradient-to-r from-[#fbfaff] via-[#f7f2ff] to-[#f4fde8] p-4 sm:p-5 shadow-xs"
       >
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -top-16 -right-12 h-56 w-56 rounded-full bg-[#dbfb84]/15 blur-3xl"
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -bottom-20 left-1/3 h-52 w-52 rounded-full bg-[#7c5bea]/30 blur-3xl"
-        />
-
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="max-w-xl">
-            <p className="fw-hero-tag !border-[#dbfb84]/35 !bg-[#392a67]/80 !text-[#dbfb84] tracking-[0.12em] uppercase !text-[11px] !font-black">
-              ✦ COMPOUND LAB
-            </p>
-            <h2 className="mt-3 text-3xl sm:text-4xl font-black tracking-[-0.045em] leading-[1.04] text-white">
-              Tuck&apos;s Wealth Machine
-            </h2>
-            <p className="mt-2.5 text-sm sm:text-base text-[#e8dcff] leading-relaxed font-medium max-w-[44ch]">
-              Simulate your financial future. Watch compound interest work while you sleep.
-            </p>
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setIsOverviewOpen(true)}
-                aria-label="What is Calculators Tab?"
-                className="fw-button fw-button-lime shadow-[0_8px_22px_rgba(219,251,132,0.28)] cursor-pointer"
-              >
-                <span aria-hidden="true">💡</span>
-                <span>What is Calculators?</span>
-              </button>
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-2 text-xs font-bold text-[#eadfff] backdrop-blur-xs">
-                <span className="h-2 w-2 rounded-full bg-[#dbfb84]" aria-hidden="true" />
-                {mode === 'savings' ? 'Fixed APY Engine' : 'Market Growth Engine'}
-              </span>
-            </div>
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-white border-2 border-[#d3c2fb] grid place-items-center p-2 shrink-0 shadow-xs">
+            <Tuck className="w-full h-full object-contain" />
           </div>
 
-          <div className="relative self-center md:self-auto shrink-0">
-            <div className="rounded-[22px] bg-gradient-to-br from-[#eee6ff] via-[#f7f2ff] to-[#dbfb84]/90 p-3 sm:p-4 border-2 border-[#dbfb84]/75 shadow-[0_14px_30px_rgba(20,14,44,0.38)] flex items-center justify-center">
-              <Tuck className="w-28 h-28 sm:w-36 sm:h-36 object-contain drop-shadow-[0_8px_16px_rgba(39,32,71,0.24)] transition-transform duration-300 hover:scale-105" />
+          <div className="flex-1 space-y-1.5 text-center sm:text-left">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-[#5637ca] bg-[#eee6ff] px-2.5 py-0.5 rounded-full border border-[#d3c2fb]">
+                ✦ Free Wealth Simulator
+              </span>
+              <h1 className="text-base sm:text-lg font-black text-[#222038]">
+                What is the Compound Interest Calculator?
+              </h1>
             </div>
-            <span className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#272047] border border-[#dbfb84]/55 px-3 py-0.5 text-[10px] font-black uppercase tracking-wider text-[#dbfb84] shadow-md">
-              🐾 Compound Buddy
-            </span>
+
+            <p className="text-xs sm:text-sm text-[#4b4563] leading-relaxed">
+              <strong>Compound interest</strong> is money making money for you! When you save or invest, your interest earns interest on itself—snowballing small monthly habits (like saving $50 or a boba drink) into massive wealth over time.
+            </p>
+
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1 text-xs">
+              <span className="inline-flex items-center gap-1 font-bold text-[#14532d] bg-[#dcfce7] px-2.5 py-1 rounded-xl border border-[#86efac]">
+                <span>🏦</span> <strong>Safe Savings (CD/HYSA):</strong> Fixed, guaranteed APY locked safe by FDIC insurance up to $250,000.
+              </span>
+              <span className="inline-flex items-center gap-1 font-bold text-[#3b0764] bg-[#ede9fe] px-2.5 py-1 rounded-xl border border-[#c4b5fd]">
+                <span>📈</span> <strong>Market Investing (ETF):</strong> Index returns that fluctuate but historically compound much higher over 5–10+ years.
+              </span>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Mode Selector Bar */}
-      <div className="fw-panel p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-[0_6px_24px_rgba(39,32,71,0.04)]">
-        <div className="flex items-start sm:items-center gap-3.5">
-          <span
-            className={`fw-tile ${mode === 'savings' ? 'fw-mint' : 'fw-lavender'}`}
+      {/* 2. Compact Mode Switcher Bar */}
+      <section
+        aria-label="Calculator mode and quick guide"
+        className="rounded-3xl border-2 border-[#e5def6] bg-white p-3.5 sm:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-[0_4px_16px_rgba(39,32,71,0.03)]"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div
             aria-hidden="true"
+            className={`w-10 h-10 rounded-xl border-2 border-b-4 grid place-items-center text-xl shrink-0 ${
+              mode === 'savings'
+                ? 'bg-[#dcfce7] border-[#4ade80] border-b-[#16a34a]'
+                : 'bg-[#ede9fe] border-[#a78bfa] border-b-[#7c3aed]'
+            }`}
           >
             {mode === 'savings' ? '🏦' : '📈'}
-          </span>
-          <div>
-            <p className="fw-kicker">
-              {mode === 'savings' ? 'Savings & CD Mode' : 'Investment Mode'}
-            </p>
-            <h3 className="text-lg sm:text-xl font-black tracking-[-0.03em] text-[#222038]">
-              {mode === 'savings' ? 'High-Yield Savings & CD Calculator' : 'Investment Growth Calculator'}
-            </h3>
-            <p className="text-xs sm:text-sm text-[#615d76] mt-0.5">
-              Compare how your timeline, rate, and monthly deposits affect the ending balance.
-            </p>
+          </div>
+          <div className="min-w-0">
+            <span className="inline-block text-[10px] font-black uppercase tracking-[0.14em] text-[#5637ca] bg-[#f3effe] px-2 py-0.5 rounded-full">
+              {mode === 'savings' ? 'Safe & Steady APY' : 'Market Compounding'}
+            </span>
+            <h2 className="text-base sm:text-lg font-black tracking-[-0.03em] text-[#222038] mt-0.5">
+              {mode === 'savings'
+                ? 'High-Yield Savings & CD Calculator'
+                : 'Investment Growth Calculator'}
+            </h2>
           </div>
         </div>
 
-        <div
-          className="inline-flex items-center p-1 rounded-2xl bg-[#f3effb] border border-[#e8e4f1] self-start sm:self-auto shrink-0"
-          role="tablist"
-          aria-label="Calculator Mode"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === 'savings'}
-            onClick={() => {
-              setMode('savings');
-              if (parseFloat(annualRateStr) < 0) setAnnualRateStr('5.0');
-            }}
-            className={`px-3.5 py-2 text-xs font-extrabold rounded-xl transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7257e0] ${
-              mode === 'savings'
-                ? 'bg-[#5637ca] text-white shadow-[0_4px_12px_rgba(86,55,202,0.28)]'
-                : 'text-[#615d76] hover:text-[#4f32a9] hover:bg-white/70'
-            }`}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div
+            className="inline-flex items-center gap-1 p-1 rounded-2xl bg-[#f3effe] border-2 border-[#e2d9f8]"
+            role="tablist"
+            aria-label="Calculator Mode"
           >
-            Savings / CD
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === 'investment'}
-            onClick={() => setMode('investment')}
-            className={`px-3.5 py-2 text-xs font-extrabold rounded-xl transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7257e0] ${
-              mode === 'investment'
-                ? 'bg-[#5637ca] text-white shadow-[0_4px_12px_rgba(86,55,202,0.28)]'
-                : 'text-[#615d76] hover:text-[#4f32a9] hover:bg-white/70'
-            }`}
-          >
-            Investment Growth
-          </button>
-        </div>
-      </div>
-
-      {/* Quick Scenario Pills */}
-      <div className="fw-panel px-4 py-3.5 flex flex-wrap items-center gap-2 text-xs shadow-[0_4px_16px_rgba(39,32,71,0.03)]">
-        <span className="fw-kicker !text-[11px] mr-1">
-          Quick Scenarios:
-        </span>
-        {PRESET_SCENARIOS.map((item) => {
-          const active = isPresetActive(item);
-          const isBoba = item.id === 'boba';
-          return (
             <button
-              key={item.id}
               type="button"
-              onClick={() => applyPreset(item.mode, item.start, item.monthly, item.rate, item.months)}
-              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border font-extrabold text-xs transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7257e0] focus-visible:ring-offset-2 cursor-pointer ${
-                active
-                  ? isBoba
-                    ? 'bg-[#272047] border-[#272047] text-white shadow-[0_6px_16px_rgba(39,32,71,0.24)]'
-                    : 'bg-[#eee6ff] border-[#7257e0] text-[#4f32a9] shadow-[0_4px_12px_rgba(86,55,202,0.14)]'
-                  : isBoba
-                  ? 'border-[#b9e14c] bg-[#f6fde8] text-[#272047] hover:bg-[#dbfb84]/55 hover:border-[#9dc72f]'
-                  : 'border-[#e8e4f1] bg-[#fbfaff] text-[#222038] hover:border-[#bba8f5] hover:bg-[#f4f0fd]'
+              role="tab"
+              aria-selected={mode === 'savings'}
+              onClick={() => {
+                setMode('savings');
+                if (parseFloat(annualRateStr) < 0) setAnnualRateStr('5.0');
+              }}
+              className={`${DUO_BUTTON_BASE} px-3 py-1.5 text-xs font-black ${
+                mode === 'savings'
+                  ? 'bg-[#58cc02] border-[#46a302] border-b-[#367e02] text-white'
+                  : 'bg-white border-transparent border-b-transparent text-[#615d76] hover:text-[#222038]'
               }`}
             >
-              {item.icon && <span aria-hidden="true">{item.icon}</span>}
-              <span
-                className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                  active && isBoba
-                    ? 'bg-[#dbfb84] text-[#272047]'
-                    : PRESET_BADGE_CLASSES[item.tone]
+              🏦 Savings / CD
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'investment'}
+              onClick={() => setMode('investment')}
+              className={`${DUO_BUTTON_BASE} px-3 py-1.5 text-xs font-black ${
+                mode === 'investment'
+                  ? 'bg-[#5637ca] border-[#3f23a3] border-b-[#2c157d] text-white'
+                  : 'bg-white border-transparent border-b-transparent text-[#615d76] hover:text-[#222038]'
+              }`}
+            >
+              📈 Investment Growth
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsOverviewOpen(true)}
+            aria-label="What is Calculators Tab?"
+            className={`${DUO_BUTTON_BASE} px-3 py-2 text-xs font-black bg-[#dbfb84] border-[#95d62d] border-b-[#6ca312] text-[#272047] hover:bg-[#e6ff9e]`}
+          >
+            💡 Guide
+          </button>
+        </div>
+      </section>
+
+      {/* 3. Goal Cards & Presets */}
+      <section aria-label="Pick a money goal" className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5b43a7]">
+            Pick a Goal Card (Tap to Load!)
+          </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {LAB_SCENARIOS.map((lab) => {
+              const active = isScenarioActive(lab.mode, lab.start, lab.monthly, lab.rate, lab.months);
+              return (
+                <button
+                  key={lab.id}
+                  type="button"
+                  onClick={() => applyScenario(lab.mode, lab.start, lab.monthly, lab.rate, lab.months)}
+                  className={`${DUO_CHIP_BASE} px-2.5 py-1 text-[11px] font-extrabold ${
+                    active
+                      ? 'bg-[#272047] border-[#1b1536] border-b-[#0f0b20] text-[#dbfb84]'
+                      : 'bg-white border-[#e2d9f8] border-b-[#cbbcf2] text-[#615d76] hover:text-[#222038]'
+                  }`}
+                >
+                  {lab.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+          {GOAL_CARDS.map((card) => {
+            const active = isScenarioActive(
+              card.mode,
+              card.start,
+              card.monthly,
+              card.rate,
+              card.months
+            );
+            return (
+              <button
+                key={card.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() =>
+                  applyScenario(
+                    card.mode,
+                    card.start,
+                    card.monthly,
+                    card.rate,
+                    card.months,
+                    card.targetGoal
+                  )
+                }
+                className={`${DUO_BUTTON_BASE} p-3 text-left flex flex-col justify-between gap-1.5 ${
+                  active ? card.activeTheme : card.idleTheme
                 }`}
               >
-                {item.badge}
-              </span>
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
-      </div>
+                <div className="flex items-start justify-between gap-1.5">
+                  <span className="text-2xl leading-none" aria-hidden="true">
+                    {card.emoji}
+                  </span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${card.badgeTheme}`}
+                  >
+                    {card.badge}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs sm:text-sm font-black tracking-[-0.02em] text-[#222038]">
+                    {card.title}
+                  </p>
+                  <p className="text-[10px] font-bold text-[#524b6b] mt-0.5">{card.subtitle}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
-      {/* Main Grid: Inputs + Results */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Form Inputs (5 cols) */}
-        <Card
-          title="Input Parameters"
-          subtitle="Configure your principal, contributions, and rate"
-          className="fw-panel lg:col-span-5 shadow-[0_12px_36px_rgba(39,32,71,0.05)]"
-        >
-          <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
-            <Input
+      {/* 4. Main Clean Board: Inputs (5 cols) + Output & Tuck Feedback (7 cols) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+        {/* Left: Input Controls */}
+        <section aria-label="Adjust your numbers" className="lg:col-span-5 space-y-2.5">
+          <form onSubmit={(e) => e.preventDefault()} className="space-y-2.5">
+            <NumberControlTile
+              id={`${baseId}-start`}
+              emoji="💵"
               label="Starting Principal ($)"
-              type="number"
-              step="any"
+              valueStr={startingAmountStr}
+              numericValue={startingAmount}
+              onChange={setStartingAmountStr}
+              onQuickSelect={(val) => {
+                setStartingAmountStr(String(val));
+                questTracker.recordCalculatorUsed(storageScope);
+              }}
               min={BOUNDS.MIN_STARTING_AMOUNT}
               max={BOUNDS.MAX_STARTING_AMOUNT}
-              value={startingAmountStr}
-              onChange={(e) => setStartingAmountStr(e.target.value)}
+              sliderMin={0}
+              sliderMax={10000}
+              sliderStep={100}
+              sliderAriaLabel="Initial cash slider"
+              prefix="$"
+              chips={[
+                { label: '$0', value: 0 },
+                { label: '$500', value: 500 },
+                { label: '$1k', value: 1000 },
+                { label: '$5k', value: 5000 },
+              ]}
               error={validation.errors.startingAmount}
-              helperText={`Initial lump sum (Max ${formatCurrency(BOUNDS.MAX_STARTING_AMOUNT)})`}
-              className={inputThemeClass(validation.errors.startingAmount)}
             />
 
-            <Input
+            <NumberControlTile
+              id={`${baseId}-monthly`}
+              emoji="🪙"
               label="Monthly Contribution ($)"
-              type="number"
-              step="any"
+              valueStr={monthlyContributionStr}
+              numericValue={monthlyContribution}
+              onChange={setMonthlyContributionStr}
+              onQuickSelect={(val) => {
+                setMonthlyContributionStr(String(val));
+                questTracker.recordCalculatorUsed(storageScope);
+              }}
               min={BOUNDS.MIN_MONTHLY_CONTRIBUTION}
               max={BOUNDS.MAX_MONTHLY_CONTRIBUTION}
-              value={monthlyContributionStr}
-              onChange={(e) => setMonthlyContributionStr(e.target.value)}
+              sliderMin={0}
+              sliderMax={1000}
+              sliderStep={25}
+              sliderAriaLabel="Monthly deposit slider"
+              prefix="$"
+              chips={[
+                { label: '$0', value: 0 },
+                { label: '$50', value: 50 },
+                { label: '$150', value: 150 },
+                { label: '$300', value: 300 },
+              ]}
               error={validation.errors.monthlyContribution}
-              helperText={`Deposited at the end of each month (Max ${formatCurrency(BOUNDS.MAX_MONTHLY_CONTRIBUTION)})`}
-              className={inputThemeClass(validation.errors.monthlyContribution)}
             />
 
-            <Input
-              label={mode === 'savings' ? 'Annual Interest Rate / APY (%)' : 'Projected Annual Return (%)'}
-              type="number"
-              step="0.01"
+            <NumberControlTile
+              id={`${baseId}-rate`}
+              emoji="⚡"
+              label={
+                mode === 'savings' ? 'Annual Interest Rate / APY (%)' : 'Projected Annual Return (%)'
+              }
+              valueStr={annualRateStr}
+              numericValue={annualRatePercent}
+              onChange={setAnnualRateStr}
+              onQuickSelect={(val) => {
+                setAnnualRateStr(String(val));
+                questTracker.recordCalculatorUsed(storageScope);
+              }}
               min={mode === 'savings' ? BOUNDS.MIN_SAVINGS_RATE : BOUNDS.MIN_INVESTMENT_RATE}
               max={BOUNDS.MAX_SAVINGS_RATE}
-              value={annualRateStr}
-              onChange={(e) => setAnnualRateStr(e.target.value)}
-              error={validation.errors.annualRatePercent}
-              helperText={
+              step="0.01"
+              sliderMin={mode === 'savings' ? 0 : -20}
+              sliderMax={15}
+              sliderStep={0.5}
+              sliderAriaLabel="Rate slider"
+              suffix="%"
+              chips={
                 mode === 'savings'
-                  ? 'Nonnegative savings interest rate (0% to 100%)'
-                  : 'Expected annual return (-99.99% to 100%)'
+                  ? [
+                      { label: '0%', value: 0 },
+                      { label: '4.5%', value: 4.5 },
+                      { label: '5.5%', value: 5.5 },
+                      { label: '8%', value: 8 },
+                    ]
+                  : [
+                      { label: '4.5%', value: 4.5 },
+                      { label: '8% ETF', value: 8 },
+                      { label: '10%', value: 10 },
+                      { label: '12%', value: 12 },
+                    ]
               }
-              className={inputThemeClass(validation.errors.annualRatePercent)}
+              error={validation.errors.annualRatePercent}
             />
 
-            <Input
+            <NumberControlTile
+              id={`${baseId}-horizon`}
+              emoji="⏳"
               label="Investment Horizon (Months)"
-              type="number"
-              step="1"
+              valueStr={horizonStr}
+              numericValue={horizonMonths}
+              onChange={setHorizonStr}
+              onQuickSelect={(val) => {
+                setHorizonStr(String(val));
+                questTracker.recordCalculatorUsed(storageScope);
+              }}
               min={BOUNDS.MIN_HORIZON_MONTHS}
               max={BOUNDS.MAX_HORIZON_MONTHS}
-              value={horizonStr}
-              onChange={(e) => setHorizonStr(e.target.value)}
+              step="1"
+              sliderMin={0}
+              sliderMax={360}
+              sliderStep={6}
+              sliderAriaLabel="Timeline slider"
+              rightBadge={
+                Number.isFinite(horizonMonths) ? `${(horizonMonths / 12).toFixed(1)} yrs` : '0.0 yrs'
+              }
+              chips={[
+                { label: '1 yr', value: 12 },
+                { label: '3 yr', value: 36 },
+                { label: '5 yr', value: 60 },
+                { label: '10 yr', value: 120 },
+                { label: '30 yr', value: 360 },
+              ]}
               error={validation.errors.horizonMonths}
-              helperText={`Whole months from 0 to ${BOUNDS.MAX_HORIZON_MONTHS} (${Number.isFinite(horizonMonths) ? (horizonMonths / 12).toFixed(1) : '0.0'} years)`}
-              className={inputThemeClass(validation.errors.horizonMonths)}
             />
           </form>
-        </Card>
+        </section>
 
-        {/* Results & Visuals (7 cols) */}
-        <div className="lg:col-span-7 space-y-6">
-          <Card
-            title="Projection Summary"
-            subtitle="Calculated compound growth at the end of the horizon"
-            className="fw-panel shadow-[0_12px_36px_rgba(39,32,71,0.05)]"
-          >
-            {result ? (
-              <div className="space-y-6" aria-live="polite" id={liveAnnounceId}>
-                {/* Total Balance Hero */}
-                <div className="rounded-[22px] bg-gradient-to-br from-[#272047] via-[#302459] to-[#392a67] text-white p-6 sm:p-8 relative overflow-hidden border border-[#4f3a8f]/60 shadow-[0_16px_38px_-12px_rgba(39,32,71,0.45)] text-center">
-                  <div
-                    aria-hidden="true"
-                    className="pointer-events-none absolute -top-12 -right-10 h-40 w-40 rounded-full bg-[#dbfb84]/15 blur-2xl"
-                  />
-                  <div
-                    aria-hidden="true"
-                    className="pointer-events-none absolute -bottom-14 -left-10 h-40 w-40 rounded-full bg-[#7c5bea]/25 blur-2xl"
-                  />
-                  <div className="relative z-10">
-                    <p className="text-[11px] uppercase tracking-[0.14em] font-black text-[#e8dcff]">
-                      Projected Final Balance
-                    </p>
-                    <p className="text-4xl sm:text-5xl font-black text-[#dbfb84] mt-2 font-mono tabular-nums tracking-tight drop-shadow-[0_0_24px_rgba(219,251,132,0.38)]">
-                      {result.formattedFinalBalance}
-                    </p>
-                    <p className="text-xs sm:text-sm text-[#ddd1fa] mt-2.5 font-medium">
-                      Over <span className="text-white font-extrabold">{result.horizonMonths} months</span> with effective annual rate of{' '}
-                      <span className="text-[#dbfb84] font-extrabold">{result.annualRatePercent}%</span>
-                    </p>
-                  </div>
-                </div>
-
-                {/* Metrics Breakdown Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
-                  <div className="rounded-2xl bg-[#f6f3ff] border border-[#e3dbf9] p-4 transition-all">
-                    <p className="text-[11px] font-extrabold text-[#5b43a7] uppercase tracking-[0.08em]">
-                      Starting Principal
-                    </p>
-                    <p className="text-base sm:text-lg font-black text-[#222038] mt-1 font-mono tabular-nums">
-                      {formatCurrency(result.startingAmount)}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl bg-[#eee6ff]/65 border border-[#dfd5f8] p-4 transition-all">
-                    <p className="text-[11px] font-extrabold text-[#4f32a9] uppercase tracking-[0.08em]">
-                      New Contributions
-                    </p>
-                    <p className="text-base sm:text-lg font-black text-[#222038] mt-1 font-mono tabular-nums">
-                      {result.formattedTotalContributions}
-                    </p>
-                  </div>
-                  <div
-                    className={`rounded-2xl border p-4 transition-all ${
-                      result.totalGrowth >= 0
-                        ? 'bg-[#e3f3d9]/80 border-[#c7e4b6]'
-                        : 'bg-[#ffe9da]/85 border-[#f4cab0]'
-                    }`}
-                  >
-                    <p
-                      className={`text-[11px] font-extrabold uppercase tracking-[0.08em] ${
-                        result.totalGrowth >= 0 ? 'text-[#285137]' : 'text-[#7b402a]'
-                      }`}
-                    >
-                      {result.totalGrowth >= 0 ? 'Total Growth / Interest' : 'Net Loss'}
-                    </p>
-                    <p
-                      className={`text-base sm:text-lg font-black mt-1 font-mono tabular-nums ${
-                        result.totalGrowth >= 0 ? 'text-[#1e462d]' : 'text-[#963a34]'
-                      }`}
-                    >
-                      {result.formattedTotalGrowth}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Scenario Tuning, Milestones & Dynamic Tuck Speech Bubble */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 items-stretch pt-1">
-                  <div className="md:col-span-7 flex flex-col gap-3.5">
-                    {/* Extra Monthly Slider */}
-                    <div className="fw-panel !bg-[#fbfaff] p-4 flex flex-col justify-between">
-                      <div>
-                        <div className="flex items-center justify-between gap-2">
-                          <label htmlFor="extra-monthly" className="text-xs font-extrabold text-[#222038]">
-                            What if you add {formatCurrency(extraMonthly)} more each month?
-                          </label>
-                          <span className="text-[11px] font-mono font-extrabold bg-[#eee6ff] text-[#4f32a9] px-2.5 py-0.5 rounded-full border border-[#dfd5f8] shrink-0">
-                            +{formatCurrency(extraMonthly)}/mo
-                          </span>
-                        </div>
-                        <div className="mt-3">
-                          <input
-                            id="extra-monthly"
-                            type="range"
-                            min="0"
-                            max="100"
-                            step="5"
-                            value={extraMonthly}
-                            onChange={(event) => setExtraMonthly(Number(event.target.value))}
-                            className="w-full h-2 bg-[#ece6fa] rounded-lg appearance-none cursor-pointer accent-[#5637ca]"
-                          />
-                          <div className="flex justify-between text-[10px] text-[#615d76] mt-1 font-mono font-semibold">
-                            <span>$0</span>
-                            <span>$50</span>
-                            <span>$100</span>
-                          </div>
-                        </div>
-                      </div>
-                      <p className="text-xs text-[#615d76] mt-3 pt-2.5 border-t border-[#e8e4f1]">
-                        {difference === null ? (
-                          <span className="text-[#963a34] font-semibold">
-                            This would exceed the calculator’s contribution limit.
-                          </span>
-                        ) : (
-                          <>
-                            Projected difference:{' '}
-                            <output htmlFor="extra-monthly" className="font-black text-[#222038] font-mono tabular-nums">
-                              {formatCurrency(difference)}
-                            </output>
-                          </>
-                        )}
-                      </p>
-                    </div>
-
-                    {/* Savings Milestone Goal */}
-                    <div className="fw-panel !bg-[#fbfaff] p-4 flex flex-col justify-between">
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-xs font-extrabold text-[#222038]">Set a savings goal</h4>
-                          <span className="fw-mint px-2 py-0.5 rounded-full text-[10px] uppercase font-black tracking-wider">
-                            Milestone
-                          </span>
-                        </div>
-                        <div className="mt-2.5">
-                          <label htmlFor="target-balance" className="block text-xs font-semibold text-[#615d76] mb-1">
-                            Target balance ($)
-                          </label>
-                          <div className="relative">
-                            <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-[#615d76] text-xs font-bold">
-                              $
-                            </span>
-                            <input
-                              id="target-balance"
-                              value={target}
-                              min="1"
-                              type="number"
-                              inputMode="decimal"
-                              onChange={(event) => setTarget(event.target.value)}
-                              className="w-full pl-7 pr-3 py-2 text-xs rounded-[10px] border border-[#d9d0e9] bg-white text-[#222038] focus:border-[#5637ca] focus:ring-1 focus:ring-[#7257e0] focus:outline-none transition-colors font-mono font-semibold"
-                              placeholder="e.g. 2000"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <output className="mt-3 pt-2.5 border-t border-[#e8e4f1] block text-xs text-[#615d76] leading-relaxed font-medium">
-                        {!hasTarget
-                          ? 'Enter a target above $0.'
-                          : goalMonth === 0
-                          ? 'You already reach this target with the starting balance.'
-                          : goalMonth !== undefined
-                          ? `This scenario first reaches your target in month ${goalMonth}.`
-                          : 'This scenario stays below your target. Try a longer timeline or a larger monthly deposit.'}
-                      </output>
-                    </div>
+        {/* Right: Outcome Hero Card + Tuck Co-Pilot */}
+        <div className="lg:col-span-7 space-y-3.5">
+          {/* Celebratory Outcome Hero Card */}
+          {result ? (
+            <div className="space-y-3" aria-live="polite" id={liveAnnounceId}>
+              <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#241d42] via-[#342466] to-[#4f32a9] text-white p-5 sm:p-6 border-2 border-b-[5px] border-[#181230] shadow-[0_14px_32px_rgba(39,32,71,0.3)]">
+                <div className="relative z-10 text-center">
+                  <div className="flex flex-wrap items-center justify-center gap-2 mb-1.5">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-white/15 border border-white/20 px-3 py-0.5 text-[11px] font-black uppercase tracking-wider text-[#dbfb84]">
+                      {result.totalGrowth >= 0 ? '🎉 Projected Growth' : '📉 Stress Test'}
+                    </span>
+                    {multiplier !== null && multiplier >= 1.15 && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#dbfb84] px-3 py-0.5 text-[11px] font-black text-[#272047]">
+                        🚀 {multiplier.toFixed(1)}× Your Deposits
+                      </span>
+                    )}
                   </div>
 
-                  {/* Dynamic Tuck Speech Bubble Companion Card */}
-                  <aside
-                    aria-label="Tuck compound growth commentary"
-                    className="fw-daily-card md:col-span-5 !flex !flex-col !justify-between !mb-0 !p-4 !gap-3 shadow-[0_8px_24px_rgba(79,50,169,0.08)]"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="fw-daily-art p-1.5 rounded-2xl shrink-0">
-                        <Tuck className="w-16 h-16 object-contain" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="fw-kicker !text-[10px]">✦ Tuck&apos;s Take</p>
-                        <p className="text-sm font-black tracking-[-0.02em] text-[#222038]">
-                          Compound Coach
-                        </p>
-                      </div>
-                    </div>
+                  <p className="text-xs font-extrabold uppercase tracking-widest text-[#d8cbf8]">
+                    Projected Final Balance
+                  </p>
+                  <p className="mt-1 text-3xl sm:text-4xl font-black font-mono tracking-tight text-[#dbfb84] drop-shadow-sm">
+                    {result.formattedFinalBalance}
+                  </p>
 
-                    <div className="relative rounded-2xl bg-white border border-[#dfd5f8] p-3.5 shadow-[0_4px_14px_rgba(79,50,169,0.07)] flex-1 flex items-center">
-                      <p className="text-xs sm:text-[13px] font-bold text-[#222038] leading-relaxed">
-                        {getTuckSpeech(extraMonthly, difference)}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 text-[11px] font-extrabold">
-                      <span className="text-[#5b43a7]">Monthly boost</span>
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full font-mono ${
-                          extraMonthly === 0
-                            ? 'bg-[#eee6ff] text-[#4f32a9]'
-                            : 'bg-[#dbfb84] text-[#272047] border border-[#b9e14c]'
-                        }`}
-                      >
-                        +${extraMonthly}/mo
+                  {/* 3 Summary Stats */}
+                  <div className="mt-4 grid grid-cols-3 gap-2 text-left">
+                    <div className="rounded-2xl bg-white/10 p-2.5 border border-white/10 backdrop-blur-xs">
+                      <span className="text-[10px] uppercase font-bold text-[#e0d6f8] block">
+                        Start Cash
+                      </span>
+                      <span className="text-xs sm:text-sm font-black font-mono text-white mt-0.5 block">
+                        {formatCurrency(result.startingAmount)}
                       </span>
                     </div>
-                  </aside>
-                </div>
 
-                {/* Composition Bar */}
-                {result.finalBalance > 0 && (
-                  <div className="pt-1">
-                    <div className="flex items-center justify-between text-xs font-medium text-[#615d76] mb-2">
-                      <span className="font-extrabold text-[#222038]">Portfolio Composition</span>
-                      <span className="text-[#4f32a9] font-mono font-bold text-[11px]">
-                        Principal:{' '}
-                        {Math.max(
-                          0,
-                          Math.round(((result.startingAmount + result.totalContributions) / result.finalBalance) * 100)
-                        )}
-                        % | Growth:{' '}
-                        {Math.max(
-                          0,
-                          Math.round((Math.max(0, result.totalGrowth) / result.finalBalance) * 100)
-                        )}
-                        %
+                    <div className="rounded-2xl bg-white/10 p-2.5 border border-white/10 backdrop-blur-xs">
+                      <span className="text-[10px] uppercase font-bold text-[#e0d6f8] block">
+                        Deposits
+                      </span>
+                      <span className="text-xs sm:text-sm font-black font-mono text-white mt-0.5 block">
+                        {result.formattedTotalContributions}
                       </span>
                     </div>
-                    <div
-                      className="h-3 w-full bg-[#ece6fa] rounded-full overflow-hidden flex border border-[#e8e4f1]"
-                      role="progressbar"
-                      aria-label="Portfolio Growth Distribution"
-                    >
-                      <div
-                        style={{
-                          width: `${Math.min(100, Math.max(0, (result.startingAmount / result.finalBalance) * 100))}%`,
-                        }}
-                        className="bg-[#272047] h-full transition-all duration-300"
-                        title="Starting Principal"
-                      />
-                      <div
-                        style={{
-                          width: `${Math.min(100, Math.max(0, (result.totalContributions / result.finalBalance) * 100))}%`,
-                        }}
-                        className="bg-[#7257e0] h-full transition-all duration-300"
-                        title="Total Contributions"
-                      />
-                      {result.totalGrowth > 0 && (
-                        <div
-                          style={{
-                            width: `${Math.min(100, Math.max(0, (result.totalGrowth / result.finalBalance) * 100))}%`,
-                          }}
-                          className="bg-[#95d62d] h-full transition-all duration-300"
-                          title="Interest / Growth"
-                        />
+
+                    <div className="rounded-2xl bg-white/15 p-2.5 border border-[#dbfb84]/40 backdrop-blur-xs">
+                      <span className="text-[10px] uppercase font-bold text-[#dbfb84] block">
+                        Free Growth
+                      </span>
+                      <span className="text-xs sm:text-sm font-black font-mono text-[#dbfb84] mt-0.5 block">
+                        {result.formattedTotalGrowth}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* Tuck Companion Dialogue */}
+              <section
+                aria-label="Tuck compound growth commentary"
+                className="rounded-3xl border-2 border-[#dfd5f8] bg-[linear-gradient(110deg,#ede4ff,#f7f2ff_60%,#f6fde8)] p-3.5 sm:p-4 shadow-xs"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-16 h-16 rounded-2xl bg-white/80 border-2 border-[#dfd5f8] grid place-items-center p-1.5 shrink-0 shadow-xs">
+                    <Tuck className="w-14 h-14 object-contain" />
+                  </div>
+
+                  <div className="relative flex-1 min-w-0 rounded-2xl bg-white border-2 border-b-4 border-[#d6c6fa] px-3.5 py-2.5 shadow-2xs">
+                    <span className="inline-block text-[10px] font-black uppercase tracking-[0.12em] text-[#5637ca] mb-0.5">
+                      🐾 Tuck · Compound Mascot
+                    </span>
+                    <p className="text-xs sm:text-sm font-black text-[#222038] leading-snug">
+                      {tuckSpeech}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Extra Monthly Boost Mini-Game */}
+                <div className="mt-3 rounded-2xl bg-white/90 border-2 border-[#e5def6] p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label htmlFor="extra-monthly" className="text-xs font-extrabold text-[#222038]">
+                      What if you add {formatCurrency(extraMonthly)} more each month?
+                    </label>
+                    <div className="flex items-center gap-1">
+                      {[0, 25, 50, 100].map((boost) => (
+                        <button
+                          key={boost}
+                          type="button"
+                          onClick={() => setExtraMonthly(boost)}
+                          className={`${DUO_CHIP_BASE} px-2 py-0.5 text-[10px] font-black ${
+                            extraMonthly === boost
+                              ? 'bg-[#dbfb84] border-[#84cc16] border-b-[#65a30d] text-[#272047]'
+                              : 'bg-[#f6f3ff] border-[#dfd5f8] border-b-[#c7b7f2] text-[#4f32a9]'
+                          }`}
+                        >
+                          +${boost}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-2 flex items-center gap-3">
+                    <input
+                      id="extra-monthly"
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="5"
+                      value={extraMonthly}
+                      onChange={(event) => setExtraMonthly(Number(event.target.value))}
+                      className="flex-1 h-2 bg-[#ece6fa] rounded-full appearance-none cursor-pointer accent-[#5637ca]"
+                    />
+                    <p className="text-xs font-bold text-[#524b6b] shrink-0">
+                      {difference === null ? (
+                        <span className="text-[#be123c]">Exceeds limit</span>
+                      ) : (
+                        <>
+                          Boost:{' '}
+                          <output
+                            htmlFor="extra-monthly"
+                            className="font-black text-[#15803d] font-mono tabular-nums"
+                          >
+                            {formatCurrency(difference)}
+                          </output>
+                        </>
                       )}
-                    </div>
-                    <div className="flex flex-wrap gap-4 mt-2.5 text-xs text-[#615d76] font-semibold">
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-[#272047] inline-block" /> Starting Principal
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-[#7257e0] inline-block" /> Added Contributions
-                      </span>
-                      {result.totalGrowth > 0 && (
-                        <span className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-full bg-[#95d62d] inline-block" /> Compounded Growth
-                        </span>
-                      )}
-                    </div>
+                    </p>
                   </div>
-                )}
+                </div>
+              </section>
 
-                {/* Table Toggle */}
-                {result.breakdown.length > 0 && (
-                  <div className="pt-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setShowTable(!showTable)}
-                      className="w-full text-xs font-extrabold py-2.5 rounded-xl shadow-2xs cursor-pointer"
-                      aria-expanded={showTable}
-                    >
-                      {showTable
-                        ? 'Hide Monthly Amortization Table'
-                        : `View Monthly Table (${result.breakdown.length} Months)`}
-                    </Button>
+              {/* Maya Milestone Co-Pilot */}
+              <section
+                aria-label="Maya savings goal copilot"
+                className="rounded-3xl border-2 border-[#dfd5f8] bg-white p-3.5 sm:p-4 shadow-xs"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-[#f4c6a8] shrink-0 bg-[#fff5ea]">
+                    <img
+                      src={paydayCover}
+                      alt="Maya milestone co-pilot"
+                      className="w-full h-full object-cover object-[76%_22%] scale-125"
+                    />
                   </div>
-                )}
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-[#f4cab0] bg-[#ffe9da]/70 p-6 text-center text-[#7b402a] text-sm">
-                <p className="font-extrabold text-[#7b402a]">
-                  Please correct the input errors on the left to see the calculation.
-                </p>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="font-black text-[#222038]">
+                        Goal Progress: {progressToGoalPct}%
+                      </span>
+                      <span className="font-mono font-bold text-[#615d76]">
+                        {result.formattedFinalBalance} / {formatCurrency(targetGoalNum)}
+                      </span>
+                    </div>
+
+                    <div className="h-2.5 rounded-full bg-[#eee6ff] overflow-hidden border border-[#d6c6fa]">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-[#58cc02] to-[#a3e635] transition-all duration-300"
+                        style={{ width: `${progressToGoalPct}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          ) : (
+            <div
+              role="alert"
+              className="rounded-3xl border-2 border-[#fda4af] bg-[#fff1f2] p-6 text-center text-[#9f1239] space-y-2"
+            >
+              <span className="text-3xl block" aria-hidden="true">
+                ⚠️
+              </span>
+              <p className="text-base font-black">Please correct the input errors above.</p>
+              <p className="text-xs text-[#be123c]">
+                Ensure your rates, principal, and time horizon are valid numbers within supported bounds.
+              </p>
+            </div>
+          )}
+
+          {/* Collapsible Monthly Amortization Table */}
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => setShowTable((prev) => !prev)}
+              className={`${DUO_BUTTON_BASE} w-full py-2.5 px-4 text-xs font-black bg-white hover:bg-[#f6f3ff] border-[#dfd5f8] border-b-[#c7b7f2] text-[#4f32a9] flex items-center justify-center gap-2`}
+            >
+              <span>{showTable ? '▲' : '▼'}</span>
+              <span>
+                {showTable
+                  ? 'Hide Monthly Amortization Table'
+                  : `Inspect the Math · View Monthly Table (${result?.breakdown.length ?? 0} Months)`}
+              </span>
+            </button>
+
+            {showTable && result && (
+              <div className="mt-3 rounded-2xl border-2 border-[#e8e4f1] bg-white p-3 sm:p-4 shadow-sm overflow-x-auto animate-fadeIn">
+                <h4 className="text-xs font-black text-[#222038] uppercase tracking-wider mb-2">
+                  Monthly Amortization Schedule
+                </h4>
+                <table className="min-w-full text-xs font-mono">
+                  <thead>
+                    <tr className="border-b border-[#e8e4f1] text-[#615d76]">
+                      <th className="py-2 text-left">Mo</th>
+                      <th className="py-2 text-right">Start</th>
+                      <th className="py-2 text-right">Interest</th>
+                      <th className="py-2 text-right">Deposit</th>
+                      <th className="py-2 text-right">Balance</th>
+                      <th className="py-2 text-right">Total Int</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#f0ecf9]">
+                    {result.breakdown.map((row) => (
+                      <tr key={row.month} className="hover:bg-[#fbf9ff]">
+                        <td className="py-1.5 text-left text-[#615d76]">{row.month}</td>
+                        <td className="py-1.5 text-right text-[#615d76]">{formatCurrency(row.startBalance)}</td>
+                        <td className="py-1.5 text-right text-[#15803d] font-bold">{formatCurrency(row.interestEarned)}</td>
+                        <td className="py-1.5 text-right text-[#615d76]">{formatCurrency(row.contribution)}</td>
+                        <td className="py-1.5 text-right text-[#222038] font-black">{formatCurrency(row.endBalance)}</td>
+                        <td className="py-1.5 text-right text-[#5b43a7]">{formatCurrency(row.cumulativeInterest)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
-          </Card>
+          </div>
         </div>
       </div>
 
-      {/* Monthly Breakdown Table */}
-      {showTable && result && result.breakdown.length > 0 && (
-        <Card
-          title="Monthly Amortization Schedule"
-          subtitle="Step-by-step end-of-month recurrence breakdown"
-          className="fw-panel shadow-[0_12px_36px_rgba(39,32,71,0.05)]"
-        >
-          <div className="overflow-x-auto max-h-96 overflow-y-auto border border-[#e8e4f1] rounded-2xl">
-            <table className="min-w-full divide-y divide-[#e8e4f1] text-xs">
-              <thead className="bg-[#f6f3ff]/95 backdrop-blur-xs sticky top-0 border-b border-[#e8e4f1]">
-                <tr>
-                  <th scope="col" className="px-3.5 py-2.5 text-left font-extrabold text-[#4f32a9]">Month</th>
-                  <th scope="col" className="px-3.5 py-2.5 text-right font-extrabold text-[#4f32a9]">Starting Balance</th>
-                  <th scope="col" className="px-3.5 py-2.5 text-right font-extrabold text-[#4f32a9]">Interest Earned</th>
-                  <th scope="col" className="px-3.5 py-2.5 text-right font-extrabold text-[#4f32a9]">Contribution</th>
-                  <th scope="col" className="px-3.5 py-2.5 text-right font-extrabold text-[#4f32a9]">Ending Balance</th>
-                  <th scope="col" className="px-3.5 py-2.5 text-right font-extrabold text-[#4f32a9]">Cumulative Interest</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#efeafd] bg-white font-mono text-[11px]">
-                {result.breakdown.map((row) => (
-                  <tr key={row.month} className="hover:bg-[#f8f5ff] transition-colors">
-                    <td className="px-3.5 py-2 text-[#222038] font-bold">{row.month}</td>
-                    <td className="px-3.5 py-2 text-right text-[#615d76]">{formatCurrency(row.startBalance)}</td>
-                    <td className={`px-3.5 py-2 text-right font-bold ${row.interestEarned >= 0 ? 'text-[#285137]' : 'text-[#963a34]'}`}>
-                      {formatCurrency(row.interestEarned)}
-                    </td>
-                    <td className="px-3.5 py-2 text-right text-[#615d76]">{formatCurrency(row.contribution)}</td>
-                    <td className="px-3.5 py-2 text-right text-[#222038] font-extrabold">{formatCurrency(row.endBalance)}</td>
-                    <td className="px-3.5 py-2 text-right text-[#5b43a7]">{formatCurrency(row.cumulativeInterest)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      {/* Contract Disclosures & Assumptions */}
-      <footer className="fw-panel !bg-[#f8f5ff] p-4 sm:p-5 text-xs text-[#615d76] space-y-2.5">
-        <div className="flex items-center gap-2 text-[#222038] font-extrabold text-xs">
-          <span className="text-[#5637ca]" aria-hidden="true">⚖️</span>
-          <h4>Mandatory Financial Disclosures &amp; Contract Assumptions</h4>
-        </div>
-        <ul className="space-y-1.5 text-[11px] leading-relaxed text-[#615d76] pl-5 list-disc">
+      {/* Mandatory Disclosures Footer */}
+      <footer className="rounded-2xl border border-[#e8e4f1] bg-[#fbf9ff] p-3.5 sm:p-4 text-[11px] text-[#615d76] space-y-1.5">
+        <h4 className="font-extrabold text-[#222038] text-xs">
+          ⚖️ Mandatory Financial Disclosures & Contract Assumptions
+        </h4>
+        <ul className="list-disc pl-4 space-y-1">
           <li>
-            <strong className="text-[#222038] font-bold">Effective Annual Rate:</strong> Compounded monthly using \(i = (1+r)^{'{'}1/12{'}'} - 1\). End-of-month contributions accrue interest beginning in the subsequent month.
+            <strong className="text-[#222038]">Effective Annual Rate:</strong> Compounded monthly using{' '}
+            <span className="font-mono font-bold">i = (1 + r)^(1/12) - 1</span>. End-of-month contributions accrue interest beginning the following month.
           </li>
           <li>
-            <strong className="text-[#222038] font-bold">Exclusions:</strong> Calculations exclude taxes, inflation, investment advisory fees, management fees, transaction costs, and expense ratios.
+            <strong className="text-[#222038]">Exclusions:</strong> Excludes taxes, inflation, advisory fees, transaction fees, and expense ratios.
           </li>
           <li>
-            <strong className="text-[#222038] font-bold">No Guarantee:</strong> Projected annual rates of return are strictly illustrative for educational modeling. Market investments fluctuate, past performance is no guarantee of future returns, and principal losses can occur.
+            <strong className="text-[#222038]">No Guarantee:</strong> Projections are educational only. Investment markets fluctuate, past performance is no guarantee of future returns, and principal losses can occur.
           </li>
         </ul>
       </footer>

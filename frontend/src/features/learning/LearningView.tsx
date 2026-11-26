@@ -1,23 +1,19 @@
-import React, { useState, useMemo, useEffect, useId, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Card } from '../../components/common/Card';
-import { Button } from '../../components/common/Button';
 import { ApiClient, defaultApiClient } from '../../api/client';
 import { Lesson, LessonSummary, ProgressItem, Quiz, QuizAttemptRequest, QuizAttemptResponse } from '../../api/types';
 import { LESSONS, LESSON_SUMMARIES } from './content/lessonDefinitions';
 import { QUIZZES } from './content/quizDefinitions';
 import { SERVER_ANSWER_KEYS, QuizScoringData } from './content/serverAnswerKeys';
 import { evaluateQuizAttempt } from './quizScoring';
-import { MarketStrategiesLab } from './strategies/MarketStrategiesLab';
 import { TabOverviewModal } from '../../components/common/TabOverviewModal';
-import {
-  InstrumentLifecycleDiagram,
-  InteractiveWhatIfTool,
-  InteractiveGoalMatcher,
-} from './components/InteractiveConceptWidgets';
 import { questTracker } from '../gamification/questTrackerService';
+import { soundFx } from '../gamification/soundFxService';
+import { triggerConfetti } from '../../components/common/CelebrationConfetti';
+import { loadAuraState, syncLearningAwards } from '../aura/auraService';
 import { isRecord, readPractice, useStoredPractice } from '../practiceStorage';
-import { calculateGrowth } from '../calculators/calculatorMath';
 import { Tuck } from '../home/Tuck';
+import paydayCover from '../home/payday-cover.jpg';
 import '../home/campaign.css';
 
 export interface LearningViewProps {
@@ -30,13 +26,32 @@ export interface LearningViewProps {
   onProgressUpdate?: (progress: Record<string, ProgressItem>) => void;
 }
 
-interface Scenario {
-  name: string;
-  role: string;
-  situation: string;
+interface MicroCard {
+  id: string;
+  icon: string;
+  title: string;
+  badge: string;
+  tone: 'lavender' | 'mint' | 'peach' | 'lime';
+  body: string;
   takeaway: string;
-  tag: string;
+  tuckSays: string;
+  quickCheck: {
+    prompt: string;
+    options: [string, string];
+    correctIndex: 0 | 1;
+    rightFeedback: string;
+    wrongFeedback: string;
+  };
 }
+
+const DUO_3D_BTN =
+  'border-2 border-b-4 rounded-2xl active:border-b-2 active:translate-y-0.5 transition-all font-bold cursor-pointer select-none';
+
+const DUO_GREEN_BTN =
+  'border-2 border-b-4 rounded-2xl border-[#46a302] bg-[#58cc02] hover:bg-[#4ec000] text-white active:border-b-2 active:translate-y-0.5 transition-all font-extrabold cursor-pointer select-none shadow-xs';
+
+const DUO_PURPLE_BTN =
+  'border-2 border-b-4 rounded-2xl border-[#3c2396] bg-[#5637ca] hover:bg-[#492cb5] text-white active:border-b-2 active:translate-y-0.5 transition-all font-extrabold cursor-pointer select-none shadow-xs';
 
 function normalizeTopicId(topicId: string): string {
   if (topicId === 'stocks-basics') return 'stock-basics';
@@ -44,131 +59,395 @@ function normalizeTopicId(topicId: string): string {
   return topicId;
 }
 
-const TOPIC_VISUALS: Record<string, { icon: string; tone: 'fw-lavender' | 'fw-mint' | 'fw-peach' }> = {
-  'cd-basics': { icon: '◈', tone: 'fw-lavender' },
-  'hysa-basics': { icon: '✧', tone: 'fw-mint' },
-  'stock-basics': { icon: '↗', tone: 'fw-peach' },
-  'stocks-basics': { icon: '↗', tone: 'fw-peach' },
-  'etf-basics': { icon: '◫', tone: 'fw-lavender' },
-  'options-intro': { icon: '◷', tone: 'fw-peach' },
-  'options-basics': { icon: '◷', tone: 'fw-peach' },
+const TOPIC_VISUALS: Record<string, { icon: string; tone: string }> = {
+  'cd-basics': { icon: '🔒', tone: 'bg-[#eee6ff] text-[#4f32a9]' },
+  'hysa-basics': { icon: '⚡', tone: 'bg-[#e3f3d9] text-[#285137]' },
+  'stock-basics': { icon: '📈', tone: 'bg-[#ffe9da] text-[#7b402a]' },
+  'stocks-basics': { icon: '📈', tone: 'bg-[#ffe9da] text-[#7b402a]' },
+  'etf-basics': { icon: '🧺', tone: 'bg-[#eee6ff] text-[#4f32a9]' },
+  'options-intro': { icon: '⏳', tone: 'bg-[#ffe9da] text-[#7b402a]' },
+  'options-basics': { icon: '⏳', tone: 'bg-[#ffe9da] text-[#7b402a]' },
 };
 
-const TUCK_TAKEAWAYS: Record<string, string> = {
-  'cd-basics':
-    "Tuck's Takeaway: Lock in the 5% APY for planned tuition, but always keep your emergency cash liquid!",
-  'hysa-basics':
-    "Tuck's Takeaway: Old banks pay 0.01% pennies. High-yield accounts pay 4.5%+ dollars, liquid anytime.",
-  'stock-basics':
-    "Tuck's Takeaway: You're an equity owner now. Ignore daily noise; focus on corporate earnings and 5+ year horizons.",
-  'stocks-basics':
-    "Tuck's Takeaway: You're an equity owner now. Ignore daily noise; focus on corporate earnings and 5+ year horizons.",
-  'etf-basics':
-    "Tuck's Takeaway: Don't look for the needle in the haystack. Own the whole haystack with index ETFs.",
-  'options-intro':
-    "Tuck's Takeaway: Leverage cuts both ways. Time decay is real—learn defined risk before trading.",
-  'options-basics':
-    "Tuck's Takeaway: Leverage cuts both ways. Time decay is real—learn defined risk before trading.",
+const GIRL_MISSIONS: Record<string, { title: string; challenge: string }> = {
+  'cd-basics': {
+    title: "Maya's Tuition Mission",
+    challenge:
+      "I saved $1,000 for fall tuition in 12 months! Can I lock in a higher guaranteed rate without risking my money?",
+  },
+  'hysa-basics': {
+    title: "Maya's Emergency Stash",
+    challenge:
+      'My old bank pays literally $0.01 in interest. Where can I park rainy-day cash so it grows AND stays reachable 24/7?',
+  },
+  'stock-basics': {
+    title: "Maya's First Stock",
+    challenge:
+      'Everyone talks about buying shares of companies they love. What do I actually own — and how can I manage the risk?',
+  },
+  'etf-basics': {
+    title: "Maya's One-Click Basket",
+    challenge:
+      'Picking one winning stock feels super stressful! How do I own 500 top companies in one trade with tiny fees?',
+  },
+  'options-intro': {
+    title: "Maya's Safety Check",
+    challenge:
+      'I keep seeing hype about options online. Why are derivatives so risky, and why does FutureWorth keep them educational-only?',
+  },
 };
 
-const STOCK_SCENARIOS: Scenario[] = [
-  {
-    name: 'Carlos S.',
-    role: 'First-Generation Investor',
-    situation: 'Purchased 2 shares of an enterprise software company for $150.',
-    takeaway:
-      'Understands he is an equity co-owner. Price fluctuates day-to-day, but he participates in long-term corporate earnings and dividends.',
-    tag: 'Equity Ownership',
-  },
-  {
-    name: 'Amina T.',
-    role: 'Market Volatility Awareness',
-    situation: 'Experienced a 10% temporary dip during market earnings season.',
-    takeaway:
-      'Learned why stocks are suited for multi-year horizons rather than money needed next semester.',
-    tag: 'Market Risk',
-  },
-];
-
-const OPTIONS_SCENARIOS: Scenario[] = [
-  {
-    name: 'Kai P.',
-    role: 'Educational Hedger',
-    situation: 'Simulates buying a Put option contract to learn portfolio hedging during volatility.',
-    takeaway:
-      'Options have fixed expiration dates. Leverage means 100% loss of paid premium is common; never risk essential cash.',
-    tag: 'Educational Safety',
-  },
-];
-
-const TOPIC_SCENARIOS: Record<string, Scenario[]> = {
+const TOPIC_MICRO_CARDS: Record<string, MicroCard[]> = {
   'cd-basics': [
     {
-      name: 'Elena R.',
-      role: 'Tuition Deadline Saver',
-      situation: 'Has $3,000 saved for college tuition due in exactly 12 months.',
-      takeaway:
-        'She chooses a 1-year CD at 5.0% APY. Her return is locked at $150 guaranteed with 0% market risk.',
-      tag: 'Targeted Goal',
+      id: 'cd-1',
+      icon: '🔒',
+      title: 'The Money Time Capsule',
+      badge: 'Core Idea',
+      tone: 'lavender',
+      body: 'A Certificate of Deposit (CD) locks a set chunk of money for a fixed term (like 12 months). In return, the bank guarantees your interest rate from day one!',
+      takeaway: 'Fixed timer + locked APY = zero rate surprises.',
+      tuckSays: 'Tuck says: Think of a CD like a time capsule for your money! 🐕🔒',
+      quickCheck: {
+        prompt: 'Quick Check: Can the bank slash your CD rate halfway through your term?',
+        options: ['Nope — your APY stays locked!', 'Yes, it changes every week'],
+        correctIndex: 0,
+        rightFeedback: 'Spot on! Once you open a CD, that rate is locked in.',
+        wrongFeedback: 'Not quite! Unlike regular savings, a CD locks your rate on day one.',
+      },
     },
     {
-      name: 'Jamal M.',
-      role: 'Emergency Cash Lesson',
-      situation: 'Locked all his $800 savings into a 2-year CD. Two months later his laptop motherboard died.',
-      takeaway:
-        'Breaking the CD early triggered a 90-day early withdrawal penalty. Lesson: Keep emergency funds liquid!',
-      tag: 'Liquidity Caution',
+      id: 'cd-2',
+      icon: '📈',
+      title: 'Lump Sum, Steady Growth',
+      badge: 'How It Works',
+      tone: 'mint',
+      body: 'You put one lump sum in upfront and let interest compound automatically. When the timer finishes, you get all your cash back plus the guaranteed profit!',
+      takeaway: '$1,000 at 5% APY for 1 year turns into $1,050 safely.',
+      tuckSays: 'Tuck says: Drop it in once, then let compound interest do the heavy lifting! 🐾✨',
+      quickCheck: {
+        prompt: 'Quick Check: Can you keep adding random $25 deposits to an existing CD?',
+        options: ['Yes, anytime like checking', 'Usually no — it is one lump sum'],
+        correctIndex: 1,
+        rightFeedback: 'You got it! Standard CDs start with one lump-sum deposit.',
+        wrongFeedback: 'Close! Most CDs only accept one initial deposit when you open them.',
+      },
     },
     {
-      name: 'Marcus & Sophia',
-      role: 'CD Ladder Strategists',
-      situation: 'Split $8,000 into 4 separate CDs maturing every 6 months (6, 12, 18, 24 mo).',
-      takeaway:
-        'Gets higher locked yields while ensuring fresh cash becomes accessible every 6 months.',
-      tag: 'CD Ladder',
+      id: 'cd-3',
+      icon: '⚠️',
+      title: 'Watch the Early Break Fee',
+      badge: 'Big Catch',
+      tone: 'peach',
+      body: 'Pulling cash out before maturity triggers an Early Withdrawal Penalty (often 90–180 days of interest). Break it super early and it can even nibble at your original cash!',
+      takeaway: 'Never lock emergency funds inside a CD.',
+      tuckSays: 'Tuck says: Keep rainy-day cash outside your CD so you never pay a break penalty! 🛡️',
+      quickCheck: {
+        prompt: 'Quick Check: Should your 2 AM emergency car-repair cash go in a 2-year CD?',
+        options: ['No — keep emergency cash liquid!', 'Yes — lock it up tight'],
+        correctIndex: 0,
+        rightFeedback: 'Smart! Emergency cash needs instant access with zero penalties.',
+        wrongFeedback: 'Careful! An emergency could force you to break the CD and pay a penalty.',
+      },
+    },
+    {
+      id: 'cd-4',
+      icon: '🛡️',
+      title: 'FDIC Shield & CD Ladders',
+      badge: 'Pro Move',
+      tone: 'lime',
+      body: 'FDIC/NCUA insurance protects deposits up to $250,000 per bank. Pro trick: split money into a "CD ladder" (6, 12, 18 mo) so cash unlocks every few months!',
+      takeaway: '$250k government shield + staggered maturity dates = pro saver.',
+      tuckSays: 'Tuck says: A CD ladder gives you locked yields AND regular cash unlocks! 🪜💎',
+      quickCheck: {
+        prompt: 'Quick Check: How much does standard FDIC coverage protect per depositor?',
+        options: ['Up to $25,000', 'Up to $250,000'],
+        correctIndex: 1,
+        rightFeedback: 'Nailed it! $250,000 per depositor, per insured bank.',
+        wrongFeedback: 'Check again — standard FDIC protection goes all the way up to $250,000!',
+      },
     },
   ],
   'hysa-basics': [
     {
-      name: 'Maya K.',
-      role: 'Working Student',
-      situation: 'Keeps a $1,200 emergency fund in a digital bank paying 4.5% APY.',
-      takeaway:
-        'Earns $54/year in interest instead of $0.12 at her old brick-and-mortar bank, and can withdraw anytime via ACH.',
-      tag: 'Emergency Cushion',
+      id: 'hysa-1',
+      icon: '⚡',
+      title: 'Savings on Turbo Mode',
+      badge: 'Core Idea',
+      tone: 'mint',
+      body: 'A High-Yield Savings Account (HYSA) works just like regular savings, except it pays 10x–40x more! Old branch banks pay ~0.01%, while HYSAs often pay ~4%+ APY.',
+      takeaway: 'Same safe savings, way bigger interest payouts.',
+      tuckSays: 'Tuck says: Stop settling for 0.01% pennies when your cash can earn real dollars! 💸',
+      quickCheck: {
+        prompt: 'Quick Check: Why do people pick an HYSA over a 0.01% checking/savings account?',
+        options: ['Way higher interest on safe cash', 'Because it buys meme stocks'],
+        correctIndex: 0,
+        rightFeedback: 'Yes! You earn substantially higher APY on federally insured cash.',
+        wrongFeedback: 'Nope! An HYSA holds cash safely just like a bank account, just at a higher APY.',
+      },
     },
     {
-      name: 'David L.',
-      role: 'Rate-Watch Saver',
-      situation:
-        'Noticed his HYSA yield moved from 4.75% to 4.25% after the Federal Reserve cut benchmark interest rates.',
-      takeaway:
-        'Recognized that unlike fixed CDs, HYSA yields are variable and float with macroeconomic conditions.',
-      tag: 'Variable Yield',
+      id: 'hysa-2',
+      icon: '📱',
+      title: 'Why Online Banks Pay More',
+      badge: 'Behind the Scenes',
+      tone: 'lavender',
+      body: 'Online banks skip expensive marble lobbies and thousands of retail branches. They pass those saved overhead costs straight to you as higher interest!',
+      takeaway: 'Lower bank overhead = bigger APY for you.',
+      tuckSays: 'Tuck says: Fewer marble lobbies for the bank means more cash for your goals! 🏦➡️📱',
+      quickCheck: {
+        prompt: 'Quick Check: How can digital banks afford higher APYs?',
+        options: ['They skip physical branch overhead', 'They skip FDIC insurance'],
+        correctIndex: 0,
+        rightFeedback: 'Right! Lower building & staffing overhead goes straight into your APY.',
+        wrongFeedback: 'Actually, real HYSAs ARE FDIC insured — they save money by being online!',
+      },
+    },
+    {
+      id: 'hysa-3',
+      icon: '💧',
+      title: '24/7 Access & Variable Rates',
+      badge: 'Flexibility',
+      tone: 'peach',
+      body: 'Deposit or withdraw cash anytime with zero lock-up penalties! Just know HYSA rates are variable — they rise or fall when the Federal Reserve shifts interest rates.',
+      takeaway: 'Total liquidity anytime, with rates that float with the Fed.',
+      tuckSays: 'Tuck says: Need cash fast at 2 AM? An HYSA lets you pull it without break fees! 💧',
+      quickCheck: {
+        prompt: 'Quick Check: Are HYSA interest rates locked forever like a CD?',
+        options: ['Yes, locked for 5 years', 'No — HYSA rates are variable'],
+        correctIndex: 1,
+        rightFeedback: 'Correct! HYSA yields adjust when the Fed moves benchmark rates.',
+        wrongFeedback: 'Watch out! CDs lock rates; HYSA rates are variable and float over time.',
+      },
+    },
+    {
+      id: 'hysa-4',
+      icon: '🛡️',
+      title: 'Your Emergency Shield',
+      badge: 'Smart Strategy',
+      tone: 'lime',
+      body: 'HYSAs carry $250,000 FDIC/NCUA insurance — making them ideal for 3–6 months of emergency expenses. Just watch inflation: if prices rise faster than your APY, buying power slips.',
+      takeaway: '#1 home for emergency cash and 1–2 year goals.',
+      tuckSays: 'Tuck says: Build your liquid FDIC-safe cushion before chasing big stock bets! 🛡️🏆',
+      quickCheck: {
+        prompt: 'Quick Check: If inflation is 6% and your HYSA pays 4%, what happens to buying power?',
+        options: ['Real buying power shrinks slightly', 'Buying power doubles automatically'],
+        correctIndex: 0,
+        rightFeedback: 'Sharp math! When inflation beats APY, real return is negative.',
+        wrongFeedback: 'Not quite — if prices climb 6% while cash grows 4%, buying power falls behind.',
+      },
     },
   ],
-  'stock-basics': STOCK_SCENARIOS,
-  'stocks-basics': STOCK_SCENARIOS,
+  'stock-basics': [
+    {
+      id: 'stk-1',
+      icon: '🏢',
+      title: 'Own a Slice of a Business',
+      badge: 'Core Idea',
+      tone: 'lavender',
+      body: 'Buying a share of stock makes you a fractional co-owner of a real company! You gain a claim on the business’s assets and future profits.',
+      takeaway: '1 share = real partial ownership in a corporation.',
+      tuckSays: 'Tuck says: A stock is a real slice of a business — not a lottery ticket! 🍕🏢',
+      quickCheck: {
+        prompt: 'Quick Check: What do you actually own when you buy common stock?',
+        options: ['A guaranteed government bond', 'Fractional ownership in the company'],
+        correctIndex: 1,
+        rightFeedback: 'Exactly! You become a shareholder and co-owner.',
+        wrongFeedback: 'Try again — bonds are loans, while stocks are ownership equity!',
+      },
+    },
+    {
+      id: 'stk-2',
+      icon: '💵',
+      title: 'Two Ways Stocks Pay',
+      badge: 'Returns',
+      tone: 'mint',
+      body: 'Shareholders earn through Capital Appreciation (selling higher than you bought) and Dividends (cash profit checks mature companies send to owners).',
+      takeaway: 'Rising share prices + cash dividends = total return.',
+      tuckSays: 'Tuck says: Earn when the company grows AND when it shares cash dividends! 💰📈',
+      quickCheck: {
+        prompt: 'Quick Check: What do we call cash payouts a profitable company sends shareholders?',
+        options: ['Dividends', 'Early withdrawal penalties'],
+        correctIndex: 0,
+        rightFeedback: 'Bingo! Dividends share company profits directly with owners.',
+        wrongFeedback: 'Nope — cash profit distributions to shareholders are called dividends!',
+      },
+    },
+    {
+      id: 'stk-3',
+      icon: '🎢',
+      title: 'Price Swings & Single-Stock Risk',
+      badge: 'Risk Check',
+      tone: 'peach',
+      body: 'Stock prices move every second with supply and demand. Putting everything into ONE company is risky — if that business flops, shareholders can lose up to 100%!',
+      takeaway: 'Invest for 5+ year horizons and diversify across companies.',
+      tuckSays: 'Tuck says: Don’t put next month’s rent in stocks — short-term swings can be wild! 🎢',
+      quickCheck: {
+        prompt: 'Quick Check: Who sets stock prices on exchanges like the NYSE?',
+        options: ['Buyers and sellers (supply & demand)', 'A fixed government price list'],
+        correctIndex: 0,
+        rightFeedback: 'Right! Continuous buyer and seller demand discovers the price.',
+        wrongFeedback: 'Not quite — market supply and demand move share prices every second.',
+      },
+    },
+    {
+      id: 'stk-4',
+      icon: '🛡️',
+      title: 'SIPC vs. FDIC Safety',
+      badge: 'Protection Rule',
+      tone: 'lime',
+      body: 'FDIC insures bank cash. SIPC ($500k) protects your brokerage account if the broker goes bust — it NEVER reimburses you if a stock drops in value!',
+      takeaway: 'SIPC protects custody, not stock prices.',
+      tuckSays: 'Tuck says: Practice cash-only, zero-margin trades in our Trade Lab first! 🎮✨',
+      quickCheck: {
+        prompt: 'Quick Check: Does SIPC pay you back if your stock drops 25%?',
+        options: ['Yes, full refund', 'No — SIPC only covers broker failure'],
+        correctIndex: 1,
+        rightFeedback: 'Crucial distinction mastered! Market price risk is always yours.',
+        wrongFeedback: 'Careful! SIPC only protects your shares if the brokerage firm itself fails.',
+      },
+    },
+  ],
   'etf-basics': [
     {
-      name: 'Jordan W.',
-      role: 'Index Fund Saver',
-      situation: 'Invests $100/month into an S&P 500 index ETF (SPY/VOO) with a 0.03% expense ratio.',
-      takeaway:
-        'Owns 500 top companies with one trade. The annual fee is only 30 cents per $1,000 invested.',
-      tag: 'Instant Diversification',
+      id: 'etf-1',
+      icon: '🧺',
+      title: 'The 500-Company Basket',
+      badge: 'Core Idea',
+      tone: 'lavender',
+      body: 'An ETF bundles hundreds of stocks or bonds into a single share you can buy anytime. One share of an S&P 500 ETF spreads your money across 500 top US firms!',
+      takeaway: '1 trade = instant basket of hundreds of companies.',
+      tuckSays: 'Tuck says: Don’t hunt for one needle — own the whole haystack with an ETF! 🧺✨',
+      quickCheck: {
+        prompt: 'Quick Check: What does buying 1 share of an S&P 500 ETF give you?',
+        options: ['Exposure to 500 top companies at once', 'A locked 12-month bank CD'],
+        correctIndex: 0,
+        rightFeedback: 'Boom! Instant diversification in a single share.',
+        wrongFeedback: 'Not quite — an ETF holds an entire basket of stocks or assets.',
+      },
     },
     {
-      name: 'Chloe P.',
-      role: 'Single Stock vs ETF Test',
-      situation: 'Compared owning 1 retail stock vs a broad-market ETF when that retail chain slumped.',
-      takeaway:
-        'Broad diversification cushioned the impact; the index stayed resilient even as one company dropped.',
-      tag: 'Risk Reduction',
+      id: 'etf-2',
+      icon: '🛡️',
+      title: 'Built-In Crash Cushion',
+      badge: 'Diversification',
+      tone: 'mint',
+      body: 'If one company in a 500-stock ETF goes bankrupt, the other 499 companies absorb the shock. Broad diversification crushes single-company disaster risk!',
+      takeaway: 'One bad company can’t wreck a diversified index.',
+      tuckSays: 'Tuck says: One rotten apple won’t spoil a 500-stock basket! 🍎🛡️',
+      quickCheck: {
+        prompt: 'Quick Check: Does an S&P 500 ETF guarantee you can NEVER lose money?',
+        options: ['No — broad market dips still affect it', 'Yes, it turns stocks into FDIC cash'],
+        correctIndex: 0,
+        rightFeedback: 'Smart! It removes single-company risk, though market swings still happen.',
+        wrongFeedback: 'Watch out — ETFs still rise and fall with the overall stock market.',
+      },
+    },
+    {
+      id: 'etf-3',
+      icon: '⚡',
+      title: 'ETFs vs. Mutual Funds',
+      badge: 'Trading Style',
+      tone: 'peach',
+      body: 'Traditional mutual funds only price once a day after 4 PM and often demand $1,000+ minimums. ETFs trade live all day on exchanges — starting at just 1 share!',
+      takeaway: 'Live intraday trading + low entry cost.',
+      tuckSays: 'Tuck says: ETFs trade live while the market is open, just like regular stocks! ⚡📊',
+      quickCheck: {
+        prompt: 'Quick Check: When do ETFs execute trades compared to traditional mutual funds?',
+        options: ['Intraday while markets are open', 'Only once a month on Fridays'],
+        correctIndex: 0,
+        rightFeedback: 'Yes! Real-time pricing whenever exchanges are open.',
+        wrongFeedback: 'Actually, ETFs trade continuously intraday — mutual funds price once after close.',
+      },
+    },
+    {
+      id: 'etf-4',
+      icon: '🏷️',
+      title: 'Ultra-Tiny Expense Ratios',
+      badge: 'Keep Your Gains',
+      tone: 'lime',
+      body: 'Every fund has an annual "expense ratio" fee quietly deducted from the fund. Top index ETFs charge as little as 0.03% — just $3 a year on $10,000!',
+      takeaway: '0.03% fees keep more compounding money in YOUR account.',
+      tuckSays: 'Tuck says: Paying 30¢ per $1,000 is a superpower for long-term wealth! 🏷️💎',
+      quickCheck: {
+        prompt: 'Quick Check: How do you pay an ETF’s expense ratio?',
+        options: ['Deducted automatically from fund value', 'Billed by paper mail every month'],
+        correctIndex: 0,
+        rightFeedback: 'Exact match! It’s baked quietly into the fund’s net asset value.',
+        wrongFeedback: 'No paper bills! The tiny fee is deducted automatically inside the fund.',
+      },
     },
   ],
-  'options-intro': OPTIONS_SCENARIOS,
-  'options-basics': OPTIONS_SCENARIOS,
+  'options-intro': [
+    {
+      id: 'opt-1',
+      icon: '🚨',
+      title: 'Educational Sandbox Only',
+      badge: 'Safety First',
+      tone: 'peach',
+      body: 'Important: this module is purely educational! Because options carry high leverage and fast total-loss risk, options trading is NOT enabled in our MVP trading lab.',
+      takeaway: 'Learn how contracts work here — practice cash stocks & ETFs to trade.',
+      tuckSays: 'Tuck says: Smart investors learn the risks BEFORE ever touching leverage! 🎓🛑',
+      quickCheck: {
+        prompt: 'Quick Check: Can you execute real or paper options orders in our MVP engine?',
+        options: ['No — MVP is strictly cash stocks & ETFs', 'Yes, with 10x borrowed money'],
+        correctIndex: 0,
+        rightFeedback: 'Right! Our simulator focuses safely on long-only stocks and ETFs.',
+        wrongFeedback: 'Check the notice! Options are educational-only and excluded from MVP trading.',
+      },
+    },
+    {
+      id: 'opt-2',
+      icon: '📜',
+      title: 'Calls vs. Puts (100 Shares)',
+      badge: 'Mechanics',
+      tone: 'lavender',
+      body: 'One equity option covers 100 shares at a locked "strike price." A Call gives the right (not obligation) to BUY; a Put gives the right to SELL (often used as insurance).',
+      takeaway: 'Call = right to buy; Put = right to sell. 1 contract = 100 shares.',
+      tuckSays: 'Tuck says: Think "Call UP" to buy shares, and "Put DOWN" to sell or hedge! 📜↕️',
+      quickCheck: {
+        prompt: 'Quick Check: Does buying a Call option FORCE you to buy 100 shares?',
+        options: ['No — it is a right, not an obligation', 'Yes, you must buy even at a loss'],
+        correctIndex: 0,
+        rightFeedback: 'You got it! Buyers hold the choice, never an obligation.',
+        wrongFeedback: 'Careful! That’s why they’re called "options" — buyers have the right, not duty.',
+      },
+    },
+    {
+      id: 'opt-3',
+      icon: '⏳',
+      title: 'Premium & Time Decay (Theta)',
+      badge: 'Ticking Clock',
+      tone: 'peach',
+      body: 'You pay an upfront cash "Premium" to buy a contract — that’s your maximum loss. Unlike stocks, options expire! "Theta" (time decay) drains contract value every day.',
+      takeaway: 'Every day toward expiration eats away an option’s value.',
+      tuckSays: 'Tuck says: Stocks can sit forever, but options melt like ice cubes with a deadline! 🧊⏳',
+      quickCheck: {
+        prompt: 'Quick Check: What does Time Decay (Theta) do as expiration gets closer?',
+        options: ['Erodes the option’s value daily', 'Doubles your dividend yield'],
+        correctIndex: 0,
+        rightFeedback: 'Spot on! Time decay steadily eats extrinsic contract value.',
+        wrongFeedback: 'Not quite — Theta is the daily drop in value as expiration approaches.',
+      },
+    },
+    {
+      id: 'opt-4',
+      icon: '🛡️',
+      title: 'Why Steady Wealth Wins',
+      badge: 'Bottom Line',
+      tone: 'mint',
+      body: 'If the stock doesn’t move far enough before expiration, an option expires at $0 (100% loss of premium). HYSAs, CDs, and broad ETFs offer far steadier compounding!',
+      takeaway: 'Master savings + index ETFs before ever touching derivatives.',
+      tuckSays: 'Tuck says: Steady ETFs + emergency cash win the long game without expiration stress! 🏆',
+      quickCheck: {
+        prompt: 'Quick Check: What is the max loss when buying a standard Call or Put option?',
+        options: ['100% of the upfront premium paid', 'Zero — SIPC covers options bets'],
+        correctIndex: 0,
+        rightFeedback: 'Correct! Your risk is capped at the premium, but losing 100% is common.',
+        wrongFeedback: 'Careful! SIPC never covers trading losses — buyers can lose 100% of the premium.',
+      },
+    },
+  ],
 };
 
 const QUIZ_HINTS: Record<string, string> = {
@@ -279,13 +558,13 @@ function renderSectionLines(lines: string[]) {
     if (!currentList) return;
     if (currentList.type === 'ordered') {
       elements.push(
-        <div key={elements.length} className="space-y-2 my-3">
+        <div key={elements.length} className="space-y-2 my-2">
           {currentList.items.map((item, idx) => (
             <div
               key={idx}
-              className="flex items-start gap-3 p-3.5 rounded-[15px] bg-[#fbfaff] border border-[#e8e4f1]"
+              className="flex items-start gap-2.5 p-3 rounded-xl bg-[#fbfaff] border border-[#e8e4f1]"
             >
-              <span className="w-6 h-6 rounded-[8px] bg-[#eee6ff] text-[#4f32a9] font-extrabold text-xs flex items-center justify-center shrink-0 mt-0.5">
+              <span className="w-5 h-5 rounded-md bg-[#eee6ff] text-[#4f32a9] font-extrabold text-xs flex items-center justify-center shrink-0 mt-0.5">
                 {idx + 1}
               </span>
               <div className="text-xs sm:text-sm leading-relaxed text-[#383354] flex-1">
@@ -297,11 +576,11 @@ function renderSectionLines(lines: string[]) {
       );
     } else {
       elements.push(
-        <div key={elements.length} className="space-y-2 my-3">
+        <div key={elements.length} className="space-y-2 my-2">
           {currentList.items.map((item, idx) => (
             <div
               key={idx}
-              className="flex items-start gap-2.5 p-3 rounded-[15px] bg-[#fbfaff] border border-[#e8e4f1]"
+              className="flex items-start gap-2.5 p-2.5 rounded-xl bg-[#fbfaff] border border-[#e8e4f1]"
             >
               <span className="w-2 h-2 rounded-full bg-[#5637ca] shrink-0 mt-2 ml-1" />
               <div className="text-xs sm:text-sm leading-relaxed text-[#383354] flex-1">
@@ -344,7 +623,7 @@ function renderSectionLines(lines: string[]) {
 
     flushList();
     elements.push(
-      <p key={elements.length} className="leading-relaxed text-[#383354] my-2">
+      <p key={elements.length} className="leading-relaxed text-[#383354] my-1.5">
         {renderFormattedInlineText(trimmed)}
       </p>
     );
@@ -352,32 +631,6 @@ function renderSectionLines(lines: string[]) {
 
   flushList();
   return elements;
-}
-
-function getExecutiveTakeaway(title: string): string {
-  const lower = title.toLowerCase();
-  if (lower.includes('penalty') || lower.includes('early') || lower.includes('trade-off')) {
-    return 'Liquid cash surrender trade-off: Withdrawing before maturity triggers a 90 to 180-day interest penalty, which can even reduce principal if broken prematurely.';
-  }
-  if (lower.includes('safety') || lower.includes('protection') || lower.includes('fdic')) {
-    return 'Backed by the US government: Standard deposits are protected up to $250,000 per depositor per bank, eliminating nominal default risk.';
-  }
-  if (lower.includes('how') || lower.includes('work') || lower.includes('mechanics')) {
-    return 'Lump-sum contract: Your rate of return is fixed on day one; interest compounds continuously with zero market fluctuations.';
-  }
-  if (lower.includes('when to choose') || lower.includes('ladder') || lower.includes('strategy')) {
-    return 'Goal alignment: Ideal for strict non-negotiable milestones (tuition, down payment) or rate hedging via staggered maturity ladders.';
-  }
-  if (lower.includes('stock') || lower.includes('equity')) {
-    return 'True fractional equity ownership: Participates directly in corporate revenue, cash dividends, and multi-year economic value creation.';
-  }
-  if (lower.includes('etf') || lower.includes('index')) {
-    return 'Instant broad diversification: Replaces single-stock bankruptcy risk with an entire basket of 500+ top companies for a 0.03% expense ratio.';
-  }
-  if (lower.includes('option') || lower.includes('primer')) {
-    return 'High-leverage time decay: Options expire rapidly; buyers frequently lose 100% of their upfront premium. Strict education only.';
-  }
-  return 'Core financial mechanism designed to build disciplined, wealth-generating habits with zero guesswork.';
 }
 
 type ConceptProgress = { understoodMap: Record<number, boolean>; checkList: boolean[] };
@@ -396,267 +649,261 @@ function isQuizProgress(value: unknown): value is Record<string, ProgressItem> {
     && typeof item.latest_score_pct === 'string' && typeof item.best_score_pct === 'string');
 }
 
-function RichCurriculumContent({
-  body,
+const CARD_TONES: Record<MicroCard['tone'], string> = {
+  lavender: 'bg-[#eee6ff] border-[#cbb8f6] text-[#4f32a9]',
+  mint: 'bg-[#e3f3d9] border-[#a7da8f] text-[#285137]',
+  peach: 'bg-[#ffe9da] border-[#f5cdb2] text-[#7b402a]',
+  lime: 'bg-[#ecfccb] border-[#a3e635] text-[#27400d]',
+};
+
+function DuolingoLessonDeck({
+  topicId,
   fontSize,
   storageKey,
+  onTuckUpdate,
+  onJumpToQuiz,
 }: {
-  body: string;
+  topicId: string;
   fontSize: 'normal' | 'large';
   storageKey?: string;
+  onTuckUpdate: (speech: string) => void;
+  onJumpToQuiz: () => void;
 }) {
-  const sections = useMemo(() => parseLessonMarkdown(body), [body]);
-  const [activeConceptIdx, setActiveConceptIdx] = useState<number>(0);
-  const [{ understoodMap, checkList }, setConceptProgress] = useStoredPractice<ConceptProgress>(storageKey, () => (
+  const cards = TOPIC_MICRO_CARDS[topicId] || TOPIC_MICRO_CARDS['cd-basics'];
+  const [activeCardIdx, setActiveCardIdx] = useState<number>(0);
+  const [quickCheckSelections, setQuickCheckSelections] = useState<Record<string, number>>({});
+  const [deckCelebrated, setDeckCelebrated] = useState<boolean>(false);
+
+  const [{ understoodMap }, setConceptProgress] = useStoredPractice<ConceptProgress>(storageKey, () => (
     (storageKey && readPractice(storageKey, isConceptProgress)) || { understoodMap: {}, checkList: [false, false, false] }
   ));
-  const [collapsedSections, setCollapsedSections] = useState<Record<number, boolean>>({});
 
-  const toggleSection = (idx: number) => {
-    setCollapsedSections((prev) => ({
-      ...prev,
-      [idx]: !prev[idx],
-    }));
+  const activeCard = cards[activeCardIdx] || cards[0];
+  const cardAnswer = quickCheckSelections[activeCard.id];
+  const isCardCorrect = cardAnswer === activeCard.quickCheck.correctIndex;
+  const completedCardsCount = cards.filter((_, idx) => !!understoodMap[idx]).length;
+  const deckProgressPct = Math.max(
+    Math.round(((activeCardIdx + 1) / cards.length) * 100),
+    Math.round((completedCardsCount / cards.length) * 100)
+  );
+
+  const selectCard = (idx: number) => {
+    soundFx.playTactileClick();
+    setActiveCardIdx(idx);
+    const nextCard = cards[idx];
+    if (nextCard) {
+      onTuckUpdate(nextCard.tuckSays);
+    }
   };
 
-  const activeSec = sections[activeConceptIdx] || sections[0];
-  const activeLower = activeSec ? activeSec.title.toLowerCase() : '';
-  const isActiveWarning =
-    activeLower.includes('penalty') ||
-    activeLower.includes('risk') ||
-    activeLower.includes('trade-off') ||
-    activeLower.includes('caution');
-  const isActiveSafety =
-    activeLower.includes('safety') ||
-    activeLower.includes('protection') ||
-    activeLower.includes('fdic') ||
-    activeLower.includes('sipc');
-  const isActiveDefinition =
-    activeLower.includes('what is') || activeLower.includes('introduction') || activeLower.includes('primer');
-  const isActiveAction =
-    activeLower.includes('when to choose') ||
-    activeLower.includes('role') ||
-    activeLower.includes('how') ||
-    activeLower.includes('instant');
+  const handleQuickCheck = (optionIdx: number) => {
+    setQuickCheckSelections((prev) => ({ ...prev, [activeCard.id]: optionIdx }));
+    const correct = optionIdx === activeCard.quickCheck.correctIndex;
+    if (correct) {
+      soundFx.playCoinPing();
+      onTuckUpdate(`Tuck says: ${activeCard.quickCheck.rightFeedback} 🌟`);
+      setConceptProgress((prev) => ({
+        ...prev,
+        understoodMap: { ...prev.understoodMap, [activeCardIdx]: true },
+      }));
+    } else {
+      soundFx.playFailureBuzzer();
+      onTuckUpdate(`Tuck says: ${activeCard.quickCheck.wrongFeedback}`);
+    }
+  };
 
-  const activeBadgeText = isActiveWarning
-    ? 'Risk & Trade-Off'
-    : isActiveSafety
-    ? 'Safety & Protection'
-    : isActiveDefinition
-    ? 'Core Definition'
-    : isActiveAction
-    ? 'Practical Strategy'
-    : 'Market Mechanics';
+  const handleNextOrFinish = () => {
+    setConceptProgress((prev) => ({
+      ...prev,
+      understoodMap: { ...prev.understoodMap, [activeCardIdx]: true },
+    }));
 
-  const activeBadgeTone = isActiveWarning
-    ? 'fw-peach border border-[#f5cdb2]'
-    : isActiveSafety
-    ? 'fw-mint border border-[#c3e2b0]'
-    : 'fw-lavender border border-[#dfd5f8]';
+    if (activeCardIdx < cards.length - 1) {
+      const nextIdx = activeCardIdx + 1;
+      soundFx.playTactileClick();
+      setActiveCardIdx(nextIdx);
+      onTuckUpdate(cards[nextIdx].tuckSays);
+    } else {
+      soundFx.playSuccessChord();
+      triggerConfetti({ particleCount: 70 });
+      setDeckCelebrated(true);
+      onTuckUpdate('Tuck says: Woohoo! You crushed every card! Ready to earn +150 Aura on the Quiz? 🎉');
+    }
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Concept Navigator Pills */}
-      <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-[16px] bg-[#f3effa] border border-[#e8e4f1]">
-        {sections.map((sec, idx) => {
-          const isSelected = idx === activeConceptIdx;
-          const isDone = !!understoodMap[idx];
-          return (
-            <button
-              key={idx}
-              type="button"
-              onClick={() => setActiveConceptIdx(idx)}
-              className={`px-3 py-1.5 rounded-[11px] text-xs font-bold transition-all flex items-center gap-1.5 ${
-                isSelected
-                  ? 'bg-[#5637ca] text-white shadow-xs'
-                  : isDone
-                  ? 'bg-[#e3f3d9] text-[#285137] hover:bg-[#d7edc8]'
-                  : 'text-[#615d76] hover:text-[#222038] hover:bg-white/80'
-              }`}
-            >
-              <span className="text-[10px] opacity-80">{isDone ? '✓' : `${idx + 1}`}</span>
-              <span className="truncate max-w-[150px] sm:max-w-[200px]">
-                {sec.title.replace('###', '').trim()}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Active Concept Card */}
-      {activeSec && (
-        <div className="fw-panel !rounded-[21px] border border-[#e8e4f1] bg-white p-5 sm:p-6 shadow-[0_6px_22px_rgba(39,32,71,0.04)] space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e8e4f1] pb-3.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="fw-kicker">
-                Part {activeConceptIdx + 1} of {sections.length}
-              </span>
-              <h4 className="text-base sm:text-lg font-black tracking-[-0.03em] text-[#222038]">
-                {activeSec.title}
-              </h4>
-            </div>
-            <span className={`px-3 py-1 rounded-full text-[11px] font-extrabold ${activeBadgeTone}`}>
-              {activeBadgeText}
-            </span>
-          </div>
-
-          {/* Editorial Key Takeaway */}
-          <div className="p-4 rounded-[16px] bg-[#f4f0fd] border border-[#dfd5f8] border-l-4 border-l-[#5637ca] space-y-1">
-            <span className="fw-kicker block">Key Insight</span>
-            <p className="text-xs sm:text-sm font-semibold text-[#222038] leading-relaxed">
-              {getExecutiveTakeaway(activeSec.title)}
-            </p>
-          </div>
-
-          {/* Content Lines */}
-          <div className={`space-y-3 pt-1 ${fontSize === 'large' ? 'text-base' : 'text-sm'}`}>
-            {renderSectionLines(activeSec.lines)}
-          </div>
-
-          {/* Card Footer Controls */}
-          <div className="pt-3.5 border-t border-[#e8e4f1] flex flex-wrap items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                setConceptProgress((previous) => {
-                  const understood = !previous.understoodMap[activeConceptIdx];
-                  return {
-                    understoodMap: { ...previous.understoodMap, [activeConceptIdx]: understood },
-                    checkList: previous.checkList.map((checked, idx) =>
-                      idx === activeConceptIdx ? understood : checked
-                    ),
-                  };
-                });
-              }}
-              className={`px-3.5 py-2 rounded-[11px] text-xs font-extrabold border transition-all flex items-center gap-1.5 ${
-                understoodMap[activeConceptIdx]
-                  ? 'bg-[#e3f3d9] text-[#285137] border-[#b7dc9f]'
-                  : 'bg-white hover:bg-[#f4f0fd] text-[#222038] border-[#e8e4f1] hover:border-[#cfc1fa]'
-              }`}
-            >
-              <span>{understoodMap[activeConceptIdx] ? '✓' : '○'}</span>
-              <span>
-                {understoodMap[activeConceptIdx] ? 'Concept Mastered' : 'Mark as Understood'}
-              </span>
-            </button>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={activeConceptIdx === 0}
-                onClick={() => setActiveConceptIdx((p) => Math.max(0, p - 1))}
-                className="px-3.5 py-2 text-xs rounded-[11px] border border-[#e8e4f1] bg-white hover:bg-[#f4f0fd] hover:border-[#cfc1fa] disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[#222038] transition-colors"
-              >
-                ← Prev
-              </button>
-              <button
-                type="button"
-                disabled={activeConceptIdx === sections.length - 1}
-                onClick={() => setActiveConceptIdx((p) => Math.min(sections.length - 1, p + 1))}
-                className="px-4 py-2 text-xs rounded-[11px] bg-[#5637ca] hover:bg-[#4626ad] disabled:bg-[#eeeaf5] disabled:text-[#726a83] disabled:cursor-not-allowed font-bold text-white shadow-2xs transition-colors"
-              >
-                Next →
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Collapsible reference cards for remaining sections so all text is 100% accessible in DOM */}
+    <div className="space-y-4">
+      {/* Top Duolingo Progress Bar & Step Dots */}
       <div className="space-y-2.5">
-        <h5 className="fw-kicker">All Curriculum Sections</h5>
-        {sections.map((section, sIdx) => {
-          if (sIdx === activeConceptIdx) return null;
-          const isCollapsed = collapsedSections[sIdx] !== false;
-
-          return (
-            <div
-              key={sIdx}
-              className="fw-panel !rounded-[16px] border border-[#e8e4f1] bg-white p-3.5 hover:border-[#cbb8f6] transition-colors"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => toggleSection(sIdx)}
-                  aria-expanded={!isCollapsed}
-                  className="text-left text-xs font-extrabold text-[#222038] flex items-center gap-2 flex-1"
-                >
-                  <span aria-hidden="true" className="text-[#5b43a7] text-[10px]">
-                    {isCollapsed ? '▶' : '▼'}
-                  </span>
-                  <span>{section.title}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveConceptIdx(sIdx)}
-                  className="text-[11px] font-bold text-[#4f32a9] hover:text-[#272047] px-2.5 py-1 rounded-[9px] bg-[#f4f0fd] hover:bg-[#eee6ff] transition-colors"
-                >
-                  Focus View →
-                </button>
-              </div>
-
-              {!isCollapsed && (
-                <div
-                  className={`space-y-3 pt-3 border-t border-[#e8e4f1] mt-2.5 ${
-                    fontSize === 'large' ? 'text-base' : 'text-sm'
-                  }`}
-                >
-                  {renderSectionLines(section.lines)}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Interactive Concept Checkoff */}
-      <div className="fw-panel !rounded-[21px] border border-[#dfd5f8] bg-[#f8f5ff] p-5 space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h5 className="fw-kicker">Concept Verification Checklist</h5>
-          <span className="text-xs text-[#4f32a9] font-extrabold px-2.5 py-0.5 rounded-full bg-[#eee6ff]">
-            {checkList.filter(Boolean).length} of 3 Mastered
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <span className="font-black text-[#222038] flex items-center gap-1.5">
+            <span aria-hidden="true">⚡</span>
+            <span>Card {activeCardIdx + 1} of {cards.length}</span>
+          </span>
+          <span className="font-extrabold px-2.5 py-0.5 rounded-full bg-[#e8fcd6] text-[#1e4620] border border-[#86efac]">
+            {completedCardsCount}/{cards.length} Mastered
           </span>
         </div>
 
-        <div className="space-y-2">
-          {[
-            'I understand the primary mechanism of how this instrument generates returns or locks interest.',
-            'I know the regulatory safety guarantee (FDIC $250k / EU DGS €100k / SIPC $500k).',
-            'I recognize the key liquidity trade-offs and time horizon suitability.',
-          ].map((item, idx) => (
-            <label
-              key={idx}
-              className={`flex items-start gap-3 p-3 rounded-[14px] border text-xs cursor-pointer transition-colors ${
-                checkList[idx]
-                  ? 'border-[#b7dc9f] bg-[#e3f3d9]/80 text-[#285137] font-semibold'
-                  : 'border-[#e8e4f1] bg-white text-[#222038] hover:border-[#cfc1fa] hover:bg-[#fbf9ff]'
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={checkList[idx]}
-                onChange={() => {
-                  setConceptProgress((previous) => ({
-                    ...previous,
-                    checkList: previous.checkList.map((checked, itemIndex) =>
-                      itemIndex === idx ? !checked : checked
-                    ),
-                  }));
-                }}
-                className="rounded border-[#cfc1fa] accent-[#5637ca] mt-0.5"
-              />
-              <span className="leading-relaxed">{item}</span>
-            </label>
-          ))}
+        <div className="h-3 rounded-full bg-slate-100 overflow-hidden border border-slate-200/80">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-[#58cc02] via-[#76e600] to-[#a3e635] shadow-[0_0_12px_rgba(88,204,2,0.55)] transition-all duration-300"
+            style={{ width: `${deckProgressPct}%` }}
+          />
         </div>
 
-        {checkList.every(Boolean) && (
-          <div className="p-3.5 rounded-[14px] bg-[#e3f3d9] border border-[#b7dc9f] text-[#285137] text-xs font-bold flex items-center justify-between">
-            <span>✓ All 3 foundational concepts verified. Ready for the Knowledge Check!</span>
-          </div>
-        )}
+        {/* Tactile 3D Step Pills */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+          {cards.map((card, idx) => {
+            const isSelected = idx === activeCardIdx;
+            const isDone = !!understoodMap[idx];
+            return (
+              <button
+                key={card.id}
+                type="button"
+                onClick={() => selectCard(idx)}
+                className={`px-3 py-2 text-xs text-left flex items-center gap-2 ${DUO_3D_BTN} ${
+                  isSelected
+                    ? 'bg-[#272047] text-white border-[#1b1533] border-b-[#120d24]'
+                    : isDone
+                    ? 'bg-[#e8fcd6] hover:bg-[#d8f8bd] text-[#1e4620] border-[#86efac] border-b-[#58cc02]'
+                    : 'bg-white hover:bg-[#f6f3ff] text-[#222038] border-[#e2ddf0] border-b-[#cfc7e6]'
+                }`}
+              >
+                <span className="text-base shrink-0" aria-hidden="true">
+                  {isDone && !isSelected ? '✅' : card.icon}
+                </span>
+                <span className="truncate">{idx + 1}. {card.title}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
+
+      {/* Focused Bite-Sized Micro-Card */}
+      <div className="rounded-3xl border-2 border-[#dfd5f8] bg-gradient-to-br from-white via-[#fbfaff] to-[#f4f0fd] p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+          <div
+            className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border-2 border-b-4 grid place-items-center text-3xl sm:text-4xl shrink-0 ${
+              CARD_TONES[activeCard.tone]
+            }`}
+            aria-hidden="true"
+          >
+            {activeCard.icon}
+          </div>
+
+          <div className="space-y-2 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border ${CARD_TONES[activeCard.tone]}`}>
+                {activeCard.badge}
+              </span>
+              <h4 className="text-lg sm:text-xl font-black tracking-[-0.025em] text-[#222038]">
+                {activeCard.title}
+              </h4>
+            </div>
+
+            <p className={`font-semibold text-[#383354] leading-relaxed ${fontSize === 'large' ? 'text-base sm:text-lg' : 'text-sm sm:text-base'}`}>
+              {activeCard.body}
+            </p>
+
+            <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-[#f3effa] border border-[#d3c2fb] text-xs font-extrabold text-[#4f32a9]">
+              <span aria-hidden="true">🎯</span>
+              <span>Takeaway: {activeCard.takeaway}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 1-Tap Duolingo Mini-Check */}
+        <div className="rounded-2xl bg-white border-2 border-[#e8e4f1] p-4 space-y-2.5">
+          <p className="text-xs sm:text-sm font-black text-[#222038]">
+            {activeCard.quickCheck.prompt}
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {activeCard.quickCheck.options.map((opt, optIdx) => {
+              const chosen = cardAnswer === optIdx;
+              const isRightOpt = optIdx === activeCard.quickCheck.correctIndex;
+              return (
+                <button
+                  key={optIdx}
+                  type="button"
+                  onClick={() => handleQuickCheck(optIdx)}
+                  className={`p-3 text-left text-xs sm:text-sm flex items-center justify-between gap-2 ${DUO_3D_BTN} ${
+                    chosen
+                      ? isRightOpt
+                        ? 'bg-[#e8fcd6] border-[#58cc02] border-b-[#46a302] text-[#1e4620]'
+                        : 'bg-[#fff1e6] border-[#f97316] border-b-[#c2410c] text-[#7b402a]'
+                      : 'bg-[#fbfaff] hover:bg-[#f4f0fd] border-[#e2ddf0] border-b-[#cfc7e6] text-[#222038]'
+                  }`}
+                >
+                  <span>{opt}</span>
+                  {chosen && (
+                    <span className="text-xs font-black shrink-0">
+                      {isRightOpt ? '✓ +25 Aura!' : '↺ Try other'}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {cardAnswer !== undefined && (
+            <div
+              role="status"
+              className={`px-3.5 py-2 rounded-xl text-xs font-extrabold border animate-fadeIn ${
+                isCardCorrect
+                  ? 'bg-[#e8fcd6] border-[#86efac] text-[#1e4620]'
+                  : 'bg-[#fff1e6] border-[#fdba74] text-[#7b402a]'
+              }`}
+            >
+              {isCardCorrect
+                ? `🎉 ${activeCard.quickCheck.rightFeedback}`
+                : `💡 ${activeCard.quickCheck.wrongFeedback}`}
+            </div>
+          )}
+        </div>
+
+        {/* Micro-Card Navigation Footer */}
+        <div className="pt-2 border-t border-[#e8e4f1] flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            disabled={activeCardIdx === 0}
+            onClick={() => selectCard(Math.max(0, activeCardIdx - 1))}
+            className={`px-4 py-2 text-xs bg-white hover:bg-[#f4f0fd] border-[#e2ddf0] border-b-[#cfc7e6] text-[#222038] disabled:opacity-40 disabled:cursor-not-allowed ${DUO_3D_BTN}`}
+          >
+            ← Back
+          </button>
+
+          <button
+            type="button"
+            onClick={handleNextOrFinish}
+            className={`px-5 py-2.5 text-xs sm:text-sm ${DUO_GREEN_BTN}`}
+          >
+            {activeCardIdx === cards.length - 1 ? 'Finish Cards 🎉' : 'Got it! Next →'}
+          </button>
+        </div>
+      </div>
+
+      {deckCelebrated && (
+        <div
+          role="status"
+          className="p-4 rounded-2xl bg-[#e8fcd6] border-2 border-[#58cc02] text-[#1e4620] flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-scaleUp shadow-xs"
+        >
+          <div className="space-y-0.5">
+            <p className="text-sm font-black">🎉 Lesson Cards Complete! +150 Aura up for grabs!</p>
+            <p className="text-xs font-bold text-[#285137]">
+              You crushed every concept! Now test what you learned on the Knowledge Check Quiz.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onJumpToQuiz}
+            className={`px-4 py-2 text-xs whitespace-nowrap ${DUO_GREEN_BTN}`}
+          >
+            Take Mastery Quiz ↓
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -674,21 +921,11 @@ export function LearningView({
   const quizHeading = useRef<HTMLHeadingElement>(null);
   const topicHeading = useRef<HTMLHeadingElement>(null);
 
-  const [activeTab, setActiveTab] = useState<'interactive' | 'strategies' | 'reader' | 'matrix'>('interactive');
   const [fontSize, setFontSize] = useState<'normal' | 'large'>('normal');
   const [isOverviewOpen, setIsOverviewOpen] = useState<boolean>(false);
 
-  // Streamlined Interactive Studio tool selector
-  const [activeStudioTool, setActiveStudioTool] = useState<'lifecycle' | 'whatif' | 'simulator' | 'scenarios' | 'matcher'>('lifecycle');
-
-  // Interactive Mini-Simulator State
-  const [simDeposit, setSimDeposit] = useState<number>(1000);
-  const [simApy, setSimApy] = useState<number>(5.0);
-  const [simMonths, setSimMonths] = useState<number>(12);
-  const savingsInputId = useId();
-
-  // Active Persona for Case Studies
-  const [activePersonaIdx, setActivePersonaIdx] = useState<number>(0);
+  // Tuck live speech reaction
+  const [tuckSpeechOverride, setTuckSpeechOverride] = useState<string | null>(null);
 
   // Hint expansion tracking per question id
   const [openHints, setOpenHints] = useState<Record<string, boolean>>({});
@@ -744,35 +981,40 @@ export function LearningView({
   };
 
   const completedCount = Object.values(progressMap).filter((p) => p.completed).length;
-  const scenarios = TOPIC_SCENARIOS[normalizedSelectedId] || TOPIC_SCENARIOS['cd-basics'];
-  const tuckTakeaway = TUCK_TAKEAWAYS[normalizedSelectedId] || TUCK_TAKEAWAYS['cd-basics'];
+  const coursePct = LESSON_SUMMARIES.length > 0 ? Math.round((completedCount / LESSON_SUMMARIES.length) * 100) : 0;
+  const girlMission = GIRL_MISSIONS[normalizedSelectedId] || GIRL_MISSIONS['cd-basics'];
+  const defaultTuckLine =
+    (TOPIC_MICRO_CARDS[normalizedSelectedId]?.[0]?.tuckSays) ||
+    'Tuck says: Think of a CD like a time capsule for your money! 🐕🔒';
+  const activeTuckSpeech = tuckSpeechOverride || defaultTuckLine;
+  const fullGuideSections = useMemo(() => parseLessonMarkdown(activeLesson.body), [activeLesson.body]);
 
   // Handle switching topic
   const handleSelectTopic = (topicId: string) => {
     const nextTopic = normalizeTopicId(topicId);
+    soundFx.playTactileClick();
     setSelectedTopicId(nextTopic);
     setSelectedAnswers({});
     setValidationError(null);
     setAttemptResult(null);
     setOpenHints({});
-    setActivePersonaIdx(0);
-    if (nextTopic === 'hysa-basics') {
-      setSimApy(4.5);
-      setSimMonths(12);
-    } else if (nextTopic === 'cd-basics') {
-      setSimApy(5.0);
-      setSimMonths(12);
-    } else {
-      setSimDeposit(1000);
-    }
+    setTuckSpeechOverride(null);
+  };
+
+  const scrollToLesson = () => {
+    soundFx.playTactileClick();
+    topicHeading.current?.focus({ preventScroll: true });
+    topicHeading.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
   };
 
   const scrollToQuiz = () => {
+    soundFx.playTactileClick();
     quizHeading.current?.focus({ preventScroll: true });
-    quizHeading.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    quizHeading.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
   };
 
   const handleOptionSelect = (questionId: string, optionId: string) => {
+    soundFx.playTactileClick();
     setSelectedAnswers((prev) => ({
       ...prev,
       [questionId]: optionId,
@@ -783,6 +1025,7 @@ export function LearningView({
   };
 
   const toggleHint = (qId: string) => {
+    soundFx.playTactileClick();
     setOpenHints((prev) => ({ ...prev, [qId]: !prev[qId] }));
   };
 
@@ -793,6 +1036,7 @@ export function LearningView({
     const unansweredQuestions = activeQuiz.questions.filter((q) => !selectedAnswers[q.id]);
 
     if (unansweredQuestions.length > 0) {
+      soundFx.playFailureBuzzer();
       setValidationError(
         `Please answer all questions before submitting. (${unansweredQuestions.length} unanswered)`
       );
@@ -823,6 +1067,28 @@ export function LearningView({
       }
 
       setAttemptResult(response);
+
+      if (response.passed) {
+        soundFx.playSuccessChord();
+        triggerConfetti({ particleCount: 95 });
+        setTuckSpeechOverride(
+          `Tuck says: YES!! ${response.score_pct}% mastery — +150 Aura! You totally nailed this! 🎉🏆`
+        );
+        const currentAura = loadAuraState(storageScope);
+        const awarded = syncLearningAwards(
+          currentAura,
+          { [`lesson-quiz:${normalizedSelectedId}`]: 150 },
+          storageScope
+        );
+        if (awarded !== currentAura && typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('storage'));
+        }
+      } else {
+        soundFx.playFailureBuzzer();
+        setTuckSpeechOverride(
+          'Tuck says: Almost there! Check my quick explanations below and give it one more shot! 💪'
+        );
+      }
 
       setProgressMap((prev) => {
         const current = prev[normalizedSelectedId] || {
@@ -869,116 +1135,100 @@ export function LearningView({
   };
 
   const handleRetryQuiz = () => {
+    soundFx.playTactileClick();
     setSelectedAnswers({});
     setValidationError(null);
     setAttemptResult(null);
+    setTuckSpeechOverride('Tuck says: Fresh start! Take your time and trust what you learned! 🐾');
   };
-
-  // Simulator math
-  const isSavingsTopic = normalizedSelectedId === 'cd-basics' || normalizedSelectedId === 'hysa-basics';
-  const savingsInputs = { mode: 'savings' as const, startingAmount: simDeposit, monthlyContribution: 0, horizonMonths: simMonths };
-  const savingsExample = calculateGrowth({ ...savingsInputs, annualRatePercent: simApy });
-  const baselineInterest = calculateGrowth({ ...savingsInputs, annualRatePercent: 0.01 }).totalGrowth;
-  const penaltyEst = simDeposit * (simApy / 100) * (3 / 12);
 
   const answeredCount = Object.keys(selectedAnswers).length;
   const totalQuestions = activeQuiz.questions.length;
   const progressPercent = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto text-[#222038]">
+    <div className="space-y-5 max-w-7xl mx-auto text-[#222038]">
       <TabOverviewModal
         tab="learning"
         isOpen={isOverviewOpen}
         onClose={() => setIsOverviewOpen(false)}
       />
 
-      {/* Cinematic FutureWorth Academy Hero Banner */}
-      <article className="fw-hero shadow-[0_14px_40px_rgba(39,32,71,0.16)]" aria-label="FutureWorth Academy Hero">
-        <div className="fw-hero-art" aria-hidden="true" />
-        <div className="fw-hero-content">
-          <p className="fw-hero-tag">✦ FUTUREWORTH ACADEMY</p>
-          <h2>Knowledge is your leverage.</h2>
-          <p>
-            Master compound growth, debt shields, and portfolio allocation with interactive labs.
-          </p>
-          <button
-            type="button"
-            className="fw-button fw-button-lime"
-            onClick={scrollToQuiz}
-          >
-            Jump to knowledge check <span aria-hidden="true">↓</span>
-          </button>
-        </div>
-      </article>
-
-      {/* Curriculum Overview Bar */}
-      <div className="fw-panel !rounded-[21px] border border-[#e8e4f1] bg-white p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <span className="fw-kicker">Curriculum</span>
-          <h2 className="text-xl sm:text-2xl font-black tracking-[-0.035em] text-[#222038] mt-0.5">
-            Financial Education &amp; Learning
-          </h2>
-          <p className="text-xs sm:text-sm text-[#615d76] mt-0.5 max-w-2xl">
-            Essential financial instruments explained through structured concepts, scenario modeling, and knowledge checks.
-          </p>
+      {/* Sleek Duolingo Header Bar */}
+      <div className="rounded-3xl border-2 border-[#e8e4f1] bg-white p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-[#eee6ff] border-2 border-[#d3c2fb] grid place-items-center text-xl shrink-0" aria-hidden="true">
+            🎓
+          </div>
+          <div>
+            <span className="fw-kicker !text-[10px] block">FutureWorth Academy</span>
+            <h2 className="text-lg sm:text-xl font-black tracking-[-0.03em] text-[#222038]">
+              Financial Education &amp; Learning
+            </h2>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setIsOverviewOpen(true)}
-            aria-label="What is Learn Tab?"
-            className="fw-quiet !min-h-[38px] !rounded-full !px-3.5 !py-1.5 text-xs"
-          >
-            <span aria-hidden="true">💡</span>
-            <span>What is Learn?</span>
-          </button>
+        <div className="flex items-center gap-2 flex-wrap">
           <span
-            className={`text-xs font-extrabold px-3.5 py-2 rounded-full border ${
+            className={`text-xs font-extrabold px-3.5 py-2 rounded-2xl border-2 ${
               completedCount === LESSON_SUMMARIES.length
-                ? 'bg-[#e3f3d9] text-[#285137] border-[#b7dc9f]'
-                : 'bg-[#eee6ff] text-[#4f32a9] border-[#dfd5f8]'
+                ? 'bg-[#e8fcd6] text-[#1e4620] border-[#58cc02]'
+                : 'bg-[#f4f0fd] text-[#4f32a9] border-[#dfd5f8]'
             }`}
           >
             Completed: {completedCount} of {LESSON_SUMMARIES.length} Topics
           </span>
+
+          <button
+            type="button"
+            onClick={() => setIsOverviewOpen(true)}
+            aria-label="What is Learn Tab?"
+            className={`px-3.5 py-2 text-xs bg-white hover:bg-[#f4f0fd] border-[#e2ddf0] border-b-[#cfc7e6] text-[#222038] ${DUO_3D_BTN}`}
+          >
+            💡 Guide
+          </button>
+
+          <button
+            type="button"
+            onClick={scrollToQuiz}
+            className={`px-4 py-2 text-xs ${DUO_GREEN_BTN}`}
+          >
+            Jump to Quiz ↓
+          </button>
         </div>
       </div>
 
-      {/* Main Grid: Sidebar Navigation + Content Area */}
+      {/* Main Grid: Tactile Duolingo Lesson Path + Interactive Stage */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Navigation List of all 5 topics */}
         <nav
           aria-label="Topics Navigation"
-          className="lg:col-span-4 fw-panel !rounded-[21px] border border-[#e8e4f1] bg-white p-4 shadow-[0_6px_22px_rgba(39,32,71,0.04)] space-y-3"
+          className="lg:col-span-4 rounded-3xl border-2 border-[#e8e4f1] bg-white p-4 shadow-xs space-y-3.5"
         >
-          <div className="px-2 pt-1 flex items-center justify-between gap-2">
+          <div className="px-1 flex items-center justify-between gap-2">
             <div>
-              <span className="fw-kicker block">Lesson Map</span>
-              <h3 className="text-base font-black tracking-[-0.025em] text-[#222038]">
-                Course Topics
-              </h3>
+              <span className="fw-kicker block">Lesson Path</span>
+              <span className="text-base font-black tracking-[-0.025em] text-[#222038]">
+                Pick a Bite-Sized Skill
+              </span>
             </div>
-            <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#eee6ff] text-[#4f32a9]">
+            <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-[#e8fcd6] text-[#1e4620] border border-[#86efac]">
               {completedCount}/{LESSON_SUMMARIES.length}
             </span>
           </div>
 
-          <div className="w-full h-2 rounded-full bg-[#ece6fa] overflow-hidden">
+          <div className="h-3 rounded-full bg-slate-100 overflow-hidden border border-slate-200/80">
             <div
-              className="h-full bg-[#5637ca] transition-all duration-300"
-              style={{
-                width: `${LESSON_SUMMARIES.length > 0 ? Math.round((completedCount / LESSON_SUMMARIES.length) * 100) : 0}%`,
-              }}
+              className="h-full rounded-full bg-gradient-to-r from-[#58cc02] to-[#a3e635] shadow-[0_0_10px_rgba(88,204,2,0.5)] transition-all duration-300"
+              style={{ width: `${coursePct}%` }}
             />
           </div>
 
-          <ul className="space-y-2" role="list">
-            {LESSON_SUMMARIES.map((topic: LessonSummary) => {
+          <ul className="space-y-2.5" role="list">
+            {LESSON_SUMMARIES.map((topic: LessonSummary, idx: number) => {
               const isSelected = topic.id === normalizedSelectedId;
               const isDone = progressMap[topic.id]?.completed;
-              const visual = TOPIC_VISUALS[topic.id] || { icon: '◈', tone: 'fw-lavender' as const };
+              const visual = TOPIC_VISUALS[topic.id] || { icon: '◈', tone: 'bg-[#eee6ff] text-[#4f32a9]' };
 
               return (
                 <li key={topic.id}>
@@ -990,15 +1240,17 @@ export function LearningView({
                       topicHeading.current?.scrollIntoView?.({ block: 'center' });
                     }}
                     aria-current={isSelected ? 'page' : undefined}
-                    className={`w-full text-left px-3 py-2.5 rounded-[16px] text-sm transition-all flex items-center justify-between gap-2.5 border ${
+                    className={`w-full text-left px-3.5 py-3 text-sm flex items-center justify-between gap-2.5 ${DUO_3D_BTN} ${
                       isSelected
-                        ? 'bg-[#272047] border-[#272047] text-white font-bold shadow-[0_8px_20px_rgba(39,32,71,0.18)]'
-                        : 'bg-[#fbfaff] border-[#e8e4f1] text-[#222038] hover:bg-[#f4f0fd] hover:border-[#cbb8f6]'
+                        ? 'bg-[#272047] border-[#1b1533] border-b-[#120d24] text-white'
+                        : isDone
+                        ? 'bg-[#f4fde8] hover:bg-[#e8fcd6] border-[#86efac] border-b-[#58cc02] text-[#1e4620]'
+                        : 'bg-[#fbfaff] hover:bg-[#f4f0fd] border-[#e2ddf0] border-b-[#cfc7e6] text-[#222038]'
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <span
-                        className={`fw-tile !w-10 !h-10 !text-lg !rounded-[12px] ${
+                        className={`w-10 h-10 rounded-xl grid place-items-center text-lg shrink-0 ${
                           isSelected ? 'bg-[#3d3270] text-[#dbfb84]' : visual.tone
                         }`}
                         aria-hidden="true"
@@ -1008,29 +1260,27 @@ export function LearningView({
                       <div className="flex min-w-0 flex-col">
                         <span className="font-extrabold truncate leading-snug">{topic.title}</span>
                         <span
-                          className={`text-xs font-semibold ${
-                            isSelected ? 'text-[#e3d7ff]' : 'text-[#615d76]'
+                          className={`text-xs font-bold ${
+                            isSelected ? 'text-[#dbfb84]' : 'text-[#615d76]'
                           }`}
                         >
-                          {topic.topic}
+                          Unit {idx + 1} · {topic.topic}
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {isDone && (
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${
-                            isSelected
-                              ? 'bg-[#dbfb84] text-[#272047]'
-                              : 'bg-[#e3f3d9] text-[#285137] border border-[#b7dc9f]'
-                          }`}
-                          title="Topic Completed"
-                        >
-                          ✓ Completed
-                        </span>
-                      )}
-                    </div>
+                    {isDone && (
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold shrink-0 ${
+                          isSelected
+                            ? 'bg-[#dbfb84] text-[#272047]'
+                            : 'bg-[#58cc02] text-white'
+                        }`}
+                        title="Topic Completed"
+                      >
+                        ✓ Done
+                      </span>
+                    )}
                   </button>
                 </li>
               );
@@ -1038,42 +1288,66 @@ export function LearningView({
           </ul>
         </nav>
 
-        {/* Content Area: Tuck Companion + Lesson Reading + Sources + Progress + Quiz */}
-        <div className="lg:col-span-8 space-y-6">
-          {/* Tuck's Study Companion Widget */}
-          <section
-            aria-label="Tuck's Study Companion"
-            className="rounded-[21px] border border-[#dfd5f8] bg-[linear-gradient(110deg,#ede4ff,#f7f2ff_60%,#f6fde8)] p-4 sm:p-5 flex flex-col sm:flex-row items-center gap-4 shadow-[0_6px_22px_rgba(79,50,169,0.06)]"
-          >
-            <div className="w-24 h-24 rounded-[17px] bg-[radial-gradient(circle,rgba(255,255,255,0.85),rgba(224,206,245,0.65))] grid place-items-center shrink-0 p-2">
-              <Tuck className="w-20 h-20 object-contain" />
-            </div>
-
-            <div className="flex-1 min-w-0 w-full">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="fw-kicker">Tuck&apos;s Study Companion</p>
-                <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-white/85 text-[#4f32a9] border border-[#dfd5f8]">
-                  {activeLesson.topic}
-                </span>
+        {/* Content Area: Character Duo + Micro-Cards + Widgets + Quiz */}
+        <div className="lg:col-span-8 space-y-5">
+          {/* Tuck & Girl Character Guide Strip */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            {/* Girl Character Mission Challenge */}
+            <section
+              aria-label="Maya Mission Challenge"
+              className="rounded-3xl border-2 border-[#fcd34d] bg-gradient-to-br from-[#fffbeb] to-[#fef3c7]/60 p-4 flex items-center gap-3.5 shadow-xs"
+            >
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border-2 border-b-4 border-amber-500 bg-[#272047] shrink-0 shadow-xs">
+                <img
+                  src={paydayCover}
+                  alt="Maya introducing the mission challenge"
+                  className="w-full h-full object-cover object-[74%_18%] scale-125"
+                />
               </div>
 
-              <div className="relative mt-2 rounded-[18px] bg-white border border-[#dfd5f8] px-4 py-3 shadow-[0_4px_14px_rgba(39,32,71,0.05)]">
+              <div className="relative flex-1 rounded-2xl bg-white border-2 border-amber-300 px-3.5 py-2.5 shadow-2xs">
                 <span
                   aria-hidden="true"
-                  className="hidden sm:block absolute -left-2 top-5 w-3.5 h-3.5 rotate-45 bg-white border-l border-b border-[#dfd5f8]"
+                  className="hidden sm:block absolute -left-2 top-5 w-3.5 h-3.5 rotate-45 bg-white border-l-2 border-b-2 border-amber-300"
                 />
-                <p className="text-xs sm:text-sm font-bold leading-relaxed text-[#222038]">
-                  {tuckTakeaway}
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 block">
+                  🎯 {girlMission.title}
+                </span>
+                <p className="text-xs font-bold text-[#222038] leading-snug mt-0.5">
+                  &ldquo;{girlMission.challenge}&rdquo;
                 </p>
               </div>
-            </div>
-          </section>
+            </section>
 
-          {/* Main Lesson Card */}
-          <Card className="fw-panel !rounded-[21px] border-[#e8e4f1] shadow-[0_6px_24px_rgba(39,32,71,0.04)] bg-white p-6 sm:p-7 space-y-6">
-            {/* Header row with badges and controls */}
-            <div className="space-y-4 border-b border-[#e8e4f1] pb-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* Tuck Speech Bubble Companion */}
+            <section
+              aria-label="Tuck's Study Companion"
+              className="rounded-3xl border-2 border-[#d3c2fb] bg-gradient-to-br from-[#f5f0ff] to-[#f2fde5] p-4 flex items-center gap-3.5 shadow-xs"
+            >
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white border-2 border-b-4 border-[#b79cf7] grid place-items-center p-1.5 shrink-0 shadow-xs">
+                <Tuck className="w-full h-full object-contain" />
+              </div>
+
+              <div className="relative flex-1 rounded-2xl bg-white border-2 border-[#cbb8f6] px-3.5 py-2.5 shadow-2xs">
+                <span
+                  aria-hidden="true"
+                  className="hidden sm:block absolute -left-2 top-5 w-3.5 h-3.5 rotate-45 bg-white border-l-2 border-b-2 border-[#cbb8f6]"
+                />
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#5637ca] block">
+                  🐾 Coach Tuck
+                </span>
+                <p className="text-xs font-bold text-[#222038] leading-snug mt-0.5">
+                  {activeTuckSpeech}
+                </p>
+              </div>
+            </section>
+          </div>
+
+          {/* Main Duolingo Lesson Stage */}
+          <Card className="!rounded-3xl border-2 border-[#e8e4f1] shadow-xs bg-white p-5 sm:p-6 space-y-5">
+            {/* Header row with badges, level 3 heading, and tactile mode pills */}
+            <div className="space-y-3.5 border-b border-[#e8e4f1] pb-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-[#eee6ff] text-[#4f32a9] border border-[#dfd5f8]">
                     {activeLesson.topic}
@@ -1086,592 +1360,147 @@ export function LearningView({
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2.5">
-                  <button
-                    type="button"
-                    onClick={scrollToQuiz}
-                    className="text-xs font-extrabold text-[#5637ca] hover:text-[#4626ad] transition-colors inline-flex items-center gap-1 px-2.5 py-1.5 rounded-[10px] hover:bg-[#f4f0fd]"
-                  >
-                    <span>Skip to quiz</span>
-                    <span aria-hidden="true">↓</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    title="Toggle larger reading font size"
-                    aria-pressed={fontSize === 'large'}
-                    onClick={() => setFontSize((f) => (f === 'normal' ? 'large' : 'normal'))}
-                    className="px-3 py-1.5 text-xs font-extrabold rounded-[10px] border border-[#e8e4f1] bg-white hover:bg-[#f4f0fd] hover:border-[#cfc1fa] text-[#222038] transition-colors"
-                  >
-                    {fontSize === 'normal' ? 'Aa+' : 'Aa-'}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <h3
-                  ref={topicHeading}
-                  tabIndex={-1}
-                  className="text-2xl sm:text-3xl font-black tracking-[-0.04em] text-[#222038]"
-                >
-                  {activeLesson.title}
-                </h3>
-              </div>
-
-              {/* Segmented Tab Switcher */}
-              <div className="inline-flex rounded-[14px] p-1.5 bg-[#f3effa] border border-[#e8e4f1] text-xs font-bold gap-1.5 flex-wrap">
                 <button
                   type="button"
-                  onClick={() => setActiveTab('interactive')}
-                  aria-pressed={activeTab === 'interactive'}
-                  className={`px-3.5 py-2 rounded-[10px] transition-all ${
-                    activeTab === 'interactive'
-                      ? 'bg-[#272047] text-[#dbfb84] shadow-xs font-extrabold'
-                      : 'text-[#615d76] hover:text-[#222038] hover:bg-white/70'
-                  }`}
+                  title="Toggle larger reading font size"
+                  aria-pressed={fontSize === 'large'}
+                  onClick={() => setFontSize((f) => (f === 'normal' ? 'large' : 'normal'))}
+                  className={`px-3 py-1.5 text-xs bg-white hover:bg-[#f4f0fd] border-[#e2ddf0] border-b-[#cfc7e6] text-[#222038] ${DUO_3D_BTN}`}
                 >
-                  💡 Interactive Explorer
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('strategies')}
-                  aria-pressed={activeTab === 'strategies'}
-                  className={`px-3.5 py-2 rounded-[10px] transition-all ${
-                    activeTab === 'strategies'
-                      ? 'bg-[#272047] text-[#dbfb84] shadow-xs font-extrabold'
-                      : 'text-[#615d76] hover:text-[#222038] hover:bg-white/70'
-                  }`}
-                >
-                  🌐 US vs EU Strategies
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('reader')}
-                  aria-pressed={activeTab === 'reader'}
-                  className={`px-3.5 py-2 rounded-[10px] transition-all ${
-                    activeTab === 'reader'
-                      ? 'bg-[#272047] text-[#dbfb84] shadow-xs font-extrabold'
-                      : 'text-[#615d76] hover:text-[#222038] hover:bg-white/70'
-                  }`}
-                >
-                  📖 Full Guide
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('matrix')}
-                  aria-pressed={activeTab === 'matrix'}
-                  className={`px-3.5 py-2 rounded-[10px] transition-all ${
-                    activeTab === 'matrix'
-                      ? 'bg-[#272047] text-[#dbfb84] shadow-xs font-extrabold'
-                      : 'text-[#615d76] hover:text-[#222038] hover:bg-white/70'
-                  }`}
-                >
-                  ⚖️ Cheat Sheet
+                  {fontSize === 'normal' ? 'Aa+' : 'Aa-'}
                 </button>
               </div>
+
+              <h3
+                ref={topicHeading}
+                tabIndex={-1}
+                className="text-2xl sm:text-3xl font-black tracking-[-0.035em] text-[#222038]"
+              >
+                {activeLesson.title}
+              </h3>
+
+              {/* Two-Step Journey Stepper: Lesson First, Quiz After */}
+              <nav aria-label="Lesson Progress Steps" className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-[#f3effa] border-2 border-[#e8e4f1]">
+                <button
+                  type="button"
+                  onClick={scrollToLesson}
+                  className="py-2 px-3 rounded-xl text-xs font-black bg-[#272047] text-[#dbfb84] shadow-xs flex items-center justify-center gap-2 border border-[#1b1533] active:translate-y-0.5 transition-all select-none"
+                >
+                  <span>📖 Step 1: Interactive Lesson</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={scrollToQuiz}
+                  className="py-2 px-3 rounded-xl text-xs font-black bg-white hover:bg-[#f6f3ff] text-[#4f32a9] flex items-center justify-center gap-2 border border-[#e8e4f1] active:translate-y-0.5 transition-all select-none"
+                >
+                  <span>🎯 Step 2: Knowledge Check Quiz</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#dbfb84] text-[#272047] font-black">+150 Aura</span>
+                </button>
+              </nav>
             </div>
 
-            {/* TAB 1: Default Interactive Explorer Mode */}
-            {activeTab === 'interactive' && (
-              <div className="space-y-7">
-                {/* At-a-Glance Pastel Tile Metrics */}
-                <div className="grid grid-cols-1 min-[440px]:grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                  <div className="rounded-[18px] border border-[#e8e4f1] bg-[#fbfaff] p-3.5 flex items-center gap-3">
-                    <span className="fw-tile fw-lavender !w-10 !h-10 !text-lg !rounded-[12px]" aria-hidden="true">
-                      ◈
-                    </span>
-                    <div className="min-w-0">
-                      <span className="fw-kicker !text-[10px] block">Category</span>
-                      <span className="text-sm font-black text-[#222038] mt-0.5 block truncate">
-                        {activeLesson.topic}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[18px] border border-[#e8e4f1] bg-[#fbfaff] p-3.5 flex items-center gap-3">
-                    <span className="fw-tile fw-mint !w-10 !h-10 !text-lg !rounded-[12px]" aria-hidden="true">
-                      ✧
-                    </span>
-                    <div className="min-w-0">
-                      <span className="fw-kicker !text-[10px] block">Protection</span>
-                      <span className="text-sm font-black text-[#222038] mt-0.5 block truncate">
-                        {normalizedSelectedId.includes('cd') || normalizedSelectedId.includes('hysa')
-                          ? 'FDIC Insured ($250k)'
-                          : normalizedSelectedId.includes('options')
-                          ? 'None (Leverage Risk)'
-                          : 'SIPC Protected ($500k)'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[18px] border border-[#e8e4f1] bg-[#fbfaff] p-3.5 flex items-center gap-3">
-                    <span className="fw-tile fw-peach !w-10 !h-10 !text-lg !rounded-[12px]" aria-hidden="true">
-                      ◷
-                    </span>
-                    <div className="min-w-0">
-                      <span className="fw-kicker !text-[10px] block">Liquidity</span>
-                      <span className="text-sm font-black text-[#222038] mt-0.5 block truncate">
-                        {normalizedSelectedId.includes('cd')
-                          ? 'Locked Term'
-                          : normalizedSelectedId.includes('hysa')
-                          ? 'Daily Access'
-                          : 'Market Hours (T+1)'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[18px] border border-[#e8e4f1] bg-[#fbfaff] p-3.5 flex items-center gap-3">
-                    <span className="fw-tile !w-10 !h-10 !text-lg !rounded-[12px] bg-[#dbfb84] text-[#272047]" aria-hidden="true">
-                      ↗
-                    </span>
-                    <div className="min-w-0">
-                      <span className="fw-kicker !text-[10px] block">Return Type</span>
-                      <span className="text-sm font-black text-[#222038] mt-0.5 block truncate">
-                        {normalizedSelectedId.includes('cd')
-                          ? 'Fixed APY'
-                          : normalizedSelectedId.includes('hysa')
-                          ? 'Variable APY'
-                          : 'Capital & Dividends'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Core Curriculum Content */}
-                <div>
-                  <RichCurriculumContent
-                    key={normalizedSelectedId}
-                    body={activeLesson.body}
-                    fontSize={fontSize}
-                    storageKey={storageScope && `concepts:${storageScope}:${normalizedSelectedId}`}
-                  />
-                </div>
-
-                {/* Streamlined Interactive Studio Workbench */}
-                <div className="fw-panel !rounded-[21px] border border-[#dfd5f8] bg-[linear-gradient(145deg,#faf8ff,#f3effb)] p-5 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-[#e8e4f1] pb-3.5">
-                    <div className="flex items-center gap-3">
-                      <span className="fw-tile fw-lavender !w-10 !h-10 !text-lg !rounded-[12px]" aria-hidden="true">
-                        ⚡
-                      </span>
-                      <div>
-                        <span className="fw-kicker block">Hands-on Workbench</span>
-                        <h4 className="text-base font-black tracking-[-0.025em] text-[#222038]">
-                          Interactive Concept Studio
-                        </h4>
-                        <p className="text-xs text-[#615d76] mt-0.5">
-                          Explore dynamic simulations, lifecycle walkthroughs, and real-world scenarios.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Studio Tool Switcher Pills */}
-                    <div className="flex flex-wrap items-center gap-1 p-1 bg-white rounded-[14px] border border-[#e8e4f1] text-xs">
-                      <button
-                        type="button"
-                        onClick={() => setActiveStudioTool('lifecycle')}
-                        className={`px-3 py-1.5 rounded-[10px] font-bold transition ${
-                          activeStudioTool === 'lifecycle'
-                            ? 'bg-[#5637ca] text-white shadow-xs'
-                            : 'text-[#615d76] hover:text-[#222038] hover:bg-[#f6f3ff]'
-                        }`}
-                      >
-                        Lifecycle
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setActiveStudioTool('whatif')}
-                        className={`px-3 py-1.5 rounded-[10px] font-bold transition ${
-                          activeStudioTool === 'whatif'
-                            ? 'bg-[#5637ca] text-white shadow-xs'
-                            : 'text-[#615d76] hover:text-[#222038] hover:bg-[#f6f3ff]'
-                        }`}
-                      >
-                        What-If
-                      </button>
-                      {isSavingsTopic && (
-                        <button
-                          type="button"
-                          onClick={() => setActiveStudioTool('simulator')}
-                          className={`px-3 py-1.5 rounded-[10px] font-bold transition ${
-                            activeStudioTool === 'simulator'
-                              ? 'bg-[#5637ca] text-white shadow-xs'
-                              : 'text-[#615d76] hover:text-[#222038] hover:bg-[#f6f3ff]'
-                          }`}
-                        >
-                          Calculator
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setActiveStudioTool('scenarios')}
-                        className={`px-3 py-1.5 rounded-[10px] font-bold transition ${
-                          activeStudioTool === 'scenarios'
-                            ? 'bg-[#5637ca] text-white shadow-xs'
-                            : 'text-[#615d76] hover:text-[#222038] hover:bg-[#f6f3ff]'
-                        }`}
-                      >
-                        Case Studies
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setActiveStudioTool('matcher')}
-                        className={`px-3 py-1.5 rounded-[10px] font-bold transition ${
-                          activeStudioTool === 'matcher'
-                            ? 'bg-[#5637ca] text-white shadow-xs'
-                            : 'text-[#615d76] hover:text-[#222038] hover:bg-[#f6f3ff]'
-                        }`}
-                      >
-                        Goal Matcher
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Active Tool View */}
-                  <div className="pt-1">
-                    {activeStudioTool === 'lifecycle' && (
-                      <InstrumentLifecycleDiagram topicId={normalizedSelectedId} />
-                    )}
-
-                    {activeStudioTool === 'whatif' && (
-                      <InteractiveWhatIfTool topicId={normalizedSelectedId} />
-                    )}
-
-                    {activeStudioTool === 'simulator' && isSavingsTopic && (
-                      <div className="fw-panel !rounded-[21px] border border-[#e8e4f1] bg-white p-5 space-y-4">
-                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e8e4f1] pb-3">
-                          <div>
-                            <span className="fw-kicker block">Compound Growth</span>
-                            <h4 className="text-base font-black tracking-[-0.03em] text-[#222038] flex items-center gap-1.5 mt-0.5">
-                              <span aria-hidden="true">🧮</span> Savings Growth Calculator
-                            </h4>
-                            <p className="text-xs text-[#615d76]">
-                              Adjust parameters below to project potential interest returns.
-                            </p>
-                          </div>
-                          <span className="text-[11px] font-extrabold px-3 py-1 rounded-full bg-[#e3f3d9] text-[#285137] border border-[#c3e2b0]">
-                            Live Preview
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                          <div className="p-3.5 rounded-[16px] bg-[#fbfaff] border border-[#e8e4f1]">
-                            <label htmlFor={`${savingsInputId}-deposit`} className="font-bold text-[#222038] block mb-1.5">
-                              Deposit: ${simDeposit.toLocaleString()}
-                            </label>
-                            <input
-                              id={`${savingsInputId}-deposit`}
-                              type="range"
-                              min="100"
-                              max="20000"
-                              step="100"
-                              value={simDeposit}
-                              onChange={(e) => setSimDeposit(Number(e.target.value))}
-                              className="w-full accent-[#5637ca]"
-                            />
-                            <div className="flex justify-between text-[10px] font-semibold text-[#615d76] mt-1">
-                              <span>$100</span>
-                              <span>$10k</span>
-                              <span>$20k</span>
-                            </div>
-                          </div>
-
-                          <div className="p-3.5 rounded-[16px] bg-[#fbfaff] border border-[#e8e4f1]">
-                            <label htmlFor={`${savingsInputId}-apy`} className="font-bold text-[#222038] block mb-1.5">
-                              APY: {simApy.toFixed(2)}%
-                            </label>
-                            <input
-                              id={`${savingsInputId}-apy`}
-                              type="range"
-                              min="0.5"
-                              max="8.0"
-                              step="0.25"
-                              value={simApy}
-                              onChange={(e) => setSimApy(Number(e.target.value))}
-                              className="w-full accent-[#5637ca]"
-                            />
-                            <div className="flex justify-between text-[10px] font-semibold text-[#615d76] mt-1">
-                              <span>0.5%</span>
-                              <span>4.0%</span>
-                              <span>8.0%</span>
-                            </div>
-                          </div>
-
-                          <div className="p-3.5 rounded-[16px] bg-[#fbfaff] border border-[#e8e4f1]">
-                            <label htmlFor={`${savingsInputId}-months`} className="font-bold text-[#222038] block mb-1.5">
-                              Horizon: {simMonths} Months
-                            </label>
-                            <input
-                              id={`${savingsInputId}-months`}
-                              type="range"
-                              min="3"
-                              max="60"
-                              step="3"
-                              value={simMonths}
-                              onChange={(e) => setSimMonths(Number(e.target.value))}
-                              className="w-full accent-[#5637ca]"
-                            />
-                            <div className="flex justify-between text-[10px] font-semibold text-[#615d76] mt-1">
-                              <span>3 mo</span>
-                              <span>1 yr</span>
-                              <span>5 yr</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-[#e8e4f1]">
-                          <div className="p-3.5 rounded-[16px] bg-[#e3f3d9]/70 border border-[#b7dc9f]">
-                            <span className="text-[11px] font-bold text-[#285137] block">Estimated Interest</span>
-                            <span className="text-lg font-black text-[#285137] font-mono tabular-nums">
-                              +${savingsExample.totalGrowth.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="p-3.5 rounded-[16px] bg-[#eee6ff]/70 border border-[#dfd5f8]">
-                            <span className="text-[11px] font-bold text-[#4f32a9] block">Total Balance at Term End</span>
-                            <span className="text-lg font-black text-[#222038] font-mono tabular-nums">
-                              ${savingsExample.finalBalance.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="p-3.5 rounded-[16px] bg-[#ffe9da]/70 border border-[#f5cdb2]">
-                            <span className="text-[11px] font-bold text-[#7b402a] block">
-                              {normalizedSelectedId === 'cd-basics'
-                                ? 'Early break penalty (90d)'
-                                : 'Baseline interest (0.01% APY)'}
-                            </span>
-                            <span className="text-xs font-bold text-[#7b402a] font-mono tabular-nums">
-                              {normalizedSelectedId === 'cd-basics'
-                                ? `-$${penaltyEst.toFixed(2)} if broken early`
-                                : `$${baselineInterest.toFixed(2)} ($${(savingsExample.totalGrowth - baselineInterest).toFixed(2)} difference)`}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {activeStudioTool === 'scenarios' && (
-                      <div className="fw-panel !rounded-[21px] border border-[#e8e4f1] bg-white p-5 space-y-4">
-                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e8e4f1] pb-3">
-                          <div>
-                            <span className="fw-kicker block">Learner Profiles</span>
-                            <h4 className="text-base font-black tracking-[-0.03em] text-[#222038] mt-0.5">
-                              Real-World Case Studies
-                            </h4>
-                            <p className="text-xs text-[#615d76]">
-                              Explore practical situations and strategic takeaways.
-                            </p>
-                          </div>
-                          <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-[#eee6ff] text-[#4f32a9]">
-                            Profile {activePersonaIdx + 1} of {scenarios.length}
-                          </span>
-                        </div>
-
-                        {/* Persona Selector Ribbon */}
-                        <div className="flex flex-wrap items-center gap-2">
-                          {scenarios.map((sc, idx) => (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => setActivePersonaIdx(idx)}
-                              className={`px-3.5 py-2 rounded-[13px] text-xs font-bold border transition-all flex items-center gap-2 ${
-                                idx === activePersonaIdx
-                                  ? 'bg-[#272047] text-white border-[#272047] shadow-xs'
-                                  : 'bg-[#fbfaff] hover:bg-[#f4f0fd] text-[#222038] border-[#e8e4f1] hover:border-[#cbb8f6]'
-                              }`}
-                            >
-                              <span>{sc.name}</span>
-                              <span
-                                className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                                  idx === activePersonaIdx
-                                    ? 'bg-[#dbfb84] text-[#272047]'
-                                    : 'bg-[#eee6ff] text-[#4f32a9]'
-                                }`}
-                              >
-                                {sc.tag}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* Active Persona Card */}
-                        {scenarios[activePersonaIdx] && (() => {
-                          const sc = scenarios[activePersonaIdx];
-                          return (
-                            <div className="p-4 rounded-[18px] border border-[#dfd5f8] bg-[#f8f5ff] space-y-3">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div>
-                                  <span className="text-sm font-black text-[#222038] block">{sc.name}</span>
-                                  <span className="text-xs font-medium text-[#615d76]">{sc.role}</span>
-                                </div>
-                                <span className="text-[11px] font-extrabold px-3 py-0.5 rounded-full bg-[#eee6ff] text-[#4f32a9] border border-[#dfd5f8]">
-                                  {sc.tag}
-                                </span>
-                              </div>
-                              <p className="text-xs text-[#383354] leading-relaxed bg-white p-3.5 rounded-[14px] border border-[#e8e4f1]">
-                                <strong className="text-[#222038]">Situation:</strong> {sc.situation}
-                              </p>
-                              <div className="p-3.5 rounded-[14px] bg-[#e3f3d9]/80 border border-[#b7dc9f] text-xs text-[#285137] flex items-start gap-2.5">
-                                <span className="text-base" aria-hidden="true">💡</span>
-                                <div>
-                                  <strong className="block text-[11px] uppercase tracking-wider font-extrabold text-[#285137]">
-                                    Takeaway &amp; Strategy:
-                                  </strong>
-                                  <span className="leading-relaxed font-medium">{sc.takeaway}</span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
-
-                    {activeStudioTool === 'matcher' && (
-                      <InteractiveGoalMatcher onSelectTopic={handleSelectTopic} />
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 2: Market Strategies Lab */}
-            {activeTab === 'strategies' && (
-              <MarketStrategiesLab
-                currentTopicId={normalizedSelectedId}
-                onNavigateTopic={handleSelectTopic}
+            {/* STEP 1: Focused Duolingo Interactive Micro-Cards */}
+            <div className="space-y-5">
+              <DuolingoLessonDeck
+                key={normalizedSelectedId}
+                topicId={normalizedSelectedId}
+                fontSize={fontSize}
+                storageKey={storageScope && `concepts:${storageScope}:${normalizedSelectedId}`}
+                onTuckUpdate={(speech) => setTuckSpeechOverride(speech)}
+                onJumpToQuiz={scrollToQuiz}
               />
-            )}
 
-            {/* TAB 3: Full Reading Guide */}
-            {activeTab === 'reader' && (
-              <div className="space-y-4">
-                <RichCurriculumContent
-                  key={normalizedSelectedId}
-                  body={activeLesson.body}
-                  fontSize={fontSize}
-                  storageKey={storageScope && `concepts:${storageScope}:${normalizedSelectedId}`}
-                />
-              </div>
-            )}
+              {/* Collapsed Deep-Dive Reference Textbook & Primary Sources */}
+              <details className="rounded-2xl border-2 border-[#e8e4f1] bg-[#fbfaff] p-4 text-xs group">
+                <summary className="font-extrabold cursor-pointer text-[#4f32a9] select-none flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <span>📖</span>
+                    <span>Deep-Dive Reference Textbook &amp; Official Sources (Optional)</span>
+                  </span>
+                  <span className="text-[11px] font-bold text-[#7257e0]">Click to expand</span>
+                </summary>
 
-            {/* TAB 4: Comparison Cheat Sheet */}
-            {activeTab === 'matrix' && (
-              <div className="space-y-4">
-                <div className="overflow-x-auto rounded-[18px] border border-[#e8e4f1] bg-white">
-                  <table className="min-w-full text-xs text-left text-[#383354]">
-                    <thead className="bg-[#f3effa] text-[#4f32a9] font-extrabold border-b border-[#e8e4f1]">
-                      <tr>
-                        <th className="p-3.5">Instrument</th>
-                        <th className="p-3.5">Safety / Guarantee</th>
-                        <th className="p-3.5">Liquidity</th>
-                        <th className="p-3.5">Ideal Horizon</th>
-                        <th className="p-3.5">Primary Risk</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#e8e4f1]">
-                      <tr className={normalizedSelectedId === 'cd-basics' ? 'bg-[#eee6ff]/65 font-semibold' : ''}>
-                        <td className="p-3.5 font-extrabold text-[#222038]">Certificates of Deposit (CD)</td>
-                        <td className="p-3.5 text-[#285137] font-bold">FDIC ($250k)</td>
-                        <td className="p-3.5">Locked until maturity</td>
-                        <td className="p-3.5">3 months – 5 years</td>
-                        <td className="p-3.5 text-[#7b402a] font-semibold">Early withdrawal penalty</td>
-                      </tr>
-                      <tr className={normalizedSelectedId === 'hysa-basics' ? 'bg-[#eee6ff]/65 font-semibold' : ''}>
-                        <td className="p-3.5 font-extrabold text-[#222038]">High-Yield Savings (HYSA)</td>
-                        <td className="p-3.5 text-[#285137] font-bold">FDIC ($250k)</td>
-                        <td className="p-3.5 text-[#285137] font-bold">Daily complete access</td>
-                        <td className="p-3.5">Immediate – 2 years</td>
-                        <td className="p-3.5 text-[#7b402a] font-semibold">Floating/variable rates</td>
-                      </tr>
-                      <tr className={normalizedSelectedId === 'stock-basics' ? 'bg-[#eee6ff]/65 font-semibold' : ''}>
-                        <td className="p-3.5 font-extrabold text-[#222038]">Individual Stocks</td>
-                        <td className="p-3.5 text-[#615d76]">None (Market Risk)</td>
-                        <td className="p-3.5">Market hours (T+1)</td>
-                        <td className="p-3.5">3 – 10+ years</td>
-                        <td className="p-3.5 text-[#7b402a] font-semibold">Single company volatility</td>
-                      </tr>
-                      <tr className={normalizedSelectedId === 'etf-basics' ? 'bg-[#eee6ff]/65 font-semibold' : ''}>
-                        <td className="p-3.5 font-extrabold text-[#222038]">Index ETFs</td>
-                        <td className="p-3.5 text-[#615d76]">None (Market Risk)</td>
-                        <td className="p-3.5">Market hours (T+1)</td>
-                        <td className="p-3.5">5+ years</td>
-                        <td className="p-3.5 text-[#7b402a] font-semibold">Broad market downturns</td>
-                      </tr>
-                      <tr className={normalizedSelectedId === 'options-intro' ? 'bg-[#eee6ff]/65 font-semibold' : ''}>
-                        <td className="p-3.5 font-extrabold text-[#222038]">Options Contracts</td>
-                        <td className="p-3.5 text-[#7b402a] font-bold">None (High Leverage)</td>
-                        <td className="p-3.5">Market hours (expires)</td>
-                        <td className="p-3.5">Days to months</td>
-                        <td className="p-3.5 text-[#7b402a] font-bold">100% loss of premium</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                <div className="mt-3 pt-3 border-t border-[#e8e4f1] space-y-4">
+                  <div className={`space-y-4 ${fontSize === 'large' ? 'text-base' : 'text-sm'}`}>
+                    {fullGuideSections.map((section, idx) => (
+                      <div key={idx} className="space-y-1">
+                        <h4 className="font-black text-[#222038]">{section.title}</h4>
+                        {renderSectionLines(section.lines)}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Authoritative Sources */}
+                  <div className="border-t border-[#e8e4f1] pt-3.5">
+                    <h4 className="fw-kicker mb-2">Authoritative Primary Sources</h4>
+                    <ul className="space-y-1 text-xs" aria-label="Authoritative Source Links">
+                      {activeLesson.source_links.map((link, idx) => (
+                        <li key={idx}>
+                          <a
+                            href={link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#4f32a9] hover:text-[#272047] hover:underline font-medium break-all inline-flex items-center gap-1.5 transition-colors"
+                          >
+                            <span className="text-[#7257e0] text-[10px]" aria-hidden="true">↗</span>
+                            <span>{link}</span>
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
-
-                <div className="sr-only">{activeLesson.body}</div>
-              </div>
-            )}
-
-            {/* Authoritative Sources */}
-            <div className="border-t border-[#e8e4f1] pt-4 mt-6">
-              <h4 className="fw-kicker mb-2">Authoritative Primary Sources</h4>
-              <ul className="space-y-1.5 text-xs" aria-label="Authoritative Source Links">
-                {activeLesson.source_links.map((link, idx) => (
-                  <li key={idx}>
-                    <a
-                      href={link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[#4f32a9] hover:text-[#272047] hover:underline font-medium break-all inline-flex items-center gap-1.5 transition-colors"
-                    >
-                      <span className="text-[#7257e0] text-[10px]" aria-hidden="true">↗</span>
-                      <span>{link}</span>
-                    </a>
-                  </li>
-                ))}
-              </ul>
+              </details>
             </div>
           </Card>
 
+          {/* STEP 2 DIVIDER */}
+          <div className="pt-2 flex items-center gap-3">
+            <div className="h-0.5 bg-[#dfd5f8] flex-1" />
+            <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#272047] text-white shadow-xs">
+              <span className="text-sm">🎯</span>
+              <span className="text-xs font-black tracking-wider uppercase">Step 2 · Knowledge Check Quiz</span>
+            </div>
+            <div className="h-0.5 bg-[#dfd5f8] flex-1" />
+          </div>
+
           {/* Topic Progress Summary */}
-          <div className="fw-panel !rounded-[21px] border border-[#e8e4f1] bg-white p-5 shadow-[0_6px_22px_rgba(39,32,71,0.04)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="rounded-3xl border-2 border-[#e8e4f1] bg-white p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-3">
-              <span className="fw-tile fw-mint !w-11 !h-11 !text-lg !rounded-[13px]" aria-hidden="true">
-                ✦
+              <span className="w-10 h-10 rounded-2xl bg-[#e8fcd6] border border-[#86efac] grid place-items-center text-lg" aria-hidden="true">
+                🏆
               </span>
               <div>
-                <h4 className="text-sm font-black tracking-[-0.02em] text-[#222038]">
-                  Topic Progress Summary
-                </h4>
-                <p className="text-xs text-[#615d76] mt-0.5">
-                  Track your quiz attempts and scores for this lesson.
-                </p>
+                <h4 className="text-sm font-black text-[#222038]">Topic Progress Summary</h4>
+                <p className="text-xs text-[#615d76]">Score 80%+ to master this skill.</p>
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <div className="bg-[#f6f3ff] px-3 py-1.5 rounded-[12px] border border-[#e8e4f1]">
+              <div className="bg-[#f6f3ff] px-3 py-1.5 rounded-xl border border-[#e8e4f1]">
                 <span className="text-[#615d76] font-medium">Attempts: </span>
                 <span data-testid="progress-attempts" className="font-black text-[#222038] tabular-nums">
                   {activeProgress.attempt_count}
                 </span>
               </div>
-              <div className="bg-[#f6f3ff] px-3 py-1.5 rounded-[12px] border border-[#e8e4f1]">
+              <div className="bg-[#f6f3ff] px-3 py-1.5 rounded-xl border border-[#e8e4f1]">
                 <span className="text-[#615d76] font-medium">Latest: </span>
                 <span data-testid="progress-latest" className="font-black text-[#222038] tabular-nums">
                   {activeProgress.latest_score_pct}%
                 </span>
               </div>
-              <div className="bg-[#f6f3ff] px-3 py-1.5 rounded-[12px] border border-[#e8e4f1]">
+              <div className="bg-[#f6f3ff] px-3 py-1.5 rounded-xl border border-[#e8e4f1]">
                 <span className="text-[#615d76] font-medium">Best: </span>
                 <span data-testid="progress-best" className="font-black text-[#222038] tabular-nums">
                   {activeProgress.best_score_pct}%
                 </span>
               </div>
               {activeProgress.completed ? (
-                <span className="inline-flex items-center px-3 py-1.5 rounded-[12px] text-xs font-extrabold bg-[#e3f3d9] text-[#285137] border border-[#b7dc9f]">
+                <span className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-extrabold bg-[#e8fcd6] text-[#1e4620] border border-[#58cc02]">
                   ✓ Completed (80%+ Passed)
                 </span>
               ) : (
-                <span className="inline-flex items-center px-3 py-1.5 rounded-[12px] text-xs font-bold bg-[#f3effa] text-[#615d76] border border-[#e8e4f1]">
+                <span className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold bg-[#f3effa] text-[#615d76] border border-[#e8e4f1]">
                   Not Completed
                 </span>
               )}
@@ -1679,89 +1508,95 @@ export function LearningView({
           </div>
 
           {/* Knowledge Check Quiz Module */}
-          <Card className="fw-panel !rounded-[21px] border-[#e8e4f1] shadow-[0_8px_28px_rgba(39,32,71,0.05)] bg-white p-6 sm:p-7 space-y-6">
-            <div className="border-b border-[#e8e4f1] pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <span className="fw-kicker block">Mastery Check</span>
-                <h3
-                  ref={quizHeading}
-                  tabIndex={-1}
-                  className="text-lg sm:text-xl font-black tracking-[-0.03em] text-[#222038] mt-0.5"
-                >
-                  Knowledge Check Quiz
-                </h3>
-                <p className="text-xs text-[#615d76] mt-0.5">
-                  {activeQuiz.questions.length} questions • Minimum passing score is 80%
-                </p>
+          <Card className="!rounded-3xl border-2 border-[#e8e4f1] shadow-xs bg-white p-5 sm:p-6 space-y-5">
+            <div className="space-y-3 border-b border-[#e8e4f1] pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <span className="fw-kicker block">Mastery Check</span>
+                  <h3
+                    ref={quizHeading}
+                    tabIndex={-1}
+                    className="text-lg sm:text-xl font-black tracking-[-0.03em] text-[#222038] mt-0.5"
+                  >
+                    Knowledge Check Quiz
+                  </h3>
+                  <p className="text-xs text-[#615d76] mt-0.5">
+                    {activeQuiz.questions.length} quick questions • Score 80%+ for +150 Aura!
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-[#eee6ff] text-[#4f32a9] border border-[#dfd5f8]">
+                    Pass: 80%
+                  </span>
+                  <span className="text-xs font-mono font-extrabold px-3 py-1 rounded-full bg-[#272047] text-[#dbfb84] tabular-nums">
+                    {answeredCount}/{totalQuestions} Answered ({progressPercent}%)
+                  </span>
+                </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-[#eee6ff] text-[#4f32a9] border border-[#dfd5f8]">
-                  Pass Threshold: 80%
-                </span>
-                <span className="text-xs font-mono font-extrabold px-3 py-1 rounded-full bg-[#272047] text-[#dbfb84] tabular-nums">
-                  {answeredCount}/{totalQuestions} Answered ({progressPercent}%)
-                </span>
+              {/* Duolingo Glowing Progress Bar */}
+              <div className="h-3 rounded-full bg-slate-100 overflow-hidden border border-slate-200/80">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-[#58cc02] via-[#76e600] to-[#a3e635] shadow-[0_0_12px_rgba(88,204,2,0.55)] transition-all duration-300"
+                  style={{ width: `${progressPercent}%` }}
+                />
               </div>
-            </div>
-
-            {/* Visual Progress Bar */}
-            <div className="w-full bg-[#ece6fa] h-2 rounded-full overflow-hidden">
-              <div
-                className="bg-[#5637ca] h-full transition-all duration-300"
-                style={{ width: `${progressPercent}%` }}
-              />
             </div>
 
             {/* Validation Alert */}
             {validationError && (
               <div
                 role="alert"
-                className="p-4 rounded-[16px] bg-[#ffe9da] border border-[#f0bca0] text-[#7b402a] text-sm font-semibold flex items-center justify-between"
+                className="p-4 rounded-2xl bg-[#ffe9da] border-2 border-[#f97316] text-[#7b402a] text-sm font-bold flex items-center justify-between animate-fadeIn"
               >
-                <span>{validationError}</span>
+                <span>⚠️ {validationError}</span>
               </div>
             )}
 
             {/* Attempt Result Banner & Feedback */}
             {attemptResult ? (
-              <div className="space-y-6">
+              <div className="space-y-5 animate-fadeIn">
                 <div
                   role="alert"
                   data-testid="quiz-result-banner"
-                  className={`p-5 rounded-[18px] border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ${
+                  className={`p-5 rounded-3xl border-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ${
                     attemptResult.passed
-                      ? 'bg-[#e3f3d9]/85 border-[#b7dc9f] text-[#285137]'
-                      : 'bg-[#ffe9da]/90 border-[#f0bca0] text-[#7b402a]'
+                      ? 'bg-[#e8fcd6] border-[#58cc02] text-[#1e4620]'
+                      : 'bg-[#ffe9da] border-[#f97316] text-[#7b402a]'
                   }`}
                 >
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-base font-black">
-                        {attemptResult.passed ? '🎉 Passed!' : '⚠️ Needs Review'}
-                      </span>
-                      <span
-                        className={`text-xs px-2.5 py-0.5 rounded-full font-extrabold ${
-                          attemptResult.passed
-                            ? 'bg-white/80 text-[#285137]'
-                            : 'bg-white/80 text-[#7b402a]'
-                        }`}
-                      >
-                        {attemptResult.passed ? 'Status: Passed' : 'Status: Failed'}
-                      </span>
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-14 h-14 rounded-2xl bg-white border-2 border-current/20 grid place-items-center p-1 shrink-0">
+                      <Tuck className="w-full h-full object-contain" />
                     </div>
-                    <p className="text-xs font-medium">
-                      {attemptResult.passed
-                        ? 'Congratulations! You achieved at least the 80% passing threshold.'
-                        : 'You did not achieve the required 80% passing threshold. Review the explanations below and try again.'}
-                    </p>
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-lg font-black">
+                          {attemptResult.passed ? '🎉 Passed!' : '⚠️ Needs Review'}
+                        </span>
+                        <span className="text-xs px-2.5 py-0.5 rounded-full font-extrabold bg-white/85">
+                          {attemptResult.passed ? 'Status: Passed' : 'Status: Failed'}
+                        </span>
+                        {attemptResult.passed && (
+                          <span className="text-xs px-3 py-0.5 rounded-full font-black bg-[#58cc02] text-white shadow-xs">
+                            +150 Aura!
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs font-bold">
+                        {attemptResult.passed
+                          ? 'Congratulations! You achieved at least the 80% passing threshold.'
+                          : 'You did not achieve the required 80% passing threshold. Review the explanations below and try again.'}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="text-right sm:border-l sm:pl-6 border-current/20">
-                    <div data-testid="quiz-score-pct" className="text-2xl font-black font-mono tabular-nums">
+                  <div className="text-right sm:border-l-2 sm:pl-6 border-current/15">
+                    <div data-testid="quiz-score-pct" className="text-3xl font-black font-mono tabular-nums">
                       {attemptResult.score_pct}%
                     </div>
-                    <div data-testid="quiz-correct-count" className="text-xs font-bold opacity-85">
+                    <div data-testid="quiz-correct-count" className="text-xs font-extrabold opacity-90">
                       {attemptResult.correct} of {attemptResult.total} correct
                     </div>
                   </div>
@@ -1781,21 +1616,21 @@ export function LearningView({
                     return (
                       <div
                         key={question.id}
-                        className={`p-4 rounded-[18px] border transition-all space-y-2 ${
+                        className={`p-4 rounded-2xl border-2 transition-all space-y-2 ${
                           isCorrect
-                            ? 'bg-[#e3f3d9]/50 border-[#b7dc9f]'
-                            : 'bg-[#ffe9da]/65 border-[#f5cdb2]'
+                            ? 'bg-[#f4fde8] border-[#86efac]'
+                            : 'bg-[#fff1e6] border-[#fdba74]'
                         }`}
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm font-bold text-[#222038]">
+                          <p className="text-sm font-extrabold text-[#222038]">
                             {qIdx + 1}. {question.prompt}
                           </p>
                           <span
                             className={`shrink-0 text-xs font-extrabold px-2.5 py-0.5 rounded-full ${
                               isCorrect
-                                ? 'bg-[#e3f3d9] text-[#285137] border border-[#b7dc9f]'
-                                : 'bg-[#ffe9da] text-[#7b402a] border border-[#f5cdb2]'
+                                ? 'bg-[#58cc02] text-white'
+                                : 'bg-[#f97316] text-white'
                             }`}
                           >
                             {isCorrect ? '✓ Correct' : '✗ Incorrect'}
@@ -1807,7 +1642,7 @@ export function LearningView({
                           {selectedOption?.text || 'None'}
                         </p>
 
-                        <div className="p-3 rounded-[14px] bg-white border border-[#e8e4f1] text-xs text-[#383354]">
+                        <div className="p-3 rounded-xl bg-white border border-[#e8e4f1] text-xs text-[#383354]">
                           <span className="font-extrabold text-[#222038]">Explanation: </span>
                           {feedbackItem?.explanation || 'No explanation provided.'}
                         </div>
@@ -1816,19 +1651,18 @@ export function LearningView({
                   })}
                 </div>
 
-                <div className="pt-4 border-t border-[#e8e4f1] flex justify-end">
-                  <Button
+                <div className="pt-3 border-t border-[#e8e4f1] flex justify-end">
+                  <button
                     type="button"
-                    variant="primary"
                     onClick={handleRetryQuiz}
-                    className="w-full sm:w-auto"
+                    className={`w-full sm:w-auto px-6 py-3 text-sm ${DUO_PURPLE_BTN}`}
                   >
                     Retry Quiz
-                  </Button>
+                  </button>
                 </div>
               </div>
             ) : (
-              /* Quiz Questions Form */
+              /* Duolingo-Style Tactile Quiz Questions Form */
               <form onSubmit={handleSubmitQuiz} className="space-y-5">
                 {activeQuiz.questions.map((question, qIdx) => {
                   const promptId = `prompt-${question.id}`;
@@ -1841,12 +1675,12 @@ export function LearningView({
                       key={question.id}
                       role="radiogroup"
                       aria-labelledby={promptId}
-                      className="border border-[#e8e4f1] rounded-[18px] p-4 sm:p-5 bg-[#fbfaff] space-y-3"
+                      className="border-2 border-[#e8e4f1] rounded-3xl p-4 sm:p-5 bg-[#fbfaff] space-y-3"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <legend
                           id={promptId}
-                          className="text-sm font-extrabold text-[#222038] px-1"
+                          className="text-sm sm:text-base font-black text-[#222038] px-1"
                         >
                           {qIdx + 1}. {question.prompt}
                         </legend>
@@ -1855,7 +1689,7 @@ export function LearningView({
                           <button
                             type="button"
                             onClick={() => toggleHint(question.id)}
-                            className="text-xs text-[#4f32a9] hover:text-[#272047] font-bold shrink-0 flex items-center gap-1 bg-[#eee6ff] hover:bg-[#e4d9ff] px-2.5 py-1 rounded-[10px] border border-[#dfd5f8] transition-colors"
+                            className={`text-xs shrink-0 flex items-center gap-1 bg-[#eee6ff] hover:bg-[#e4d9ff] px-3 py-1.5 border-[#d3c2fb] border-b-[#b79cf7] text-[#4f32a9] ${DUO_3D_BTN}`}
                           >
                             <span aria-hidden="true">💡</span>
                             <span>{isHintOpen ? 'Hide Hint' : 'Need Hint?'}</span>
@@ -1864,25 +1698,31 @@ export function LearningView({
                       </div>
 
                       {isHintOpen && hintText && (
-                        <div className="p-3.5 rounded-[14px] bg-[#eee6ff] border border-[#dfd5f8] text-xs text-[#4f32a9] font-medium flex items-start gap-2">
-                          <span aria-hidden="true">💡</span>
+                        <div className="p-3 rounded-2xl bg-white border-2 border-[#d3c2fb] text-xs text-[#4f32a9] font-bold flex items-center gap-2.5 animate-fadeIn">
+                          <Tuck className="w-8 h-8 object-contain shrink-0" />
                           <span>{hintText}</span>
                         </div>
                       )}
 
-                      <div className="space-y-2 pt-1">
-                        {question.options.map((option) => {
+                      <div className="space-y-2.5 pt-1">
+                        {question.options.map((option, optIdx) => {
                           const inputId = `opt-${question.id}-${option.id}`;
                           const isChecked = selectedAnswers[question.id] === option.id;
+                          const letter = String.fromCharCode(65 + optIdx);
 
                           return (
-                            <label
+                            <div
                               key={option.id}
-                              htmlFor={inputId}
-                              className={`flex items-start gap-3 p-3.5 rounded-[14px] border text-xs sm:text-sm cursor-pointer transition-all ${
+                              onClick={(e) => {
+                                const target = e.target as HTMLElement;
+                                if (target.tagName !== 'INPUT' && !target.closest('label')) {
+                                  handleOptionSelect(question.id, option.id);
+                                }
+                              }}
+                              className={`flex items-start gap-3 p-3.5 text-xs sm:text-sm ${DUO_3D_BTN} ${
                                 isChecked
-                                  ? 'bg-[#f0eaff] border-[#7257e0] text-[#222038] font-semibold shadow-2xs'
-                                  : 'bg-white border-[#e8e4f1] text-[#383354] hover:border-[#cfc1fa] hover:bg-[#fbf9ff]'
+                                  ? 'bg-[#e8fcd6] border-[#58cc02] border-b-[#46a302] text-[#1e4620]'
+                                  : 'bg-white border-[#e2ddf0] border-b-[#cfc7e6] text-[#383354] hover:border-[#b7a5f5] hover:bg-[#f9f6ff]'
                               }`}
                             >
                               <input
@@ -1893,10 +1733,25 @@ export function LearningView({
                                 checked={isChecked}
                                 onChange={() => handleOptionSelect(question.id, option.id)}
                                 aria-checked={isChecked}
-                                className="mt-0.5 h-4 w-4 accent-[#5637ca] border-[#cfc1fa]"
+                                className="mt-1 h-4 w-4 accent-[#58cc02] shrink-0"
                               />
-                              <span className="flex-1 select-none">{option.text}</span>
-                            </label>
+                              <span
+                                className={`w-6 h-6 rounded-lg text-[11px] font-black grid place-items-center shrink-0 mt-0.5 border ${
+                                  isChecked
+                                    ? 'bg-[#58cc02] text-white border-[#46a302]'
+                                    : 'bg-[#f3effa] text-[#4f32a9] border-[#dfd5f8]'
+                                }`}
+                                aria-hidden="true"
+                              >
+                                {letter}
+                              </span>
+                              <label
+                                htmlFor={inputId}
+                                className="flex-1 select-none leading-snug cursor-pointer"
+                              >
+                                {option.text}
+                              </label>
+                            </div>
                           );
                         })}
                       </div>
@@ -1904,18 +1759,18 @@ export function LearningView({
                   );
                 })}
 
-                <div className="flex items-center justify-between pt-3 border-t border-[#e8e4f1]">
-                  <span className="text-xs text-[#615d76] font-bold">
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#e8e4f1]">
+                  <span className="text-xs text-[#615d76] font-extrabold">
                     {answeredCount} of {totalQuestions} answered
                   </span>
 
-                  <Button
+                  <button
                     type="submit"
-                    variant="primary"
                     disabled={isSubmitting}
+                    className={`px-6 py-3 text-sm disabled:opacity-50 disabled:cursor-not-allowed ${DUO_GREEN_BTN}`}
                   >
-                    {isSubmitting ? 'Evaluating...' : 'Submit Quiz'}
-                  </Button>
+                    {isSubmitting ? 'Checking...' : 'Submit Quiz'}
+                  </button>
                 </div>
               </form>
             )}
