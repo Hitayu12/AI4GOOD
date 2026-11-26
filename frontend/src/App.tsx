@@ -6,6 +6,7 @@ import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { AuraHubModal, addAuraPoints, loadAuraState, saveAuraState } from './features/aura';
 import { MISSION_POINTS, REVIEW_POINTS, syncLearningAwards } from './features/aura/auraService';
 import { DailyDropModal } from './features/aura/DailyDropModal';
+import { SignInModal } from './components/auth/SignInModal';
 import { soundFx } from './features/gamification/soundFxService';
 import { QUEST_COMPLETED_EVENT, BADGE_UNLOCKED_EVENT, LEVEL_UP_EVENT } from './features/gamification/questTrackerService';
 import { HomeView, CampaignPage } from './features/home/HomeView';
@@ -121,14 +122,44 @@ function AppContent() {
   const [extras, setExtras] = useState<Extra>(null);
   const [aura, setAura] = useState(loadAuraState);
   const [muted, setMuted] = useState(() => soundFx.isMuted());
-  const [user, setUser] = useState<User | null>(null);
+
+  const AUTH_STORAGE_KEY = 'futureworth_auth_session_v1';
+
+  const [savedSession] = useState(() => {
+    try {
+      if (typeof window === 'undefined') return null;
+      const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed?.user && parsed?.expiresAt && Date.parse(parsed.expiresAt) > Date.now()) {
+        return parsed as { user: User; token: string; expiresAt: string; affiliation?: SchoolAffiliation };
+      }
+    } catch {}
+    return null;
+  });
+
+  const [user, setUser] = useState<User | null>(() => savedSession?.user ?? null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(() => !savedSession?.user);
   const practiceOwner = user?.id ?? 'guest';
   const tradeKey = `trade-lab:${practiceOwner}`;
   const [{ replay, equity: equityHistory }, setTradeLab] = useStoredPractice(tradeKey, () => (
     readPractice(tradeKey, isSavedTradeLab) ?? { equity: [] }
   ));
-  const [sessionExpiry, setSessionExpiry] = useState<number>();
-  const [accountApiClient] = useState(() => new ApiClient({ fixtureMode: false }));
+  const [sessionExpiry, setSessionExpiry] = useState<number | undefined>(() => {
+    if (savedSession?.expiresAt) {
+      const parsed = Date.parse(savedSession.expiresAt);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    }
+    return undefined;
+  });
+  const [accountApiClient] = useState(() => {
+    const client = new ApiClient({ fixtureMode: false });
+    if (savedSession?.token) {
+      client.setToken(savedSession.token);
+      defaultApiClient.setToken(savedSession.token);
+    }
+    return client;
+  });
   const [fixtureMode, setFixtureMode] = useState(() => {
     const preference = readPractice('demo-data', (value): value is boolean => typeof value === 'boolean');
     if (preference !== undefined) defaultApiClient.setFixtureMode(preference);
@@ -247,6 +278,9 @@ function AppContent() {
     setToolsOpen(false);
     setExtras(null);
     setNow(Date.now());
+    if (target !== 'home' && target !== 'auth') {
+      setIsAuthModalOpen(false);
+    }
     window.scrollTo({ top: 0 });
     main.current?.focus({ preventScroll: true });
   }, []);
@@ -265,6 +299,7 @@ function AppContent() {
   }
   function play(target: Mission) {
     setToolsOpen(false);
+    setIsAuthModalOpen(false);
     if (checkpoint?.missionId !== target.id) updateCheckpoint({ missionId: target.id, step: 0 });
     setMission(continueStory(target, progress.payday?.choice));
     goToTop();
@@ -290,6 +325,9 @@ function AppContent() {
     setAura(next);
   }
   async function signOut() {
+    try {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    } catch {}
     const revocation = accountApiClient.logout();
     accountApiClient.setToken(null);
     defaultApiClient.setToken(null);
@@ -301,14 +339,24 @@ function AppContent() {
     catch { notify({ type: 'warning', title: 'Signed out on this device', message: 'The service could not confirm token revocation.' }); }
   }
   function handleSignIn(account: User, expiresAt: string, affiliation?: SchoolAffiliation, notice?: string) {
-    defaultApiClient.setToken(accountApiClient.getToken());
+    const token = accountApiClient.getToken() || `tok_${account.id}`;
+    defaultApiClient.setToken(token);
     setUser(account);
+    try {
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
+        user: account,
+        token,
+        expiresAt,
+        affiliation,
+      }));
+    } catch {}
     restoreLocalLearning(account.id);
     const expiration = Date.parse(expiresAt);
     setSessionExpiry(Number.isFinite(expiration) ? expiration : undefined);
     const saved = loadProfile(account.id);
     setProfile(affiliation ? saveProfile(withAffiliation(saved, affiliation), account.id) : saved);
-    if (notice) notify({ type: 'info', title: 'Account ready', message: notice });
+    setIsAuthModalOpen(false);
+    if (notice) notify({ type: 'success', title: 'Account ready', message: notice });
     navigate('profile', 'all', true);
   }
   async function updateProfile(next: StudentProfile) {
@@ -535,6 +583,12 @@ function AppContent() {
       <AuraHubModal isOpen={extras === 'progress'} onClose={() => setExtras(null)} auraState={aura} onUpdateAura={updateAura} onNavigateTab={navigate}
         onOpenDailyDrop={() => setExtras('reward')} onOpenLeaderboard={() => navigate('leaderboards')} />
       <DailyDropModal isOpen={extras === 'reward'} onClose={() => setExtras(null)} auraState={aura} onAuraStateChange={updateAura} />
+      <SignInModal
+        isOpen={isAuthModalOpen && !user && page !== 'auth'}
+        onClose={() => setIsAuthModalOpen(false)}
+        apiClient={accountApiClient}
+        onAuthenticated={handleSignIn}
+      />
       <CelebrationConfetti />
     </div>
   );

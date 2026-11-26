@@ -143,12 +143,17 @@ export class ApiClient {
 
   // --- Authentication Endpoints (Shared S4 & Contract v2) ---
 
+  private currentFixtureUser: User | null = null;
+  private currentFixtureAffiliation: SchoolAffiliation | null = null;
+
   public async register(credentials: RegisterRequest, signal?: AbortSignal): Promise<RegisterResponse> {
     if (this.fixtureMode) {
+      const email = credentials.email || 'student@rutgers.edu';
       const user: User = {
-        id: 'usr_fixture_001',
-        email: credentials.email || 'kiran@rutgers.edu',
+        id: `usr_${email.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        email,
       };
+      this.currentFixtureUser = user;
       return { user };
     }
     return this.request<RegisterResponse>('/auth/register', {
@@ -162,6 +167,11 @@ export class ApiClient {
     if (this.fixtureMode) {
       const token = `tok_fixture_${Math.random().toString(36).substring(2, 10)}`;
       this.setToken(token);
+      const email = _credentials.email || 'student@rutgers.edu';
+      this.currentFixtureUser = {
+        id: `usr_${email.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        email,
+      };
       return {
         access_token: token,
         token_type: 'bearer',
@@ -181,16 +191,23 @@ export class ApiClient {
 
   public async getMe(signal?: AbortSignal): Promise<User> {
     if (this.fixtureMode) {
-      return { id: 'usr_fixture_001', email: 'kiran@rutgers.edu' };
+      return this.currentFixtureUser || { id: 'usr_fixture_001', email: 'kiran@rutgers.edu' };
     }
     return this.request<User>('/auth/me', { signal });
   }
 
   public getSchoolAffiliation(signal?: AbortSignal): Promise<SchoolAffiliation> {
+    if (this.fixtureMode) {
+      return Promise.resolve(this.currentFixtureAffiliation || { school_name: '', state_code: '' });
+    }
     return this.request<SchoolAffiliation>('/auth/me/affiliation', { signal });
   }
 
   public setSchoolAffiliation(affiliation: SchoolAffiliation, signal?: AbortSignal): Promise<SchoolAffiliation> {
+    if (this.fixtureMode) {
+      this.currentFixtureAffiliation = affiliation;
+      return Promise.resolve(affiliation);
+    }
     return this.request<SchoolAffiliation>('/auth/me/affiliation', { method: 'PUT', body: JSON.stringify(affiliation), signal });
   }
 
