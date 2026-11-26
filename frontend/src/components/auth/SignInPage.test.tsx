@@ -88,7 +88,7 @@ describe('FutureWorth sign-in', () => {
     expect(onAuthenticated).not.toHaveBeenCalled();
   });
 
-  it('falls back to offline login when backend is unreachable with valid credentials', async () => {
+  it('keeps the learner signed out when the account service is unreachable', async () => {
     const client = new ApiClient({ fixtureMode: false });
     vi.spyOn(client, 'login').mockRejectedValue(new TypeError('Failed to fetch'));
     const onAuthenticated = vi.fn();
@@ -98,12 +98,8 @@ describe('FutureWorth sign-in', () => {
     fireEvent.change(form.getByLabelText('FutureWorth password'), { target: { value: testPassword } });
     fireEvent.submit(screen.getByRole('form'));
 
-    await waitFor(() => expect(onAuthenticated).toHaveBeenCalled());
-    expect(onAuthenticated).toHaveBeenCalledWith(
-      expect.objectContaining({ email: testUser.email }),
-      expect.any(String),
-      expect.any(Object),
-      expect.stringContaining('Signed in successfully!')
-    );
+    expect(await screen.findByRole('alert')).toHaveTextContent('The account service couldn’t complete that request.');
+    expect(onAuthenticated).not.toHaveBeenCalled();
+    expect(client.getToken()).toBeNull();
   });
 });

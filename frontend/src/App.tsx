@@ -1,11 +1,12 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { ApiClient, defaultApiClient } from './api/client';
-import { ApiError, EquityPoint, Position, type SchoolAffiliation, User } from './api/types';
+import { EquityPoint, Position, type SchoolAffiliation, User } from './api/types';
 import { CelebrationConfetti } from './components/common/CelebrationConfetti';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { AuraHubModal, addAuraPoints, loadAuraState, saveAuraState } from './features/aura';
 import { MISSION_POINTS, REVIEW_POINTS, syncLearningAwards } from './features/aura/auraService';
 import { DailyDropModal } from './features/aura/DailyDropModal';
+import { SignInPage } from './components/auth/SignInPage';
 import { SignInModal } from './components/auth/SignInModal';
 import { soundFx } from './features/gamification/soundFxService';
 import { QUEST_COMPLETED_EVENT, BADGE_UNLOCKED_EVENT, LEVEL_UP_EVENT } from './features/gamification/questTrackerService';
@@ -28,7 +29,6 @@ const PortfolioView = lazy(() => import('./features/portfolio/PortfolioView').th
 const TutorView = lazy(() => import('./features/tutor/TutorView').then(({ TutorView }) => ({ default: TutorView })));
 const ProfileView = lazy(() => import('./features/profile/ProfileView').then(({ ProfileView }) => ({ default: ProfileView })));
 const LeaderboardView = lazy(() => import('./features/profile/LeaderboardView').then(({ LeaderboardView }) => ({ default: LeaderboardView })));
-const SignInPage = lazy(() => import('./components/auth/SignInPage').then(({ SignInPage }) => ({ default: SignInPage })));
 const DailyPracticeView = lazy(() => import('./features/home/DailyPracticeView').then(({ DailyPracticeView }) => ({ default: DailyPracticeView })));
 
 type Page = CampaignPage | Lab | 'profile' | 'leaderboards' | 'status' | 'auth' | 'daily';
@@ -116,59 +116,24 @@ function AppContent() {
   const [preset, setPreset] = useState<CalculatorPreset>();
   const [portfolioExample, setPortfolioExample] = useState<Position[]>();
   const [boardScope, setBoardScope] = useState(readBoardScope);
-  const AUTH_STORAGE_KEY = 'futureworth_auth_session_v1';
-
-  const [savedSession] = useState(() => {
-    try {
-      if (typeof window === 'undefined') return null;
-      const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      if (parsed?.user && parsed?.expiresAt && Date.parse(parsed.expiresAt) > Date.now()) {
-        return parsed as { user: User; token: string; expiresAt: string; affiliation?: SchoolAffiliation };
-      }
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-    } catch {
-      try { localStorage.removeItem(AUTH_STORAGE_KEY); } catch {}
-    }
-    return null;
-  });
-
-  const [user, setUser] = useState<User | null>(() => savedSession?.user ?? null);
-  const initialOwner = savedSession?.user?.id;
-  const [progress, setProgress] = useState(() => loadCampaign(initialOwner));
-  const [checkpoint, setCheckpoint] = useState(() => loadCheckpoint(initialOwner));
-  const [profile, setProfile] = useState(() => {
-    const loaded = loadProfile(initialOwner);
-    return savedSession?.affiliation ? saveProfile(withAffiliation(loaded, savedSession.affiliation), initialOwner) : loaded;
-  });
-  const [aura, setAura] = useState(() => loadAuraState(initialOwner));
+  const [progress, setProgress] = useState(loadCampaign);
+  const [checkpoint, setCheckpoint] = useState(loadCheckpoint);
+  const [profile, setProfile] = useState(loadProfile);
   const [now, setNow] = useState(Date.now);
   const [practiceDay, setPracticeDay] = useState(() => localPracticeDay(Date.now()));
   const [toolsOpen, setToolsOpen] = useState(false);
   const [extras, setExtras] = useState<Extra>(null);
+  const [aura, setAura] = useState(loadAuraState);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(() => readPage() === 'home');
   const [muted, setMuted] = useState(() => soundFx.isMuted());
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(() => !savedSession?.user && readPage() === 'home');
+  const [user, setUser] = useState<User | null>(null);
   const practiceOwner = user?.id ?? 'guest';
   const tradeKey = `trade-lab:${practiceOwner}`;
   const [{ replay, equity: equityHistory }, setTradeLab] = useStoredPractice(tradeKey, () => (
     readPractice(tradeKey, isSavedTradeLab) ?? { equity: [] }
   ));
-  const [sessionExpiry, setSessionExpiry] = useState<number | undefined>(() => {
-    if (savedSession?.expiresAt) {
-      const parsed = Date.parse(savedSession.expiresAt);
-      return Number.isFinite(parsed) ? parsed : undefined;
-    }
-    return undefined;
-  });
-  const [accountApiClient] = useState(() => {
-    const client = new ApiClient({ fixtureMode: false });
-    if (savedSession?.token) {
-      client.setToken(savedSession.token);
-      defaultApiClient.setToken(savedSession.token);
-    }
-    return client;
-  });
+  const [sessionExpiry, setSessionExpiry] = useState<number>();
+  const [accountApiClient] = useState(() => new ApiClient({ fixtureMode: false }));
   const [fixtureMode, setFixtureMode] = useState(() => {
     const preference = readPractice('demo-data', (value): value is boolean => typeof value === 'boolean');
     if (preference !== undefined) defaultApiClient.setFixtureMode(preference);
@@ -188,9 +153,12 @@ function AppContent() {
   }
 
   useEffect(() => {
+    try { localStorage.removeItem('futureworth_auth_session_v1'); } catch { /* Browser storage may be unavailable. */ }
+  }, []);
+
+  useEffect(() => {
     if (sessionExpiry === undefined) return;
     const timer = window.setTimeout(() => {
-      try { localStorage.removeItem(AUTH_STORAGE_KEY); } catch {}
       accountApiClient.setToken(null);
       defaultApiClient.setToken(null);
       setUser(null);
@@ -336,9 +304,6 @@ function AppContent() {
     setAura(next);
   }
   async function signOut() {
-    try {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-    } catch {}
     const revocation = accountApiClient.logout();
     accountApiClient.setToken(null);
     defaultApiClient.setToken(null);
@@ -350,24 +315,15 @@ function AppContent() {
     catch { notify({ type: 'warning', title: 'Signed out on this device', message: 'The service could not confirm token revocation.' }); }
   }
   function handleSignIn(account: User, expiresAt: string, affiliation?: SchoolAffiliation, notice?: string) {
-    const token = accountApiClient.getToken() || `tok_${account.id}`;
-    defaultApiClient.setToken(token);
+    defaultApiClient.setToken(accountApiClient.getToken());
     setUser(account);
-    try {
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
-        user: account,
-        token,
-        expiresAt,
-        affiliation,
-      }));
-    } catch {}
     restoreLocalLearning(account.id);
     const expiration = Date.parse(expiresAt);
     setSessionExpiry(Number.isFinite(expiration) ? expiration : undefined);
     const saved = loadProfile(account.id);
     setProfile(affiliation ? saveProfile(withAffiliation(saved, affiliation), account.id) : saved);
     setIsAuthModalOpen(false);
-    if (notice) notify({ type: 'success', title: 'Account ready', message: notice });
+    if (notice) notify({ type: 'info', title: 'Account ready', message: notice });
     navigate('profile', 'all', true);
   }
   async function updateProfile(next: StudentProfile) {
@@ -376,15 +332,7 @@ function AppContent() {
       return;
     }
     const sessionToken = accountApiClient.getToken();
-    let affiliation: SchoolAffiliation;
-    try {
-      affiliation = await accountApiClient.setSchoolAffiliation(toAffiliation(next));
-    } catch (err) {
-      if (err instanceof ApiError && [401, 403].includes(err.status)) {
-        throw err;
-      }
-      affiliation = toAffiliation(next);
-    }
+    const affiliation = await accountApiClient.setSchoolAffiliation(toAffiliation(next));
     const saved = saveProfile(withAffiliation(next, affiliation), user.id);
     if (sessionToken === accountApiClient.getToken()) setProfile(saved);
   }

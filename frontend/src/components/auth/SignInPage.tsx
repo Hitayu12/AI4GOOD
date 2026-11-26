@@ -58,7 +58,8 @@ export function SignInPage({ apiClient, onGuest, onAuthenticated }: Props) {
     const credentials = { email: trimmedEmail, password };
     const profile = toAffiliation(affiliation);
     let accountCreated = false;
-    const timeout = window.setTimeout(() => { request.abort(); }, 15_000);
+    let timedOut = false;
+    const timeout = window.setTimeout(() => { timedOut = true; request.abort(); }, 15_000);
     try {
       if (registering) {
         await apiClient.register(credentials, request.signal);
@@ -84,41 +85,14 @@ export function SignInPage({ apiClient, onGuest, onAuthenticated }: Props) {
       onAuthenticated(user, session.expires_at, saved, notice);
     } catch (failure) {
       if (pending.current !== request) return;
-
-      // Handle expected domain errors from server (wrong password, validation error, secure transport, etc.)
-      if (failure instanceof ApiError && (failure.code === 'secure_transport_required' || [401, 409, 422, 429].includes(failure.status))) {
-        apiClient.setToken(null);
-        setPassword('');
-        if (accountCreated) {
-          setRegistering(false);
-          setError('Your account was created. Sign in to finish setting up your profile.');
-        } else {
-          setError(describeError(failure, registering));
-        }
-        return;
-      }
-
-      // If backend is offline, unreachable, or in fixture mode:
-      // Provide smooth fallback login so the user is never blocked!
-      const userEmail = trimmedEmail || 'student@rutgers.edu';
-      const fallbackUser: User = {
-        id: `usr_${userEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
-        email: userEmail,
-      };
-      const fallbackExpiry = new Date(Date.now() + 86400000 * 7).toISOString();
-      const fallbackAffiliation: SchoolAffiliation = (profile.school_name || profile.state_code)
-        ? profile
-        : { school_name: 'Rutgers University', state_code: 'NJ' };
-      apiClient.setToken(`tok_local_${Date.now()}`);
+      apiClient.setToken(null);
       setPassword('');
-      setBusy(false);
-      pending.current = null;
-      onAuthenticated(
-        fallbackUser,
-        fallbackExpiry,
-        fallbackAffiliation,
-        'Signed in successfully! Your student profile and school standings are active.'
-      );
+      if (accountCreated) {
+        setRegistering(false);
+        setError('Your account was created. Sign in to finish setting up your profile.');
+      } else {
+        setError(timedOut ? 'The account service took too long to respond. Try again.' : describeError(failure, registering));
+      }
     } finally {
       window.clearTimeout(timeout);
       if (pending.current === request) {
@@ -140,29 +114,6 @@ export function SignInPage({ apiClient, onGuest, onAuthenticated }: Props) {
         <h1 id="sign-in-title">{registering ? 'Create your account' : 'Sign in to FutureWorth'}</h1>
         <p className="fw-meta">Use your FutureWorth password. You can use a school email and choose your affiliation separately.</p>
         <p className="fw-meta">Guest progress stays with Guest in this browser. Sign in to continue your account’s separate practice record.</p>
-
-        {/* Quick Demo Account Helper */}
-        <div className="fw-campus-callout" style={{ background: '#f5f2ff', borderRadius: '16px', border: '1px solid #e0d7fc', margin: '14px 0' }}>
-          <div>
-            <h2 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#38227b' }}>⚡ Quick Demo Account</h2>
-            <p style={{ fontSize: '0.82rem', color: '#68549e' }}>One-click fill with student demo credentials.</p>
-          </div>
-          <button
-            type="button"
-            className="fw-button fw-purple"
-            style={{ padding: '6px 14px', fontSize: '0.82rem', minHeight: '36px' }}
-            onClick={() => {
-              setEmail('student@rutgers.edu');
-              setPassword('Password123!');
-              if (registering) {
-                setAffiliation({ school: 'rutgers', customSchool: '', stateCode: 'NJ' });
-              }
-              setError('');
-            }}
-          >
-            Quick-Fill Demo
-          </button>
-        </div>
 
         {error && <p className="fw-feedback fw-peach" role="alert">{error}</p>}
         <form onSubmit={submit} aria-busy={busy} aria-labelledby="sign-in-title">
